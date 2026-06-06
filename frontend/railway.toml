@@ -1,15 +1,9 @@
 [build]
 builder = "nixpacks"
 
-[nixpacks]
-# Next.js on Railway
-install = "npm ci"
-build = "npm run build"
-
 [deploy]
 startCommand = "npm start"
 healthcheckPath = "/"
 healthcheckTimeout = 60
-healthcheckInterval = 10
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
