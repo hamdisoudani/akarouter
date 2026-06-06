@@ -1,0 +1,17 @@
+[Unit]
+Description=Nous API Reverse Proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/ubuntu/.openclaw/workspace/nous-auth/nous_proxy.py
+WorkingDirectory=/home/ubuntu/.openclaw/workspace/nous-auth
+User=ubuntu
+Restart=always
+RestartSec=5
+StandardOutput=append:/tmp/nous-proxy.log
+StandardError=append:/tmp/nous-proxy.log
+
+[Install]
+WantedBy=multi-user.target

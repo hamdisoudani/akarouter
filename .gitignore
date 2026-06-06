@@ -1,0 +1,10 @@
+# .gitignore for AKAROUTER Nous/Hermes proxy backend
+.venv/
+__pycache__/
+*.pyc
+.env
+token.json
+supabase/.local/
+*.log
+.idea/
+.vscode/

@@ -1,0 +1,17 @@
+[Unit]
+Description=Hermes Nous Proxy (auto token refresh)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/home/ubuntu/.hermes/hermes-agent/venv/bin/hermes proxy start --port 18888
+WorkingDirectory=/home/ubuntu/.hermes
+User=ubuntu
+Restart=always
+RestartSec=5
+StandardOutput=append:/tmp/hermes-proxy.log
+StandardError=append:/tmp/hermes-proxy.log
+
+[Install]
+WantedBy=multi-user.target
