@@ -1,17 +1,24 @@
-"""Admin endpoints for managing providers and API keys."""
+"""Admin endpoints for managing providers, API keys, and OAuth flow."""
 import logging
+import asyncio
+from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Header
-
+from fastapi import APIRouter, HTTPException, Header, BackgroundTasks
 from app.core.config import settings
 from app.core.supabase import get_supabase
 from app.core.router import generate_api_key, hash_api_key, KEY_PREFIX
+from app.core.oauth import (
+    initiate_device_code,
+    poll_device_token,
+    complete_oauth_flow,
+    refresh_provider_token,
+    refresh_expiring_providers,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin")
 
-# Simple admin auth (service role key as admin password)
 def _verify_admin(authorization: Optional[str]) -> bool:
     if not authorization:
         return False
@@ -21,39 +28,202 @@ def _verify_admin(authorization: Optional[str]) -> bool:
     return False
 
 
-# ---------------------------------------------------------------------------
-# Providers
-# ---------------------------------------------------------------------------
-
 @router.get("/providers")
 async def list_providers(authorization: Optional[str] = Header(None)):
-    """List all providers (admin only)."""
     if not _verify_admin(authorization):
         raise HTTPException(status_code=401, detail="Admin access required")
-    
     supabase = get_supabase()
     result = supabase.table("providers").select(
-        "id, account_label, health_status, weight, total_requests, total_errors, in_flight, max_concurrent, last_used_at, last_error_at, last_error_msg, created_at"
+        "id, account_label, health_status, weight, total_requests, total_errors, in_flight, max_concurrent, last_used_at, last_error_at, last_error_msg, created_at, updated_at"
     ).execute()
     return {"providers": result.data}
 
 
-@router.post("/providers")
-async def add_provider(
-    account_label: str,
-    access_token: str,
-    refresh_token: str,
-    token_expires_at: str,
-    authorization: Optional[str] = Header(None),
-    weight: float = 1.0,
-    max_concurrent: int = 12,
-):
-    """Add a new Hermes/NOUS provider account (admin only)."""
+# OAuth flows are tracked in a module-level dict for simplicity.
+_active_oauth_flows: dict[str, dict] = {}
+
+
+@router.post("/providers/oauth/initiate")
+async def oauth_initiate(account_label: str, authorization: Optional[str] = Header(None)):
     if not _verify_admin(authorization):
         raise HTTPException(status_code=401, detail="Admin access required")
-    
-    supabase = get_supabase()
-    result = supabase.table("providers").insert({
+    try:
+        device_info = await initiate_device_code()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"OAuth failed: {e}")
+    flow_id = device_info["device_code"]
+    _active_oauth_flows[flow_id] = {
+        "device_code": device_info["device_code"],
+        "user_code": device_info["user_code"],
+        "verification_uri": device_info["verification_uri"],
+        "verification_uri_complete": device_info["verification_uri_complete"],
+        "expires_in": device_info["expires_in"],
+        "interval": device_info["interval"],
+        "account_label": account_label,
+        "status": "pending",
+        "result": None,
+        "error": None,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+    }
+    return {
+        "ok": True,
+        "flow_id": flow_id,
+        "user_code": device_info["user_code"],
+        "verification_uri": device_info["verification_uri"],
+        "verification_uri_complete": device_info["verification_uri_complete"],
+        "expires_in": device_info["expires_in"],
+    }
+
+
+@router.post("/providers/oauth/poll/{flow_id}")
+async def oauth_poll(flow_id: str, background_tasks: BackgroundTasks, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    flow = _active_oauth_flows.get(flow_id)
+    if not flow:
+        raise HTTPException(status_code=404, detail="OAuth flow not found")
+    if flow["status"] not in ("pending",):
+        return {"ok": True, "status": flow["status"]}
+    flow["status"] = "polling"
+    background_tasks.add_task(_background_poll_oauth, flow_id)
+    return {"ok": True, "flow_id": flow_id, "status": "polling"}
+
+
+async def _background_poll_oauth(flow_id: str):
+    flow = _active_oauth_flows.get(flow_id)
+    if not flow:
+        return
+    try:
+        token_data = await poll_device_token(
+            device_code=flow["device_code"],
+            expires_in=flow["expires_in"],
+            poll_interval=flow["interval"],
+        )
+        expires_in_seconds = token_data.get("expires_in", 3600)
+        expires_at = datetime.fromtimestamp(
+            datetime.now(timezone.utc).timestamp() + expires_in_seconds,
+            tz=timezone.utc
+        ).isoformat()
+        supabase = get_supabase()
+        result = supabase.table("providers").insert({
+            "account_label": flow["account_label"],
+            "access_token": token_data["access_token"],
+            "refresh_token": token_data.get("refresh_token", ""),
+            "token_expires_at": expires_at,
+            "token_scope": token_data.get("scope", settings.nous_scope),
+            "health_status": "active",
+            "weight": 1.0,
+            "total_requests": 0,
+            "total_errors": 0,
+            "in_flight": 0,
+            "max_concurrent": settings.max_concurrent_per_account,
+        }).execute()
+        if result.data:
+            flow["status"] = "authorized"
+            flow["result"] = {
+                "provider_id": result.data[0]["id"],
+                "account_label": flow["account_label"],
+                "access_token_preview": token_data["access_token"][:20] + "...",
+                "refresh_token_preview": token_data.get("refresh_token", "")[:10] + "...",
+                "expires_at": expires_at,
+                "scope": token_data.get("scope", ""),
+            }
+            logger.info(f"OAuth flow {flow_id} completed -> provider {flow['account_label']}")
+        else:
+            flow["status"] = "failed"
+            flow["error"] = "Failed to save provider"
+    except TimeoutError:
+        flow["status"] = "timeout"
+        flow["error"] = "Device authorization timed out"
+    except Exception as e:
+        flow["status"] = "failed"
+        flow["error"] = str(e)
+        logger.error(f"OAuth flow {flow_id} failed: {e}")
+
+
+@router.get("/providers/oauth/status/{flow_id}")
+async def oauth_status(flow_id: str, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    flow = _active_oauth_flows.get(flow_id)
+    if not flow:
+        raise HTTPException(status_code=404, detail="OAuth flow not found")
+    return {
+        "flow_id": flow_id,
+        "account_label": flow["account_label"],
+        "status": flow["status"],
+        "user_code": flow["user_code"],
+        "verification_uri": flow["verification_uri"],
+        "verification_uri_complete": flow["verification_uri_complete"],
+        "result": flow.get("result"),
+        "error": flow.get("error"),
+        "started_at": flow.get("started_at"),
+    }
+
+
+@router.get("/providers/oauth/flows")
+async def list_oauth_flows(authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    return {
+        "flows": [
+            {
+                "flow_id": fid,
+                "account_label": f["account_label"],
+                "status": f["status"],
+                "user_code": f["user_code"],
+                "verification_uri": f["verification_uri"],
+                "started_at": f.get("started_at"),
+                "error": f.get("error"),
+            }
+            for fid, f in _active_oauth_flows.items()
+        ]
+    }
+
+
+@router.post("/providers/{provider_id}/refresh")
+async def refresh_token(provider_id: str, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    try:
+        return await refresh_provider_token(provider_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Refresh failed: {e}")
+
+
+@router.post("/providers/refresh-all")
+async def refresh_all_providers(authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    results = await refresh_expiring_providers()
+    return {"ok": True, "refreshed": results}
+
+
+@router.patch("/providers/{provider_id}")
+async def update_provider(provider_id: str, authorization: Optional[str] = Header(None), account_label: Optional[str] = None, weight: Optional[float] = None, max_concurrent: Optional[int] = None, health_status: Optional[str] = None):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    updates = {}
+    if account_label is not None: updates["account_label"] = account_label
+    if weight is not None: updates["weight"] = weight
+    if max_concurrent is not None: updates["max_concurrent"] = max_concurrent
+    if health_status is not None:
+        if health_status not in ("active", "degraded", "dead", "refreshing"):
+            raise HTTPException(status_code=400, detail="Invalid health_status")
+        updates["health_status"] = health_status
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    get_supabase().table("providers").update(updates).eq("id", provider_id).execute()
+    return {"ok": True}
+
+
+@router.post("/providers")
+async def add_provider(account_label: str, access_token: str, refresh_token: str, token_expires_at: str, authorization: Optional[str] = Header(None), weight: float = 1.0, max_concurrent: int = 12):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    result = get_supabase().table("providers").insert({
         "account_label": account_label,
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -61,59 +231,31 @@ async def add_provider(
         "weight": weight,
         "max_concurrent": max_concurrent,
     }).execute()
-    
-    if result.data:
-        return {"ok": True, "provider": result.data[0]}
+    if result.data: return {"ok": True, "provider": result.data[0]}
     raise HTTPException(status_code=500, detail="Failed to add provider")
 
 
 @router.delete("/providers/{provider_id}")
 async def remove_provider(provider_id: str, authorization: Optional[str] = Header(None)):
-    """Remove a provider (admin only)."""
     if not _verify_admin(authorization):
         raise HTTPException(status_code=401, detail="Admin access required")
-    
-    supabase = get_supabase()
-    supabase.table("providers").delete().eq("id", provider_id).execute()
+    get_supabase().table("providers").delete().eq("id", provider_id).execute()
     return {"ok": True}
 
 
-# ---------------------------------------------------------------------------
-# API Keys
-# ---------------------------------------------------------------------------
-
 @router.get("/keys/{account_id}")
 async def list_api_keys(account_id: str, authorization: Optional[str] = Header(None)):
-    """List API keys for an account (admin only)."""
     if not _verify_admin(authorization):
         raise HTTPException(status_code=401, detail="Admin access required")
-    
-    supabase = get_supabase()
-    result = (
-        supabase.table("api_keys")
-        .select("id, key_prefix, key_name, scopes, allowed_models, is_active, last_used_at, created_at, expires_at")
-        .eq("account_id", account_id)
-        .execute()
-    )
+    result = get_supabase().table("api_keys").select("id, key_prefix, key_name, scopes, allowed_models, is_active, last_used_at, created_at, expires_at").eq("account_id", account_id).execute()
     return {"keys": result.data}
 
 
 @router.post("/keys/{account_id}")
-async def create_api_key(
-    account_id: str,
-    authorization: Optional[str] = Header(None),
-    key_name: str = "default",
-    scopes: Optional[list[str]] = None,
-    allowed_models: Optional[list[str]] = None,
-):
-    """Generate a new API key for an account (admin only)."""
-    if not _verify_admin(authorization):
-        raise HTTPException(status_code=401, detail="Admin access required")
-    
+async def create_api_key(account_id: str, authorization: Optional[str] = Header(None), key_name: str = "default", scopes: Optional[list[str]] = None, allowed_models: Optional[list[str]] = None):
+    if not _verify_admin(authorization): raise HTTPException(status_code=401, detail="Admin access required")
     raw_key, key_hash, key_prefix = generate_api_key()
-    
-    supabase = get_supabase()
-    result = supabase.table("api_keys").insert({
+    result = get_supabase().table("api_keys").insert({
         "account_id": account_id,
         "key_hash": key_hash,
         "key_prefix": key_prefix,
@@ -121,98 +263,39 @@ async def create_api_key(
         "scopes": scopes or ["chat:completion", "models:list"],
         "allowed_models": allowed_models or ["*"],
     }).execute()
-    
     if result.data:
-        return {
-            "ok": True,
-            "api_key": raw_key,  # Only shown once!
-            "key_id": result.data[0]["id"],
-            "key_prefix": key_prefix,
-            "key_name": key_name,
-        }
+        return {"ok": True, "api_key": raw_key, "key_id": result.data[0]["id"], "key_prefix": key_prefix, "key_name": key_name}
     raise HTTPException(status_code=500, detail="Failed to create API key")
 
 
 @router.post("/keys/{key_id}/revoke")
 async def revoke_api_key(key_id: str, authorization: Optional[str] = Header(None)):
-    """Revoke an API key (admin only)."""
-    if not _verify_admin(authorization):
-        raise HTTPException(status_code=401, detail="Admin access required")
-    
-    supabase = get_supabase()
-    supabase.table("api_keys").update({"is_active": False}).eq("id", key_id).execute()
+    if not _verify_admin(authorization): raise HTTPException(status_code=401, detail="Admin access required")
+    get_supabase().table("api_keys").update({"is_active": False}).eq("id", key_id).execute()
     return {"ok": True}
 
 
-# ---------------------------------------------------------------------------
-# Accounts
-# ---------------------------------------------------------------------------
-
 @router.get("/accounts")
 async def list_accounts(authorization: Optional[str] = Header(None)):
-    """List all accounts (admin only)."""
-    if not _verify_admin(authorization):
-        raise HTTPException(status_code=401, detail="Admin access required")
-    
-    supabase = get_supabase()
-    result = supabase.table("accounts").select("*").execute()
-    return {"accounts": result.data}
+    if not _verify_admin(authorization): raise HTTPException(status_code=401, detail="Admin access required")
+    return {"accounts": get_supabase().table("accounts").select("*").execute().data}
 
 
 @router.patch("/accounts/{account_id}/tier")
-async def update_account_tier(
-    account_id: str,
-    tier: str,
-    authorization: Optional[str] = Header(None),
-):
-    """Update an account's tier (admin only)."""
-    if not _verify_admin(authorization):
-        raise HTTPException(status_code=401, detail="Admin access required")
-    
-    if tier not in ("free", "pro", "enterprise"):
-        raise HTTPException(status_code=400, detail="Invalid tier")
-    
+async def update_account_tier(account_id: str, tier: str, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization): raise HTTPException(status_code=401, detail="Admin access required")
+    if tier not in ("free", "pro", "enterprise"): raise HTTPException(status_code=400, detail="Invalid tier")
     limits = {"free": settings.free_monthly_limit, "pro": settings.pro_monthly_limit, "enterprise": 999999999}
-    
-    supabase = get_supabase()
-    supabase.table("accounts").update({
-        "tier": tier,
-        "monthly_limit": limits.get(tier, 1000),
-    }).eq("id", account_id).execute()
+    get_supabase().table("accounts").update({"tier": tier, "monthly_limit": limits.get(tier, 1000)}).eq("id", account_id).execute()
     return {"ok": True, "tier": tier}
 
 
-# ---------------------------------------------------------------------------
-# Stats
-# ---------------------------------------------------------------------------
-
 @router.get("/stats")
 async def get_stats(authorization: Optional[str] = Header(None)):
-    """Get system-wide stats (admin only)."""
-    if not _verify_admin(authorization):
-        raise HTTPException(status_code=401, detail="Admin access required")
-    
-    supabase = get_supabase()
-    
-    providers = supabase.table("providers").select("id, health_status, total_requests, total_errors, in_flight").execute()
-    accounts = supabase.table("accounts").select("id, tier, monthly_requests, monthly_limit, status").execute()
-    
-    active_providers = [p for p in providers.data if p["health_status"] == "active"]
-    active_accounts = [a for a in accounts.data if a["status"] == "active"]
-    
+    if not _verify_admin(authorization): raise HTTPException(status_code=401, detail="Admin access required")
+    providers = get_supabase().table("providers").select("id, health_status, total_requests, total_errors, in_flight").execute()
+    accounts = get_supabase().table("accounts").select("id, tier, monthly_requests, monthly_limit, status").execute()
     return {
-        "providers": {
-            "total": len(providers.data),
-            "active": len(active_providers),
-            "total_requests": sum(p["total_requests"] for p in providers.data),
-            "total_errors": sum(p["total_errors"] for p in providers.data),
-        },
-        "accounts": {
-            "total": len(accounts.data),
-            "active": len(active_accounts),
-            "by_tier": {
-                t: len([a for a in accounts.data if a["tier"] == t])
-                for t in ("free", "pro", "enterprise")
-            },
-        },
+        "providers": {"total": len(providers.data), "active": len([p for p in providers.data if p["health_status"] == "active"]), "total_requests": sum(p["total_requests"] for p in providers.data), "total_errors": sum(p["total_errors"] for p in providers.data)},
+        "accounts": {"total": len(accounts.data), "active": len([a for a in accounts.data if a["status"] == "active"]), "by_tier": {t: len([a for a in accounts.data if a["tier"] == t]) for t in ("free", "pro", "enterprise")}},
     }
