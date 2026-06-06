@@ -1,13 +1,22 @@
 # AKAROUTER
 
-Multi-account AI inference proxy backed by Hermes/Nous with Supabase state and round-robin routing.
+Multi-account AI inference proxy and routing layer.
 
-## Repo layout
-- `server.py` — OpenAI-compatible proxy on `/v1/chat/completions`
-- `generate_device_code.py` — manual Hermes account onboarding
-- `nous_openai_proxy.py` — single-account development proxy
-- `supabase/schema.sql` — production schema
-- `.env.example` — local config template
+## What this is
+- Public-facing OpenAI-compatible API
+- Accounts kept in Supabase with auto-refresh
+- Round-robin + health-weighted routing
 
-## Security note
-Secrets are managed via `.env` and Supabase service-role credentials. Do not commit real tokens.
+## Local run
+```bash
+cp .env.example .env
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+## Deploy
+- Railway: use `railway.toml`
+- Render: use `render.yaml`
+- Docker: `docker build -t akarouter .`
