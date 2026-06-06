@@ -41,7 +41,7 @@ export default function AdminProvidersPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [newLabel, setNewLabel] = useState('')
-  const [pendingFlow, setPendingFlow] = useState<{ flow_id: string; verification_uri: string; user_code: string } | null>(null)
+  const [pendingFlow, setPendingFlow] = useState<{ flow_id: string; verification_uri: string; user_code: string; status?: string; error?: string; result?: any } | null>(null)
 
   async function loadData() {
     setLoading(true)
@@ -67,7 +67,7 @@ export default function AdminProvidersPage() {
     async function tick() {
       if (cancelled) return
       try {
-        const status = await getOAuthStatus(pendingFlow.flow_id)
+        const status = await getOAuthStatus(pendingFlow!.flow_id)
         if (!cancelled) {
           if (status.status === 'authorized' || status.status === 'failed' || status.status === 'timeout') {
             setPendingFlow(prev => prev ? { ...prev, status: status.status, error: status.error, result: status.result } : prev)
