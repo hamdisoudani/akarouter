@@ -2,6 +2,7 @@
 import logging
 from typing import Optional
 
+import fastapi
 from fastapi import APIRouter, HTTPException, Header
 
 from app.core.config import settings
@@ -216,3 +217,99 @@ async def get_stats(authorization: Optional[str] = Header(None)):
             },
         },
     }
+
+
+import asyncio
+import time
+import httpx
+
+# ---------------------------------------------------------------------------
+# Device Flow Polling Background Task
+# ---------------------------------------------------------------------------
+async def poll_device_code(device_code: str, interval: int, expires_in: int, account_label: str):
+    deadline = time.time() + expires_in
+    supabase = get_supabase()
+
+    while time.time() < deadline:
+        await asyncio.sleep(interval)
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    settings.nous_token_url,
+                    data={
+                        "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                        "device_code": device_code,
+                        "client_id": settings.nous_client_id,
+                    },
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    access_token = data.get("access_token")
+                    refresh_token = data.get("refresh_token")
+                    token_expires_in = int(data.get("expires_in", 900))
+
+                    # Calculate proper ISO string for expires_at
+                    expires_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + token_expires_in - 120))
+
+                    supabase.table("providers").insert({
+                        "account_label": account_label,
+                        "access_token": access_token,
+                        "refresh_token": refresh_token,
+                        "token_expires_at": expires_at,
+                        "health_status": "active",
+                    }).execute()
+
+                    logger.info(f"Successfully polled and added new provider for {account_label}")
+                    return
+                elif resp.status_code == 400:
+                    err = resp.json().get("error", "")
+                    if "authorization_pending" in err or "slow_down" in err:
+                        continue
+                    if "expired_token" in err:
+                        logger.error("Device code expired while polling.")
+                        return
+        except Exception as e:
+            logger.error(f"Error polling device code: {e}")
+
+    logger.error("Timed out polling device code.")
+
+@router.post("/hermes/auth")
+async def start_hermes_auth(
+    background_tasks: fastapi.BackgroundTasks,
+    account_label: str = "unnamed",
+    authorization: Optional[str] = Header(None)
+):
+    """Start Hermes Device Auth Flow"""
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                settings.nous_device_code_url,
+                data={
+                    "client_id": settings.nous_client_id,
+                    "scope": settings.nous_scope,
+                }
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=500, detail="Failed to get device code")
+
+            data = resp.json()
+            user_code = data["user_code"]
+            device_code = data["device_code"]
+            interval = int(data.get("interval", 5))
+            expires_in = int(data.get("expires_in", 600))
+            verification_uri = data.get("verification_uri", "https://portal.nousresearch.com/manage-subscription")
+            verification_uri = f"{verification_uri}?user_code={user_code}"
+
+            # Start background poll
+            background_tasks.add_task(poll_device_code, device_code, interval, expires_in, account_label)
+
+            return {
+                "user_code": user_code,
+                "verification_uri": verification_uri,
+            }
+    except Exception as e:
+        logger.error(f"Failed starting device flow: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
