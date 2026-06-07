@@ -12,7 +12,7 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     try {
-      const redirectUrl = 'https://akarouter-frontend-production.up.railway.app/auth/callback'
+      const redirectUrl = `${window.location.origin}/auth/callback`
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
