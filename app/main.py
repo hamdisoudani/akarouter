@@ -14,7 +14,7 @@ from app.api import health, models, chat
 from app.api.admin.routes import router as admin_router
 from app.api.user import router as user_router
 
-_SUPABASE_JWKS_URL = settings.supabase_url.rstrip("/") + "/auth/v1/jwks"
+_SUPABASE_JWKS_URL = settings.supabase_url.rstrip("/") + "/auth/v1/.well-known/jwks.json"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -118,6 +118,20 @@ async def auth_middleware(request: Request, call_next):
 
     return await call_next(request)
 
+
+_jwks_cache: dict | None = None
+
+def _get_supabase_jwks() -> dict:
+    """Fetch JWKS from Supabase (cached for process lifetime)."""
+    global _jwks_cache
+    if _jwks_cache is not None:
+        return _jwks_cache
+    resp = httpx.get(_SUPABASE_JWKS_URL)
+    if resp.status_code != 200:
+        raise RuntimeError(f"Failed to fetch JWKS: {resp.status_code} {resp.text[:200]}")
+    _jwks_cache = resp.json()
+    logger.info("JWKS fetched from %s, keys=%s", _SUPABASE_JWKS_URL, len(_jwks_cache.get("keys", [])))
+    return _jwks_cache
 
 def _verify_supabase_jwt(token: str) -> dict | None:
     """Verify a Supabase JWT via JWKS and return user info with role."""
