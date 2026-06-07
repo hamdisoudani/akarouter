@@ -15,7 +15,7 @@ from app.api.user import router as user_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("akarouter")
+logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(
     title="AKAROUTER",
@@ -101,7 +101,9 @@ async def auth_middleware(request: Request, call_next):
                 }
                 return await call_next(request)
         except Exception as exc:
-            logger.debug(f"JWT auth failed: {exc}")
+            import traceback
+            traceback.print_exc()
+            logger.exception("JWT auth failed")
 
     # Fallback: if on /user/* and no auth worked
     if path.startswith(USER_PREFIX):
@@ -116,6 +118,7 @@ async def auth_middleware(request: Request, call_next):
 
 def _verify_supabase_jwt(token: str) -> dict | None:
     """Verify a Supabase JWT and return user info with role."""
+    print("DEBUG: entering _verify_supabase_jwt")
     try:
         # Decode without verification first to get the kid
         header = jwt.get_unverified_header(token)
@@ -148,7 +151,9 @@ def _verify_supabase_jwt(token: str) -> dict | None:
             "status": account.get("status", "active"),
         }
     except Exception as exc:
-        logger.debug(f"Supabase JWT verification failed: {exc}")
+        import traceback
+        traceback.print_exc()
+        logger.exception("Supabase JWT verification failed")
         return None
 
 
