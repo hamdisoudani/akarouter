@@ -133,7 +133,7 @@ export default function Dashboard() {
                 <span className="text-sm text-gray-600">Backend Online</span>
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                https://akarouter-production.up.railway.app
+                {process.env.NEXT_PUBLIC_API_URL || 'https://akarouter-production.up.railway.app'}
               </p>
             </div>
             <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">

@@ -1,171 +1,144 @@
-"""Chat completions endpoint — OpenAI-compatible /v1/chat/completions."""
+from __future__ import annotations
+
+import uuid
 import time
-import logging
-from typing import Optional
+from typing import Any
 
 import httpx
-from fastapi import APIRouter, Request, Response, HTTPException, Header
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from app.core.config import settings
-from app.core.router import (
-    authenticate_api_key,
-    select_provider,
-    release_provider,
-    log_request,
-)
+from app.core.router import router as account_router, Account
+from app.core.supabase import get_supabase
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _extract_api_key(authorization: Optional[str]) -> Optional[str]:
-    """Extract Bearer token from Authorization header."""
-    if not authorization:
-        return None
-    parts = authorization.split(" ", 1)
-    if len(parts) == 2 and parts[0].lower() == "bearer":
-        return parts[1].strip()
-    return None
+class ChatRequest(BaseModel):
+    model: str = Field(..., alias="model")
+    messages: list[dict[str, Any]] = Field(default_factory=list)
+    stream: bool = False
+
+
+class Refresher:
+    async def try_refresh(self, account: Account) -> bool:
+        if not account.refresh_token:
+            return False
+
+        now = time.time()
+        if account.refresh_lock_acquired_at:
+            try:
+                lock_ts = time.mktime(time.strptime(account.refresh_lock_acquired_at[:19], "%Y-%m-%dT%H:%M:%S"))
+                if (now - lock_ts) < settings.refresh_lock_ttl:
+                    return False
+            except Exception:
+                pass
+
+        payload = {
+            "grant_type": "refresh_token",
+            "refresh_token": account.refresh_token,
+            "client_id": settings.nous_client_id,
+        }
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "x-nous-refresh-token": account.refresh_token,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                response = await client.post(settings.nous_token_url, data=payload, headers=headers)
+                response.raise_for_status()
+                token_resp = response.json()
+        except Exception as exc:
+            print(f"[refresh] failed account={account.id} error={exc}")
+            await self._clear_lock(account)
+            return False
+
+        account.access_token = token_resp["access_token"]
+        account.refresh_token = token_resp.get("refresh_token", account.refresh_token)
+        expires_in = int(token_resp.get("expires_in", 900))
+        account.token_expires_at = time.strftime(
+            "%Y-%m-%dT%H:%M:%SZ",
+            time.gmtime(time.time() + expires_in - settings.token_refresh_skew),
+        )
+        await self._clear_lock(account)
+        await self._persist_tokens(account)
+        return True
+
+    async def _clear_lock(self, account: Account) -> None:
+        supabase = get_supabase()
+        supabase.table("providers").update({"refresh_lock_acquired_at": None}).eq("id", account.id).execute()
+
+    async def _persist_tokens(self, account: Account) -> None:
+        supabase = get_supabase()
+        supabase.table("providers").update(
+            {
+                "access_token": account.access_token,
+                "refresh_token": account.refresh_token,
+                "token_expires_at": account.token_expires_at,
+            }
+        ).eq("id", account.id).execute()
+
+
+refresher = Refresher()
 
 
 @router.post("/v1/chat/completions")
-async def chat_completions(
-    request: Request,
-    authorization: Optional[str] = Header(None),
-) -> Response:
-    """OpenAI-compatible chat completions with AKAROUTER routing."""
-    start = time.time()
+async def proxy_chat(request: ChatRequest) -> dict:
+    # Ensure accounts are loaded
+    if not account_router.accounts:
+        account_router.load_accounts()
 
-    # Authenticate
-    api_key = _extract_api_key(authorization)
-    if not api_key:
-        raise HTTPException(status_code=401, detail="Missing Authorization header. Use: Bearer akar_<your-key>")
+    account = account_router.pick(request.model)
+    if not account:
+        raise HTTPException(status_code=400, detail=f"No account available for model '{request.model}'")
 
-    auth = await authenticate_api_key(api_key)
-    if not auth:
-        raise HTTPException(status_code=401, detail="Invalid or inactive API key")
+    if account.expired():
+        if not await refresher.try_refresh(account):
+            raise HTTPException(status_code=502, detail="Token refresh failed for selected account")
 
-    # Store auth for models endpoint
-    request.state.auth = auth
-
-    # Parse request body
+    account.in_flight += 1
+    started = time.time()
     try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body")
-
-    model = body.get("model", settings.default_model)
-    messages = body.get("messages", [])
-
-    if not messages:
-        raise HTTPException(status_code=400, detail="messages is required")
-
-    # Check model access
-    allowed = auth.get("allowed_models", ["*"])
-    if "*" not in allowed and model not in allowed:
-        raise HTTPException(status_code=403, detail=f"Model {model} not available on your tier")
-
-    # Select provider
-    provider = await select_provider(model)
-    if not provider:
-        raise HTTPException(status_code=503, detail="No available providers. Add accounts via /admin/providers")
-
-    provider_id = provider["id"]
-    access_token = provider["access_token"]
-    success = False
-    error_msg = None
-    status_code = 500
-    latency_ms = 0
-
-    try:
-        # Forward to Nous/Hermes API
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-        }
-
-        # Build the upstream request
-        upstream_body = {
-            "model": model,
-            "messages": messages,
-        }
-        if body.get("temperature") is not None:
-            upstream_body["temperature"] = body["temperature"]
-        if body.get("max_tokens") is not None:
-            upstream_body["max_tokens"] = body["max_tokens"]
-        if body.get("top_p") is not None:
-            upstream_body["top_p"] = body["top_p"]
-        if body.get("stream") is not None:
-            upstream_body["stream"] = body["stream"]
-        if body.get("stop") is not None:
-            upstream_body["stop"] = body["stop"]
-
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                f"{settings.nous_api_base}/chat/completions",
-                headers=headers,
-                json=upstream_body,
-            )
-
-        latency_ms = int((time.time() - start) * 1000)
-        status_code = resp.status_code
-        success = 200 <= status_code < 300
-
-        if not success:
-            error_msg = resp.text[:500]
-            logger.error(f"Upstream error from provider {provider['account_label']}: {status_code} {error_msg}")
-            raise HTTPException(status_code=status_code, detail=f"Upstream error: {error_msg}")
-
-        # Parse response for token counts
-        resp_data = resp.json()
-        usage = resp_data.get("usage", {})
-        prompt_tokens = usage.get("prompt_tokens", 0)
-        completion_tokens = usage.get("completion_tokens", 0)
-        total_tokens = usage.get("total_tokens", 0)
-
-        # Log successful request
-        await log_request(
-            account_id=auth["account_id"],
-            api_key_id=auth["api_key_id"],
-            provider_id=provider_id,
-            model=model,
-            status_code=status_code,
-            latency_ms=latency_ms,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=total_tokens,
-            ip_address=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent"),
-        )
-
-        return Response(
-            content=resp.content,
-            status_code=status_code,
-            media_type="application/json",
-        )
-
-    except HTTPException:
-        raise
-
-    except Exception as e:
-        latency_ms = int((time.time() - start) * 1000)
-        error_msg = str(e)[:500]
-        logger.error(f"Chat completion error: {error_msg}")
-
-        # Log failed request
-        await log_request(
-            account_id=auth["account_id"],
-            api_key_id=auth["api_key_id"],
-            provider_id=provider_id,
-            model=model,
-            status_code=status_code,
-            latency_ms=latency_ms,
-            error_message=error_msg,
-            ip_address=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent"),
-        )
-
-        raise HTTPException(status_code=500, detail=f"Internal error: {error_msg}")
-
+        response = await _upstream(account, request.model, request.messages, request.stream)
+    except Exception as exc:
+        await _record_result(account, started, False, str(exc))
+        raise HTTPException(status_code=502, detail=f"Upstream error: {exc}")
     finally:
-        await release_provider(provider_id, success, error_msg)
+        account.in_flight = max(0, account.in_flight - 1)
+
+    await _record_result(account, started, True)
+    response.setdefault("id", f"proxy-{uuid.uuid4().hex}")
+    if isinstance(response.get("model"), str):
+        response["model"] = request.model
+    return response
+
+
+async def _upstream(account: Account, model: str, messages: list[dict[str, Any]], stream: bool) -> dict:
+    async with httpx.AsyncClient(timeout=120) as client:
+        response = await client.post(
+            f"{settings.nous_api_base}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {account.access_token}",
+                "Content-Type": "application/json",
+            },
+            json={"model": model, "messages": messages, "stream": stream},
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def _record_result(account: Account, started: float, ok: bool, error_msg: str | None = None) -> None:
+    latency = int((time.time() - started) * 1000)
+    update = {
+        "total_requests": account.total_requests + 1,
+        "total_errors": account.total_errors + (0 if ok else 1),
+        "health_status": "active" if ok else "degraded",
+        "last_used_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "in_flight": account.in_flight,
+    }
+    if not ok and error_msg:
+        update["last_error_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        update["last_error_msg"] = error_msg[:500]
+    supabase = get_supabase()
+    supabase.table("providers").update(update).eq("id", account.id).execute()
