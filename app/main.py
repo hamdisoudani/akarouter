@@ -124,16 +124,19 @@ def _verify_supabase_jwt(token: str) -> dict | None:
     try:
         header = jwt.get_unverified_header(token)
         kid = header.get("kid")
+        logger.info("JWT_DEBUG: token kid=%s", kid)
         if not kid:
             logger.warning("Supabase JWT missing kid header")
             return None
 
         jwks = _get_supabase_jwks()
+        logger.info("JWT_DEBUG: jwks_url=%s, keys_count=%s", _SUPABASE_JWKS_URL, len(jwks.get("keys", [])))
         key = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
         if not key:
             logger.warning("Supabase JWT kid not found in JWKS: %s", kid)
             return None
 
+        logger.info("JWT_DEBUG: key found kid=%s alg=%s", key.get("kid"), key.get("alg"))
         public_key = jwt.algorithms.RSAAlgorithm.from_jwk(key)
         payload = jwt.decode(
             token,
@@ -141,12 +144,14 @@ def _verify_supabase_jwt(token: str) -> dict | None:
             algorithms=["ES256", "RS256"],
             options={"verify_aud": False},
         )
+        logger.info("JWT_DEBUG: decoded sub=%s", payload.get("sub"))
         sub = payload.get("sub")
         if not sub:
             return None
 
         supabase = get_supabase()
         account_resp = supabase.table("accounts").select("id, email, role, tier, status").eq("auth_user_id", str(sub)).execute()
+        logger.info("JWT_DEBUG: account lookup result count=%s", len(account_resp.data or []))
         if not account_resp.data:
             return None
 
@@ -170,20 +175,6 @@ def _verify_supabase_jwt(token: str) -> dict | None:
         traceback.print_exc()
         logger.exception("Supabase JWT verification failed")
         return None
-
-
-_jwks_cache: dict | None = None
-
-
-def _get_supabase_jwks() -> dict:
-    global _jwks_cache
-    if _jwks_cache:
-        return _jwks_cache
-    resp = httpx.get(_SUPABASE_JWKS_URL, timeout=10)
-    resp.raise_for_status()
-    _jwks_cache = resp.json()
-    return _jwks_cache
-
 
 # ---------------------------------------------------------------------------
 # Routes
