@@ -58,7 +58,8 @@ async def auth_middleware(request: Request, call_next):
 
 
     # Public paths — no auth needed
-    if any(path.startswith(p) for p in PUBLIC_PREFIXES) and not path.startswith("/v1/chat/completions"):
+    is_public = path == "/" or any(path.startswith(p) for p in PUBLIC_PREFIXES if p != "/")
+    if is_public and not path.startswith("/v1/chat/completions"):
         return await call_next(request)
 
     # Admin endpoints — handled by _verify_admin inside each route
