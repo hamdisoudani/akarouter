@@ -1,43 +1,150 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://akarouter-production.up.railway.app'
-
-export interface ChatRequest {
-  model: string
-  messages: Array<{ role: string; content: string }>
-  stream?: boolean
-}
-
-export interface Model {
-  id: string
-  object: string
-}
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://akarouter-production.up.railway.app'
 
 export interface ModelsResponse {
   object: string
-  data: Model[]
+  data: Array<{ id: string; object: string; owned_by: string; display_name?: string; description?: string }>
+}
+
+export interface ChatCompletionRequest {
+  model: string
+  messages: Array<{ role: string; content: string }>
+  stream?: boolean
+  temperature?: number
+  max_tokens?: number
+}
+
+export interface ChatCompletionResponse {
+  id: string
+  object: string
+  model: string
+  choices: Array<{
+    index: number
+    message: { role: string; content: string }
+    finish_reason: string
+  }>
+  usage?: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
+}
+
+export interface ApiKey {
+  id: string
+  key_prefix: string
+  key_name: string
+  scopes: string[]
+  is_active: boolean
+  last_used_at: string | null
+  created_at: string
+}
+
+export interface UsageStats {
+  tier: string
+  role: string
+  monthly_requests: number
+  monthly_limit: number
+  total_requests: number
+  remaining: number
+}
+
+export interface ModelAnalytics {
+  model: string
+  total_requests: number
+  successful_requests: number
+  error_requests: number
+  total_prompt_tokens: number
+  total_completion_tokens: number
+  total_tokens: number
+  avg_latency_ms: number
+}
+
+export interface AnalyticsResponse {
+  models: ModelAnalytics[]
+  total_logs: number
+}
+
+export interface UserInfo {
+  auth_user_id: string
+  account_id: string
+  email: string
+  role: string
+  tier: string
+  status: string
+}
+
+// Helper to get auth token from Supabase
+async function getAuthToken(): Promise<string | null> {
+  const { supabase } = await import('./supabase')
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token || null
 }
 
 export async function getModels(): Promise<ModelsResponse> {
-  const res = await fetch(`${API_URL}/v1/models`, {
-    headers: { 'Content-Type': 'application/json' },
-  })
-  if (!res.ok) throw new Error('Failed to fetch models')
+  const res = await fetch(`${API_BASE}/v1/models`)
+  if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`)
   return res.json()
 }
 
-export async function chatCompletion(request: ChatRequest): Promise<any> {
-  const res = await fetch(`${API_URL}/v1/chat/completions`, {
+export async function chatCompletion(req: ChatCompletionRequest): Promise<ChatCompletionResponse> {
+  const res = await fetch(`${API_BASE}/v1/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
+    body: JSON.stringify(req),
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Unknown error' }))
-    throw new Error(err.detail || 'Chat completion failed')
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error?.message || err.detail || `Chat failed: ${res.status}`)
   }
   return res.json()
 }
 
-export async function checkHealth(): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API_URL}/healthz`)
+export async function getMyKeys(token: string): Promise<{ keys: ApiKey[] }> {
+  const res = await fetch(`${API_BASE}/user/keys`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch keys')
+  return res.json()
+}
+
+export async function createKey(token: string, keyName: string = 'default'): Promise<{ ok: boolean; api_key: string; key_prefix: string; key_name: string }> {
+  const res = await fetch(`${API_BASE}/user/keys`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key_name: keyName }),
+  })
+  if (!res.ok) throw new Error('Failed to create key')
+  return res.json()
+}
+
+export async function revokeKey(token: string, keyId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/user/keys/${keyId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to revoke key')
+}
+
+export async function getUsage(token: string): Promise<UsageStats> {
+  const res = await fetch(`${API_BASE}/user/usage`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch usage')
+  return res.json()
+}
+
+export async function getAnalytics(token: string): Promise<AnalyticsResponse> {
+  const res = await fetch(`${API_BASE}/user/analytics`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch analytics')
+  return res.json()
+}
+
+export async function getMe(token: string): Promise<UserInfo> {
+  const res = await fetch(`${API_BASE}/user/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Not authenticated')
   return res.json()
 }

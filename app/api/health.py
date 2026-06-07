@@ -1,6 +1,4 @@
 from fastapi import APIRouter
-
-from app.core.router import router as account_router
 from app.core.supabase import get_supabase
 
 router = APIRouter()

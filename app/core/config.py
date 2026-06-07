@@ -29,17 +29,19 @@ class Settings(BaseSettings):
     refresh_lock_ttl: int = 30
     max_concurrent_per_account: int = 12
 
-    # Models
-    default_model: str = "stepfun/step-3.7-flash:free"
-    default_pro_model: str = "stepfun/step-3.7-flash:free"
-
-    # Rate limits
-    free_monthly_limit: int = 1000
-    pro_monthly_limit: int = 100000
+    # Model mapping: alias -> upstream
+    model_mapping: dict[str, str] = {
+        "akarouter-pro": "stepfun/step-3.7-flash:free",
+        "akarouter-flash": "nvidia/nemotron-3-ultra:free",
+    }
 
     @property
     def supabase_configured(self) -> bool:
         return bool(self.supabase_url and self.supabase_service_role_key)
+
+    def resolve_model(self, model_alias: str) -> str:
+        """Map AkaRouter model names to upstream model IDs."""
+        return self.model_mapping.get(model_alias, model_alias)
 
 
 settings = Settings()
