@@ -1,9 +1,5 @@
 """AKAROUTER — Multi-Account AI Inference Proxy."""
-import time
 import logging
-import httpx
-import jwt
-from jwt.algorithms import ECAlgorithm, RSAAlgorithm
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
@@ -14,8 +10,6 @@ from app.core.supabase import get_supabase
 from app.api import health, models, chat
 from app.api.admin.routes import router as admin_router
 from app.api.user import router as user_router
-
-_SUPABASE_JWKS_URL = settings.supabase_url.rstrip("/") + "/auth/v1/.well-known/jwks.json"
 
 # Configure logging BEFORE anything else
 logging.basicConfig(
@@ -116,117 +110,41 @@ async def auth_middleware(request: Request, call_next):
 
 
 # ---------------------------------------------------------------------------
-# JWKS Cache
-# ---------------------------------------------------------------------------
-
-_jwks_cache: dict | None = None
-_jwks_cache_ts: float = 0.0
-_JWKS_TTL = 3600
-
-
-def _get_supabase_jwks() -> dict:
-    """Fetch JWKS from Supabase Auth endpoint (with caching)."""
-    global _jwks_cache, _jwks_cache_ts
-    now = time.time()
-    if _jwks_cache is not None and (now - _jwks_cache_ts) < _JWKS_TTL:
-        logger.debug("JWKS: serving from cache (%d keys)", len(_jwks_cache.get("keys", [])))
-        return _jwks_cache
-
-    logger.info("JWKS: fetching from %s", _SUPABASE_JWKS_URL)
-    try:
-        resp = httpx.get(_SUPABASE_JWKS_URL, timeout=10)
-        resp.raise_for_status()
-        _jwks_cache = resp.json()
-        _jwks_cache_ts = now
-        logger.info("JWKS: fetched %d keys from %s", len(_jwks_cache.get("keys", [])), _SUPABASE_JWKS_URL)
-        return _jwks_cache
-    except Exception as exc:
-        logger.error("JWKS: fetch failed: %s", exc)
-        if _jwks_cache is not None:
-            return _jwks_cache
-        raise
-
-
-# ---------------------------------------------------------------------------
-# Supabase JWT verification via JWKS
+# Supabase JWT verification
 # ---------------------------------------------------------------------------
 
 def _verify_supabase_jwt(token: str) -> dict | None:
-    """Verify a Supabase JWT via JWKS and return user info with role."""
+    """Verify a Supabase JWT via Supabase Auth API and return user info with role."""
     try:
-        header = jwt.get_unverified_header(token)
-        kid = header.get("kid")
-        alg = header.get("alg", "ES256")
-        logger.info("JWT_DEBUG: token kid=%s alg=%s", kid, alg)
-        if not kid:
-            logger.warning("Supabase JWT missing kid header")
-            return None
-
-        jwks = _get_supabase_jwks()
-        logger.info("JWT_DEBUG: jwks_url=%s keys_count=%s", _SUPABASE_JWKS_URL, len(jwks.get("keys", [])))
-        key = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
-        if not key:
-            logger.warning("Supabase JWT kid not found in JWKS: %s", kid)
-            return None
-
-        key_alg = key.get("alg", alg)
-        logger.info("JWT_DEBUG: key found kid=%s alg=%s", key.get("kid"), key_alg)
-
-        # ES256 uses elliptic curve keys; RS256 uses RSA keys
-        if key_alg.startswith("ES"):
-            public_key = ECAlgorithm.from_jwk(key)
-        else:
-            public_key = RSAAlgorithm.from_jwk(key)
-
-        payload = jwt.decode(
-            token,
-            key=public_key,
-            algorithms=[alg],
-            options={"verify_aud": False},
-        )
-        logger.info("JWT_DEBUG: decoded sub=%s email=%s", payload.get("sub"), payload.get("email"))
-        sub = payload.get("sub")
-        if not sub:
-            return None
-
         supabase = get_supabase()
-        account_resp = supabase.table("accounts").select("id,email,role,tier,status").eq("auth_user_id", str(sub)).execute()
-        logger.info("JWT_DEBUG: account lookup count=%s data=%s", len(account_resp.data or []), account_resp.data)
+        # Retrieve user from token (validates the signature and session in real-time)
+        user_resp = supabase.auth.get_user(token)
+        if not user_resp or not getattr(user_resp, "user", None):
+            logger.warning("Supabase Auth: failed to retrieve user from token")
+            return None
+
+        user = user_resp.user
+        auth_user_id = user.id
+
+        # Look up account in our DB
+        account_resp = supabase.table("accounts").select("id, email, role, tier, status").eq("auth_user_id", str(auth_user_id)).execute()
         if not account_resp.data:
-            logger.warning("JWT_DEBUG: no account found for sub=%s", sub)
+            logger.warning("Supabase Auth: no user account found in DB for auth_user_id=%s", auth_user_id)
             return None
 
         account = account_resp.data[0]
         return {
-            "auth_user_id": str(sub),
+            "auth_user_id": str(auth_user_id),
             "account_id": account["id"],
-            "email": account.get("email", payload.get("email", "")),
+            "email": account.get("email", user.email or ""),
             "role": account.get("role", "user"),
             "tier": account.get("tier", "free"),
             "status": account.get("status", "active"),
         }
-    except jwt.ExpiredSignatureError:
-        logger.warning("Supabase JWT expired")
-        return None
-    except jwt.InvalidTokenError as exc:
-        logger.warning("Supabase JWT invalid: %s", exc)
-        return None
     except Exception as exc:
-        logger.error("Supabase JWT verification error: %s", exc, exc_info=True)
+        logger.error("Supabase Auth: verification failed: %s", exc, exc_info=True)
         return None
 
-
-_jwks_cache: dict | None = None
-
-
-def _get_supabase_jwks() -> dict:
-    global _jwks_cache
-    if _jwks_cache is not None:
-        return _jwks_cache
-    resp = httpx.get(_SUPABASE_JWKS_URL, timeout=10)
-    resp.raise_for_status()
-    _jwks_cache = resp.json()
-    return _jwks_cache
 
 # ---------------------------------------------------------------------------
 # Routes
