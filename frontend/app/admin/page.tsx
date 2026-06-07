@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface ProviderAccount {
@@ -27,6 +27,10 @@ function StatusBadge({ status }: { status: string }) {
     degraded: 'bg-yellow-100 text-yellow-800',
     dead: 'bg-red-100 text-red-800',
     pending: 'bg-gray-100 text-gray-800',
+    polling: 'bg-blue-100 text-blue-800',
+    authorized: 'bg-green-100 text-green-800',
+    failed: 'bg-red-100 text-red-800',
+    timeout: 'bg-orange-100 text-orange-800',
   }
   return (
     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
@@ -47,8 +51,10 @@ export default function AdminDashboard() {
     expires_in: number
   } | null>(null)
   const [pollStatus, setPollStatus] = useState<string>('')
+  const [pollResult, setPollResult] = useState<any>(null)
   const [stats, setStats] = useState<any>(null)
   const [error, setError] = useState<string>('')
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://akarouter-production.up.railway.app'
   const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || ''
@@ -64,12 +70,8 @@ export default function AdminDashboard() {
       if (res.ok) {
         const data = await res.json()
         setProviders(data.providers || [])
-      } else {
-        setError(`Admin auth failed: ${res.status}`)
       }
-    } catch (e: any) {
-      setError(`Connection failed: ${e.message}`)
-    }
+    } catch { /* ignore */ }
     setLoading(false)
   }, [API_URL, ADMIN_KEY, authHeaders])
 
@@ -85,7 +87,6 @@ export default function AdminDashboard() {
     loadProviders()
     loadStats()
 
-    // Realtime subscription
     const channel = supabase
       .channel('admin-providers')
       .on(
@@ -110,9 +111,50 @@ export default function AdminDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [loadProviders, loadStats])
 
+  // Cleanup poll interval on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+    }
+  }, [])
+
+  const startStatusPolling = useCallback((flowId: string) => {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`${API_URL}/admin/providers/oauth/status/${flowId}`, {
+          headers: authHeaders(),
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        setPollStatus(data.status)
+        setPollResult(data.result || null)
+
+        if (data.status === 'authorized') {
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
+          setDeviceCodeInfo(null)
+          loadProviders()
+          loadStats()
+        } else if (data.status === 'failed' || data.status === 'timeout') {
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
+          pollIntervalRef.current = null
+          setError(data.error || `OAuth flow ${data.status}`)
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Poll every 5 seconds
+    pollIntervalRef.current = setInterval(checkStatus, 5000)
+    // Also check immediately
+    checkStatus()
+  }, [API_URL, authHeaders, loadProviders, loadStats])
+
   const handleAddAccount = async () => {
     setAddingAccount(true)
     setPollStatus('')
+    setPollResult(null)
     setError('')
     try {
       const label = `hermes-${Date.now().toString(36)}`
@@ -120,7 +162,10 @@ export default function AdminDashboard() {
         method: 'POST',
         headers: authHeaders(),
       })
-      if (!res.ok) throw new Error(`Failed to initiate: ${res.status}`)
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.detail || `Initiate failed: ${res.status}`)
+      }
       const data = await res.json()
       setDeviceCodeInfo({
         flow_id: data.flow_id,
@@ -130,6 +175,20 @@ export default function AdminDashboard() {
         expires_in: data.expires_in,
       })
       setPollStatus('pending')
+
+      // Start the backend polling immediately
+      const pollRes = await fetch(`${API_URL}/admin/providers/oauth/poll/${data.flow_id}`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      if (pollRes.ok) {
+        const pollData = await pollRes.json()
+        setPollStatus(pollData.status || 'polling')
+        // Now auto-check status every 5 seconds
+        startStatusPolling(data.flow_id)
+      } else {
+        setError('Failed to start authorization polling')
+      }
     } catch (err: any) {
       setError(`Error: ${err.message}`)
     } finally {
@@ -137,7 +196,7 @@ export default function AdminDashboard() {
     }
   }
 
-  const handlePoll = async () => {
+  const handleManualCheck = async () => {
     if (!deviceCodeInfo) return
     try {
       const res = await fetch(`${API_URL}/admin/providers/oauth/status/${deviceCodeInfo.flow_id}`, {
@@ -145,13 +204,15 @@ export default function AdminDashboard() {
       })
       const data = await res.json()
       setPollStatus(data.status)
+      setPollResult(data.result || null)
       if (data.status === 'authorized') {
         setDeviceCodeInfo(null)
         loadProviders()
         loadStats()
       }
+      if (data.error) setError(data.error)
     } catch (err: any) {
-      setPollStatus(`Error: ${err.message}`)
+      setError(`Check failed: ${err.message}`)
     }
   }
 
@@ -165,7 +226,6 @@ export default function AdminDashboard() {
     } catch { /* ignore */ }
   }
 
-  // No admin key configured
   if (!ADMIN_KEY) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -192,7 +252,10 @@ export default function AdminDashboard() {
 
       <main className="mx-auto max-w-6xl px-4 py-8">
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+            {error}
+            <button onClick={() => setError('')} className="ml-2 text-red-500 hover:text-red-700">×</button>
+          </div>
         )}
 
         {/* Stats Cards */}
@@ -241,34 +304,44 @@ export default function AdminDashboard() {
           {/* Device Code Flow */}
           {deviceCodeInfo && (
             <div className="mb-4 p-4 rounded-lg bg-blue-50 border border-blue-200">
-              <p className="text-sm font-medium text-blue-900">Authorize a new Hermes account:</p>
-              <p className="text-sm text-blue-700 mt-1">
-                1. Open{' '}
-                <a
-                  href={deviceCodeInfo.verification_uri_complete || deviceCodeInfo.verification_uri}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline font-medium"
-                >
-                  {deviceCodeInfo.verification_uri}
-                </a>
-              </p>
-              <p className="text-sm text-blue-700">
-                2. Enter code:{' '}
-                <code className="bg-blue-100 px-2 py-0.5 rounded font-mono font-bold">
-                  {deviceCodeInfo.user_code}
-                </code>
-              </p>
-              <button
-                onClick={handlePoll}
-                className="mt-2 rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                Check Authorization Status
-              </button>
-              {pollStatus && (
-                <p className="text-sm mt-2 text-blue-700">
-                  Status: <span className="font-medium">{pollStatus}</span>
-                </p>
+              <p className="text-sm font-medium text-blue-900 mb-2">Authorize a new Hermes account:</p>
+              <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                <li>
+                  Open{' '}
+                  <a
+                    href={deviceCodeInfo.verification_uri_complete || deviceCodeInfo.verification_uri}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline font-medium"
+                  >
+                    {deviceCodeInfo.verification_uri}
+                  </a>
+                </li>
+                <li>
+                  Enter code:{' '}
+                  <code className="bg-blue-100 px-2 py-0.5 rounded font-mono font-bold text-blue-900">
+                    {deviceCodeInfo.user_code}
+                  </code>
+                </li>
+              </ol>
+              <div className="mt-3 flex items-center gap-3">
+                <StatusBadge status={pollStatus} />
+                {pollStatus === 'polling' && (
+                  <span className="text-xs text-blue-600 animate-pulse">Waiting for authorization...</span>
+                )}
+                {pollStatus === 'pending' && (
+                  <button
+                    onClick={handleManualCheck}
+                    className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                  >
+                    Check Now
+                  </button>
+                )}
+              </div>
+              {pollResult && (
+                <div className="mt-2 p-2 rounded bg-green-50 border border-green-200 text-xs text-green-800">
+                  ✓ Account <strong>{pollResult.account_label}</strong> connected! Token expires: {pollResult.expires_at}
+                </div>
               )}
             </div>
           )}
@@ -306,12 +379,12 @@ export default function AdminDashboard() {
                       <td className="py-2 text-gray-600 text-xs truncate max-w-[200px]">
                         {a.last_error_msg || '—'}
                       </td>
-                      <td className="py-2">
+                      <td className="py-2 space-x-2">
                         <button
                           onClick={() => handleRefresh(a.id)}
                           className="text-xs text-blue-600 hover:underline"
                         >
-                          Refresh Token
+                          Refresh
                         </button>
                       </td>
                     </tr>
