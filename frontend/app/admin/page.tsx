@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface ProviderAccount {
@@ -38,9 +38,6 @@ function StatusBadge({ status }: { status: string }) {
 export default function AdminDashboard() {
   const [providers, setProviders] = useState<ProviderAccount[]>([])
   const [loading, setLoading] = useState(true)
-  const [adminKey, setAdminKey] = useState('')
-  const [authed, setAuthed] = useState(false)
-  const [authError, setAuthError] = useState('')
   const [addingAccount, setAddingAccount] = useState(false)
   const [deviceCodeInfo, setDeviceCodeInfo] = useState<{
     flow_id: string
@@ -51,50 +48,44 @@ export default function AdminDashboard() {
   } | null>(null)
   const [pollStatus, setPollStatus] = useState<string>('')
   const [stats, setStats] = useState<any>(null)
+  const [error, setError] = useState<string>('')
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://akarouter-production.up.railway.app'
+  const ADMIN_KEY = process.env.NEXT_PUBLIC_ADMIN_KEY || ''
 
-  const authHeaders = () => ({ Authorization: `Bearer ${adminKey}` })
+  const authHeaders = useCallback(() => ({
+    Authorization: `Bearer ${ADMIN_KEY}`
+  }), [ADMIN_KEY])
 
-  const loadProviders = async () => {
-    if (!authed) return
+  const loadProviders = useCallback(async () => {
+    if (!ADMIN_KEY) { setLoading(false); return }
     try {
       const res = await fetch(`${API_URL}/admin/providers`, { headers: authHeaders() })
       if (res.ok) {
         const data = await res.json()
         setProviders(data.providers || [])
+      } else {
+        setError(`Admin auth failed: ${res.status}`)
       }
-    } catch { /* ignore */ }
-  }
+    } catch (e: any) {
+      setError(`Connection failed: ${e.message}`)
+    }
+    setLoading(false)
+  }, [API_URL, ADMIN_KEY, authHeaders])
 
-  const loadStats = async () => {
-    if (!authed) return
+  const loadStats = useCallback(async () => {
+    if (!ADMIN_KEY) return
     try {
       const res = await fetch(`${API_URL}/admin/stats`, { headers: authHeaders() })
       if (res.ok) setStats(await res.json())
     } catch { /* ignore */ }
-  }
-
-  const handleAuth = async () => {
-    setAuthError('')
-    try {
-      const res = await fetch(`${API_URL}/admin/providers`, { headers: authHeaders() })
-      if (res.ok) {
-        setAuthed(true)
-        const data = await res.json()
-        setProviders(data.providers || [])
-        loadStats()
-      } else {
-        setAuthError('Invalid admin key')
-      }
-    } catch {
-      setAuthError('Connection failed')
-    }
-  }
+  }, [API_URL, ADMIN_KEY, authHeaders])
 
   useEffect(() => {
-    if (!authed) return
     loadProviders()
+    loadStats()
+
+    // Realtime subscription
     const channel = supabase
       .channel('admin-providers')
       .on(
@@ -117,17 +108,19 @@ export default function AdminDashboard() {
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [authed])
+  }, [loadProviders, loadStats])
 
   const handleAddAccount = async () => {
     setAddingAccount(true)
     setPollStatus('')
+    setError('')
     try {
-      const res = await fetch(`${API_URL}/admin/providers/oauth/initiate?account_label=hermes-${Date.now().toString(36)}`, {
+      const label = `hermes-${Date.now().toString(36)}`
+      const res = await fetch(`${API_URL}/admin/providers/oauth/initiate?account_label=${label}`, {
         method: 'POST',
         headers: authHeaders(),
       })
-      if (!res.ok) throw new Error('Failed to initiate device code')
+      if (!res.ok) throw new Error(`Failed to initiate: ${res.status}`)
       const data = await res.json()
       setDeviceCodeInfo({
         flow_id: data.flow_id,
@@ -138,7 +131,7 @@ export default function AdminDashboard() {
       })
       setPollStatus('pending')
     } catch (err: any) {
-      setPollStatus(`Error: ${err.message}`)
+      setError(`Error: ${err.message}`)
     } finally {
       setAddingAccount(false)
     }
@@ -172,28 +165,13 @@ export default function AdminDashboard() {
     } catch { /* ignore */ }
   }
 
-  // Auth gate
-  if (!authed) {
+  // No admin key configured
+  if (!ADMIN_KEY) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm w-full max-w-md">
+        <div className="bg-white rounded-xl border border-gray-200 p-8 shadow-sm w-full max-w-md text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">AKAROUTER Admin</h1>
-          <p className="text-sm text-gray-500 mb-6">Enter the Supabase service role key to access the admin panel.</p>
-          <input
-            type="password"
-            value={adminKey}
-            onChange={(e) => setAdminKey(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAuth()}
-            placeholder="Supabase service role key"
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none mb-3"
-          />
-          {authError && <p className="text-sm text-red-600 mb-3">{authError}</p>}
-          <button
-            onClick={handleAuth}
-            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-          >
-            Authenticate
-          </button>
+          <p className="text-sm text-red-600">Admin key not configured. Set <code className="bg-gray-100 px-1 rounded">NEXT_PUBLIC_ADMIN_KEY</code> in Railway environment variables.</p>
         </div>
       </div>
     )
@@ -213,6 +191,10 @@ export default function AdminDashboard() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-8">
+        {error && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>
+        )}
+
         {/* Stats Cards */}
         {stats && (
           <div className="grid md:grid-cols-4 gap-4 mb-8">
