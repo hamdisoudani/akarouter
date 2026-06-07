@@ -6,7 +6,7 @@ from starlette.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.router import authenticate_api_key
-from app.core.supabase import get_supabase
+from app.core.supabase import get_supabase, _verify_supabase_jwt
 from app.api import health, models, chat
 from app.api.admin.routes import router as admin_router
 from app.api.user import router as user_router
@@ -113,41 +113,7 @@ async def auth_middleware(request: Request, call_next):
     return await call_next(request)
 
 
-# ---------------------------------------------------------------------------
-# Supabase JWT verification
-# ---------------------------------------------------------------------------
 
-def _verify_supabase_jwt(token: str) -> dict | None:
-    """Verify a Supabase JWT via Supabase Auth API and return user info with role."""
-    try:
-        supabase = get_supabase()
-        # Retrieve user from token (validates the signature and session in real-time)
-        user_resp = supabase.auth.get_user(token)
-        if not user_resp or not getattr(user_resp, "user", None):
-            logger.warning("Supabase Auth: failed to retrieve user from token")
-            return None
-
-        user = user_resp.user
-        auth_user_id = user.id
-
-        # Look up account in our DB
-        account_resp = supabase.table("accounts").select("id, email, role, tier, status").eq("auth_user_id", str(auth_user_id)).execute()
-        if not account_resp.data:
-            logger.warning("Supabase Auth: no user account found in DB for auth_user_id=%s", auth_user_id)
-            return None
-
-        account = account_resp.data[0]
-        return {
-            "auth_user_id": str(auth_user_id),
-            "account_id": account["id"],
-            "email": account.get("email", user.email or ""),
-            "role": account.get("role", "user"),
-            "tier": account.get("tier", "free"),
-            "status": account.get("status", "active"),
-        }
-    except Exception as exc:
-        logger.error("Supabase Auth: verification failed: %s", exc, exc_info=True)
-        return None
 
 
 # ---------------------------------------------------------------------------
