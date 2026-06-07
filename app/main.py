@@ -48,6 +48,9 @@ USER_PREFIX = "/user"
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     path = request.url.path
     auth_header = request.headers.get("authorization", "")
     parts = auth_header.split(" ", 1)

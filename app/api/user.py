@@ -139,9 +139,8 @@ async def get_my_analytics(request: Request):
     account_id = _get_user_id(request)
     supabase = get_supabase()
 
-    # Get all request logs for this user
     result = supabase.table("request_logs").select(
-        "model, upstream_model, status, latency_ms, prompt_tokens, completion_tokens, total_tokens, created_at"
+        "model, upstream_model, status_code, latency_ms, prompt_tokens, completion_tokens, total_tokens, created_at"
     ).eq("account_id", account_id).order("created_at", desc=True).limit(1000).execute()
 
     logs = result.data or []
@@ -165,7 +164,8 @@ async def get_my_analytics(request: Request):
             }
         stats = model_stats[model]
         stats["total_requests"] += 1
-        if log.get("status") == "success":
+        status_code = log.get("status_code", 200)
+        if status_code and status_code < 400:
             stats["successful_requests"] += 1
         else:
             stats["error_requests"] += 1
