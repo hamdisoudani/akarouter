@@ -1,62 +1,76 @@
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { NextRequest, NextResponse } from 'next/server'
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://fleouqrgltkodumrgxlt.supabase.co'
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZsZW91cXJnbHRrb2R1bXJneGx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MzQ4MTMsImV4cCI6MjA5NjMxMDgxM30.KTL_9jMVbygM8A7bepgdAv37pZZctZ4F-cGAUBm4Jgw'
+const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  'https://fleouqrgltkodumrgxlt.supabase.co'
+
+const SUPABASE_ANON_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  ''
+
+const PUBLIC_PATHS = ['/', '/auth/login', '/auth/callback', '/auth/error', '/_next', '/favicon.ico']
+const PROTECTED_PREFIXES = ['/dashboard', '/admin', '/api/user']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Public paths — no auth needed
-  const publicPaths = ['/', '/auth/login', '/auth/callback', '/api']
-  if (publicPaths.some(p => pathname.startsWith(p))) {
+  // Allow public paths
+  if (
+    PUBLIC_PATHS.includes(pathname) ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/favicon') ||
+    pathname === '/'
+  ) {
     return NextResponse.next()
   }
 
-  // Create a Supabase server client that can read/write cookies
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
-
+  // Build Supabase client for middleware
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     cookies: {
-      getAll() {
-        return request.cookies.getAll()
+      get(name: string) {
+        return request.cookies.get(name)?.value
       },
-      setAll(cookiesToSet, headers) {
-        cookiesToSet.forEach(({ name, value, options }) =>
-          request.cookies.set(name, value)
-        )
-        // Apply cache headers to prevent CDN leaking sessions
-        Object.entries(headers).forEach(([key, value]) => {
-          supabaseResponse.headers.set(key, value)
-        })
-        supabaseResponse = NextResponse.next({
-          request,
-        })
+      set(name: string, value: string, options: any) {
+        const response = NextResponse.next()
+        response.cookies.set(name, value, options)
+        return response
+      },
+      remove(name: string, options: any) {
+        const response = NextResponse.next()
+        response.cookies.set(name, '', { ...options, maxAge: 0 })
+        return response
       },
     },
   })
 
-  // IMPORTANT: Use getUser() — it validates the JWT against Supabase's
-  // published public keys every time. DO NOT use getSession() here.
-  const { data: { user } } = await supabase.auth.getUser()
+  // For protected routes, verify JWT with getUser() (validates signature)
+  const isProtected = PROTECTED_PREFIXES.some(p => pathname.startsWith(p))
 
-  // Protected paths require auth
-  const protectedPaths = ['/dashboard', '/admin']
-  if (protectedPaths.some(p => pathname.startsWith(p))) {
-    if (!user) {
-      const loginUrl = new URL('/auth/login', request.url)
-      loginUrl.searchParams.set('next', pathname)
-      return NextResponse.redirect(loginUrl)
+  if (isProtected) {
+    const { data } = await supabase.auth.getUser()
+
+    if (!data.user) {
+      const url = new URL('/auth/login', request.url)
+      url.searchParams.set('next', pathname)
+      return NextResponse.redirect(url)
     }
+
+    // Cache busting headers to prevent CDN caching user-specific pages
+    const response = NextResponse.next({
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'CDN-Cache-Control': 'no-store',
+        'Vary': 'Authorization, Cookie',
+      },
+    })
+    return response
   }
 
-  return supabaseResponse
+  return NextResponse.next()
 }
 
 export const config = {
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|api/.*|favicon\\.ico).*)'],
 }
