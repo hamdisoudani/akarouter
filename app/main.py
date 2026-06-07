@@ -117,20 +117,14 @@ async def auth_middleware(request: Request, call_next):
 
 
 def _verify_supabase_jwt(token: str) -> dict | None:
-    """Verify a Supabase JWT and return user info with role."""
+    """Verify a Supabase JWT via Supabase Auth and return user info with role."""
     print("DEBUG: entering _verify_supabase_jwt")
     try:
-        # Decode without verification first to get the kid
-        header = jwt.get_unverified_header(token)
-        # For simplicity, we verify with the JWT secret
-        # In production, you'd fetch the JWKS from Supabase
-        # Supabase JWTs are signed with the project's JWT secret
-        # We use the service role key's secret for verification
-        # But since we don't have the JWT secret, we verify by calling Supabase
+        # Verify and resolve the user with Supabase Auth directly
         supabase = get_supabase()
-        # Use the admin API to get user from token
         user_resp = supabase.auth.get_user(token)
-        if not user_resp or not user_resp.user:
+
+        if not user_resp or not getattr(user_resp, 'user', None):
             return None
 
         user = user_resp.user
