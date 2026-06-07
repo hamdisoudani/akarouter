@@ -29,6 +29,7 @@ function CallbackContent() {
         }
 
         await supabase.auth.setSession({ access_token: token, refresh_token: refreshToken ?? '' })
+        router.replace('/dashboard')
       } catch (error) {
         router.replace('/auth/login?error=auth_error')
       }

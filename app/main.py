@@ -58,6 +58,13 @@ async def auth_middleware(request: Request, call_next):
     Admin endpoints use service role key directly (handled in admin routes).
     """
     path = request.url.path
+    auth_header = request.headers.get("authorization", "")
+    parts = auth_header.split(" ", 1)
+    token = parts[1].strip() if len(parts) == 2 and parts[0].lower() == "bearer" else ""
+    print(f"MIDDLEWARE_DEBUG: path={path} auth_header_len={len(auth_header)} token_len={len(token)}")
+    if token:
+        print(f"MIDDLEWARE_DEBUG: token starts with={token[:15]}")
+
 
     # Public paths — no auth needed
     if any(path.startswith(p) for p in PUBLIC_PREFIXES) and not path.startswith("/v1/chat/completions"):
@@ -67,10 +74,7 @@ async def auth_middleware(request: Request, call_next):
     if path.startswith(ADMIN_PREFIX):
         return await call_next(request)
 
-    # Get Authorization header
-    auth_header = request.headers.get("authorization", "")
-    parts = auth_header.split(" ", 1)
-    token = parts[1].strip() if len(parts) == 2 and parts[0].lower() == "bearer" else ""
+
 
     if not token:
         # For /user/* endpoints, require auth
@@ -175,6 +179,20 @@ def _verify_supabase_jwt(token: str) -> dict | None:
         traceback.print_exc()
         logger.exception("Supabase JWT verification failed")
         return None
+
+
+_jwks_cache: dict | None = None
+
+
+def _get_supabase_jwks() -> dict:
+    global _jwks_cache
+    if _jwks_cache is not None:
+        return _jwks_cache
+    resp = httpx.get(_SUPABASE_JWKS_URL, timeout=10)
+    resp.raise_for_status()
+    _jwks_cache = resp.json()
+    return _jwks_cache
+
 
 # ---------------------------------------------------------------------------
 # Routes
