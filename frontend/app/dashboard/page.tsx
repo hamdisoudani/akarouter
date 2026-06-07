@@ -12,7 +12,7 @@ type Me = {
   tier: string
   monthly_requests: number
   monthly_limit: number
-  total_requests: number
+  monthly_requests: number
 }
 
 type Key = {
@@ -32,13 +32,14 @@ type Analytics = {
     avg_latency: number
     errors: number
   }>
-  total_requests: number
+  monthly_requests: number
   total_tokens: number
 }
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [me, setMe] = useState<Me | null>(null)
+      const usage = await getUsage(jwt)
   const [keys, setKeys] = useState<Key[]>([])
   const [analytics, setAnalytics] = useState<Analytics | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
@@ -56,7 +57,8 @@ export default function DashboardPage() {
         getMyKeys(jwt),
         getAnalytics(jwt),
       ])
-      setMe(meData)
+      setMe({...meData, ...usage})
+      const usage = await getUsage(jwt)
       setKeys(keysData)
       setAnalytics(analyticsData)
       setLoading(false)
