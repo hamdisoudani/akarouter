@@ -75,7 +75,8 @@ export interface UserInfo {
 
 // Helper to get auth token from Supabase
 async function getAuthToken(): Promise<string | null> {
-  const { supabase } = await import('./supabase')
+  const { createClient } = await import('./supabase/client')
+  const supabase = createClient()
   const { data } = await supabase.auth.getSession()
   return data.session?.access_token || null
 }

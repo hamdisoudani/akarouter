@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { getMe } from '@/lib/api'
 import { 
@@ -51,6 +51,7 @@ function StatusDot({ status }: { status: string }) {
 
 export default function AdminDashboard() {
   const router = useRouter()
+  const supabase = createClient()
   const [token, setToken] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)

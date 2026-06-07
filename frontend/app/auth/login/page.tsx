@@ -1,19 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 import { Layers } from 'lucide-react'
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const supabase = createClient()
 
   const handleGoogleSignIn = async () => {
     setLoading(true)
     setError('')
     try {
-      const redirectUrl = 'https://akarouter-frontend-production.up.railway.app/auth/callback'
-
+      const redirectUrl = `${window.location.origin}/auth/callback`
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -79,12 +79,12 @@ export default function LoginPage() {
               {loading ? 'Redirecting...' : 'Continue with Google'}
             </button>
           </div>
-        </div>
 
-        {/* Footer info */}
-        <p className="mt-8 text-xs text-zinc-600 text-center px-4">
-          By signing in, you agree to our Terms of Service and Privacy Policy. Secure authentication provided via Google OAuth.
-        </p>
+          {/* Footer info */}
+          <p className="mt-8 text-xs text-zinc-600 text-center px-4">
+            By signing in, you agree to our Terms of Service and Privacy Policy. Secure authentication provided via Google OAuth.
+          </p>
+        </div>
       </div>
     </div>
   )

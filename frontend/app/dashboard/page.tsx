@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import {
   getMe,
@@ -49,6 +49,8 @@ export default function UserDashboard() {
   const [copiedSDK, setCopiedSDK] = useState(false)
   const [copiedCreatedKey, setCopiedCreatedKey] = useState(false)
 
+  const supabase = createClient()
+
   const loadData = useCallback(async (accessToken: string) => {
     try {
       const [me, keysData, usageData, analyticsData] = await Promise.all([
@@ -69,7 +71,17 @@ export default function UserDashboard() {
   }, [])
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) {
+        router.push('/auth/login')
+        return
+      }
+      // Also get the session for the access token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        router.push('/auth/login')
+        return
+      }
       if (!session) {
         router.push('/auth/login')
         return

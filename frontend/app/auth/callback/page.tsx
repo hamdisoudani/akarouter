@@ -1,37 +1,34 @@
 'use client'
 
 import { useEffect, Suspense } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 
 function CallbackContent() {
   const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
     const handleCallback = async () => {
-      try {
-        const result = await supabase.auth.getSession()
-        const session = result?.data?.session ?? null
-        let token = session?.access_token ?? null
-        let refreshToken = session?.refresh_token ?? null
+      // The @supabase/ssr browser client automatically detects the
+      // hash fragment (#access_token=...&refresh_token=...) from the
+      // OAuth redirect and exchanges it for a session stored in cookies.
+      const { data: { session }, error } = await supabase.auth.getSession()
 
-        if (!token) {
-          const hash = window.location.hash || window.location.search || ''
-          const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash)
-          token = params.get('access_token')
-          refreshToken = refreshToken || params.get('refresh_token')
-        }
-
-        if (!token) {
-          router.replace('/auth/login?error=auth_failed')
-          return
-        }
-
-        await supabase.auth.setSession({ access_token: token, refresh_token: refreshToken ?? '' })
-      } catch (error) {
-        router.replace('/auth/login?error=auth_error')
+      if (error) {
+        console.error('OAuth callback error:', error)
+        router.replace('/auth/login?error=oauth_failed')
+        return
       }
+
+      if (session?.access_token) {
+        router.replace('/dashboard')
+        return
+      }
+
+      // No session — redirect to login
+      router.replace('/auth/login?error=no_session')
     }
 
     handleCallback()

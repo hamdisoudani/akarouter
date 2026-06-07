@@ -136,12 +136,17 @@ def _verify_supabase_jwt(token: str) -> dict | None:
             logger.warning("Supabase JWT kid not found in JWKS: %s", kid)
             return None
 
-        logger.info("JWT_DEBUG: key found kid=%s alg=%s", key.get("kid"), key.get("alg"))
-        public_key = jwt.algorithms.RSAAlgorithm.from_jwk(key)
+        alg = key.get("alg", "ES256")
+        logger.info("JWT_DEBUG: key found kid=%s alg=%s", key.get("kid"), alg)
+        # ES256 uses elliptic curve keys; RS256 uses RSA keys
+        if alg.startswith("ES"):
+            public_key = jwt.algorithms.ECAlgorithm.from_jwk(key)
+        else:
+            public_key = jwt.algorithms.RSAAlgorithm.from_jwk(key)
         payload = jwt.decode(
             token,
             key=public_key,
-            algorithms=["ES256", "RS256"],
+            algorithms=[alg],
             options={"verify_aud": False},
         )
         logger.info("JWT_DEBUG: decoded sub=%s", payload.get("sub"))
