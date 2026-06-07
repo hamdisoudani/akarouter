@@ -2,31 +2,40 @@
 
 import { useEffect, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 
 function CallbackContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   useEffect(() => {
     const handleCallback = async () => {
-      // Poll for the session — the SDK needs to parse the OAuth hash fragment
-      for (let attempt = 0; attempt < 6; attempt++) {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.access_token) {
-          router.replace(searchParams.get('next') || '/dashboard')
+      try {
+        const result = await supabase.auth.getSession()
+        const session = result?.data?.session ?? null
+        let token = session?.access_token ?? null
+        let refreshToken = session?.refresh_token ?? null
+
+        if (!token) {
+          const hash = window.location.hash || window.location.search || ''
+          const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash)
+          token = params.get('access_token')
+          refreshToken = refreshToken || params.get('refresh_token')
+        }
+
+        if (!token) {
+          router.replace('/auth/login?error=auth_failed')
           return
         }
-        // Wait 500ms before retrying
-        await new Promise(r => setTimeout(r, 500))
-      }
 
-      // If we get here, no session was established
-      router.replace('/auth/login?error=session_expired')
+        await supabase.auth.setSession({ access_token: token, refresh_token: refreshToken ?? '' })
+      } catch (error) {
+        router.replace('/auth/login?error=auth_error')
+      }
     }
+
     handleCallback()
-  }, [router, searchParams])
+  }, [router])
 
   return (
     <div className="relative min-h-screen bg-[#030303] flex items-center justify-center overflow-hidden">

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { KeyRound, Layers } from 'lucide-react'
+import { Layers } from 'lucide-react'
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
