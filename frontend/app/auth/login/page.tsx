@@ -12,9 +12,7 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     try {
-      const redirectUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/auth/callback`
-        : 'http://localhost:3000/auth/callback'
+      const redirectUrl = 'https://akarouter-frontend-production.up.railway.app/auth/callback'
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
