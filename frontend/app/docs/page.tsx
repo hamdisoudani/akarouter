@@ -5,11 +5,15 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  getMe,
-  getUsage,
   type UsageStats,
   type UserInfo,
 } from '@/lib/api'
+import Prism from 'prismjs'
+import 'prismjs/components/prism-python'
+import 'prismjs/components/prism-bash'
+import 'prismjs/components/prism-javascript'
+import 'prismjs/components/prism-json'
+import 'prismjs/themes/prism-tomorrow.css'
 import { 
   LogOut, 
   KeyRound, 
@@ -50,10 +54,15 @@ export default function DocsPage() {
 
   const loadData = useCallback(async (accessToken: string) => {
     try {
-      const [me, usageData] = await Promise.all([
-        getMe(accessToken),
-        getUsage(accessToken),
+      const [meRes, usageRes] = await Promise.all([
+        fetch('/api/me', { headers: { Authorization: `Bearer ${accessToken}` } }),
+        fetch('/api/usage', { headers: { Authorization: `Bearer ${accessToken}` } }),
       ])
+      if (!meRes.ok) throw new Error(`Me fetch failed: ${meRes.status}`)
+      if (!usageRes.ok) throw new Error(`Usage fetch failed: ${usageRes.status}`)
+
+      const me = await meRes.json()
+      const usageData = await usageRes.json()
       setUser(me)
       setUsage(usageData)
     } catch (err: any) {
@@ -62,6 +71,10 @@ export default function DocsPage() {
       setLoading(false)
     }
   }, [])
+
+  useEffect(() => {
+    Prism.highlightAll()
+  }, [activeCategory, activeSdk, activeAgent])
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -441,8 +454,12 @@ claude`
                         {copiedId === 'python' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-                    <div className="p-4 font-mono text-[11px] text-zinc-300 overflow-x-auto bg-[#050507] leading-relaxed">
-                      <pre>{pythonCode}</pre>
+                    <div className="p-4 font-mono text-[11px] overflow-x-auto bg-[#050507] leading-relaxed">
+                      <pre className="language-python !bg-transparent !p-0 !m-0">
+                        <code className="language-python">
+                          {pythonCode}
+                        </code>
+                      </pre>
                     </div>
                   </div>
                 )}
@@ -459,8 +476,12 @@ claude`
                         {copiedId === 'curl' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-                    <div className="p-4 font-mono text-[11px] text-zinc-300 overflow-x-auto bg-[#050507] leading-relaxed">
-                      <pre>{curlCode}</pre>
+                    <div className="p-4 font-mono text-[11px] overflow-x-auto bg-[#050507] leading-relaxed">
+                      <pre className="language-bash !bg-transparent !p-0 !m-0">
+                        <code className="language-bash">
+                          {curlCode}
+                        </code>
+                      </pre>
                     </div>
                   </div>
                 )}
@@ -477,8 +498,12 @@ claude`
                         {copiedId === 'node' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-                    <div className="p-4 font-mono text-[11px] text-zinc-300 overflow-x-auto bg-[#050507] leading-relaxed">
-                      <pre>{nodeCode}</pre>
+                    <div className="p-4 font-mono text-[11px] overflow-x-auto bg-[#050507] leading-relaxed">
+                      <pre className="language-javascript !bg-transparent !p-0 !m-0">
+                        <code className="language-javascript">
+                          {nodeCode}
+                        </code>
+                      </pre>
                     </div>
                   </div>
                 )}
@@ -543,8 +568,12 @@ claude`
                           {copiedId === 'claude' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                       </div>
-                      <div className="p-4 font-mono text-[11px] text-zinc-300 overflow-x-auto bg-[#050507] leading-relaxed">
-                        <pre>{claudeCode}</pre>
+                      <div className="p-4 font-mono text-[11px] overflow-x-auto bg-[#050507] leading-relaxed">
+                        <pre className="language-bash !bg-transparent !p-0 !m-0">
+                          <code className="language-bash">
+                            {claudeCode}
+                          </code>
+                        </pre>
                       </div>
                     </div>
                   </div>
@@ -564,8 +593,12 @@ claude`
                           {copiedId === 'cline' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                       </div>
-                      <div className="p-4 font-mono text-[11px] text-zinc-300 overflow-x-auto bg-[#050507] leading-relaxed">
-                        <pre>{clineSettings}</pre>
+                      <div className="p-4 font-mono text-[11px] overflow-x-auto bg-[#050507] leading-relaxed">
+                        <pre className="language-json !bg-transparent !p-0 !m-0">
+                          <code className="language-json">
+                            {clineSettings}
+                          </code>
+                        </pre>
                       </div>
                     </div>
                   </div>
