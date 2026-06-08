@@ -24,6 +24,12 @@ _rpm_trackers: dict[str, dict[int, int]] = {}
 # Account-level budget tracking: account_id -> {"consumed_5h": float, "consumed_7d": float, "last_fetched_at": float}
 _account_budgets: dict[str, dict[str, Any]] = {}
 
+# Cached system settings: key -> (value, last_fetched_at)
+_system_settings_cache: dict[str, tuple[Any, float]] = {}
+
+# Cached model active status: model_alias -> (is_active, last_fetched_at)
+_model_active_cache: dict[str, tuple[bool, float]] = {}
+
 # In-flight tracker (provider_id -> count) - persistent in memory
 _in_flight_tracker: dict[str, int] = {}
 
@@ -133,6 +139,74 @@ def evict_account_caches(account_id: str) -> None:
         # Evict from _account_budgets
         if account_id in _account_budgets:
             del _account_budgets[account_id]
+
+
+def is_gateway_enabled() -> bool:
+    """Check if the gateway is enabled globally. Cached for 10s."""
+    now = time.time()
+    with _lock:
+        if "gateway_enabled" in _system_settings_cache:
+            val, fetched_at = _system_settings_cache["gateway_enabled"]
+            if now - fetched_at < 10.0:
+                return val == "true"
+    
+    # Cache miss, query DB
+    try:
+        supabase = get_supabase()
+        res = supabase.table("system_settings").select("value").eq("key", "gateway_enabled").execute()
+        val = "true"
+        if res.data:
+            val = res.data[0]["value"]
+        else:
+            # Seed it if missing
+            supabase.table("system_settings").insert({"key": "gateway_enabled", "value": "true"}).execute()
+        
+        with _lock:
+            _system_settings_cache["gateway_enabled"] = (val, now)
+        return val == "true"
+    except Exception as e:
+        logger.error(f"Failed to check gateway status: {e}")
+        # Fallback to true in case of DB failure to avoid false-positive blocking
+        return True
+
+
+def evict_system_settings_cache() -> None:
+    """Evict the system settings cache."""
+    with _lock:
+        _system_settings_cache.clear()
+
+
+def is_model_active(model_alias: str) -> bool:
+    """Check if a model is active. Cached for 10s."""
+    now = time.time()
+    with _lock:
+        if model_alias in _model_active_cache:
+            val, fetched_at = _model_active_cache[model_alias]
+            if now - fetched_at < 10.0:
+                return val
+    
+    # Cache miss, query DB
+    try:
+        supabase = get_supabase()
+        res = supabase.table("model_mapping").select("is_active").eq("alias", model_alias).execute()
+        val = True
+        if res.data:
+            val = res.data[0].get("is_active", True)
+        
+        with _lock:
+            _model_active_cache[model_alias] = (val, now)
+        return val
+    except Exception as e:
+        logger.error(f"Failed to check model active status for {model_alias}: {e}")
+        # Fallback to true on DB error to avoid false-positive blocking
+        return True
+
+
+def evict_model_active_cache(model_alias: str) -> None:
+    """Evict a specific model's active status from cache."""
+    with _lock:
+        if model_alias in _model_active_cache:
+            del _model_active_cache[model_alias]
 
 
 def get_jwt_cache(token: str) -> Optional[dict[str, Any]]:

@@ -192,6 +192,9 @@ async def get_my_usage(request: Request):
     progress_percentage_5h = min(100.0, round((consumed_5h / tokens_5h_limit) * 100.0, 2)) if tokens_5h_limit > 0 else 0.0
     progress_percentage_7d = min(100.0, round((consumed_7d / tokens_7d_limit) * 100.0, 2)) if tokens_7d_limit > 0 else 0.0
 
+    from app.core.cache import is_gateway_enabled
+    gateway_enabled = is_gateway_enabled()
+
     return {
         "tier": account["tier"],
         "role": account.get("role", "user"),
@@ -208,6 +211,7 @@ async def get_my_usage(request: Request):
         "consumed_budget_7d": round(consumed_7d, 6),
         "progress_percentage_5h": progress_percentage_5h,
         "progress_percentage_7d": progress_percentage_7d,
+        "gateway_enabled": gateway_enabled,
     }
 
 

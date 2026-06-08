@@ -59,6 +59,15 @@ async def auth_middleware(request: Request, call_next):
     if token:
         print(f"MIDDLEWARE_DEBUG: token starts with={token[:15]}")
 
+    # Enforce gateway-wide status check for completions and model paths
+    if path.startswith("/v1/"):
+        from app.core.cache import is_gateway_enabled
+        if not is_gateway_enabled():
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "AkaRouter API gateway is temporarily disabled by administrator"}
+            )
+
 
     # Public paths — no auth needed
     is_public = path == "/" or any(path.startswith(p) for p in PUBLIC_PREFIXES if p != "/")
@@ -80,7 +89,7 @@ async def auth_middleware(request: Request, call_next):
 
     # Try API key auth first (tokens starting with "akar_")
     if token.startswith("akar_"):
-        from app.core.router import RateLimitException, BudgetLimitException
+        from app.core.router import RateLimitException, BudgetLimitException, SuspendedAccountException
         check_limits = path.startswith("/v1/")
         try:
             auth_result = await authenticate_api_key(token, check_limits=check_limits)
@@ -88,6 +97,8 @@ async def auth_middleware(request: Request, call_next):
             return JSONResponse(status_code=429, content={"detail": str(e)})
         except BudgetLimitException as e:
             return JSONResponse(status_code=429, content={"detail": str(e)})
+        except SuspendedAccountException as e:
+            return JSONResponse(status_code=403, content={"detail": str(e)})
             
         if auth_result:
             request.state.auth = auth_result
@@ -99,6 +110,12 @@ async def auth_middleware(request: Request, call_next):
         try:
             user_info = _verify_supabase_jwt(token)
             if user_info:
+                if user_info.get("status") != "active":
+                    if not (path.startswith(ADMIN_PREFIX) and user_info.get("role") == "admin"):
+                        return JSONResponse(
+                            status_code=403, 
+                            content={"detail": f"Account is suspended: {user_info.get('suspended_reason') or 'Suspended by administrator'}"}
+                        )
                 request.state.supabase_user = user_info
                 request.state.auth = {
                     "account_id": user_info["account_id"],

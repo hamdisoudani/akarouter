@@ -317,6 +317,94 @@ class UpdatePlanRequest(BaseModel):
     tokens_5h_limit: Optional[float] = None
     tokens_7d_limit: Optional[float] = None
 
+class UpdateSettingsRequest(BaseModel):
+    gateway_enabled: bool
+
+class UpdateModelRequest(BaseModel):
+    is_active: bool
+
+def get_user_consumptions() -> dict[str, dict]:
+    """Retrieve aggregate consumption stats grouped by account_id."""
+    import psycopg2
+    try:
+        conn = psycopg2.connect(settings.supabase_db_url)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT account_id, 
+                   SUM(prompt_tokens) as total_prompt_tokens, 
+                   SUM(completion_tokens) as total_completion_tokens, 
+                   SUM(cost) as total_cost,
+                   COUNT(*) as request_count
+            FROM request_logs
+            GROUP BY account_id
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {
+            row[0]: {
+                "prompt_tokens": row[1] or 0,
+                "completion_tokens": row[2] or 0,
+                "total_tokens": (row[1] or 0) + (row[2] or 0),
+                "cost": float(row[3] or 0.0),
+                "request_count": row[4] or 0,
+                "million_tokens": round(((row[1] or 0) + (row[2] or 0)) / 1000000.0, 4)
+            }
+            for row in rows if row[0]
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch user consumptions: {e}")
+        return {}
+
+def get_global_telemetry() -> dict:
+    """Retrieve system-wide aggregate token telemetry stats."""
+    import psycopg2
+    try:
+        conn = psycopg2.connect(settings.supabase_db_url)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT SUM(prompt_tokens) as total_prompt_tokens, 
+                   SUM(completion_tokens) as total_completion_tokens, 
+                   SUM(cost) as total_cost,
+                   COUNT(*) as request_count
+            FROM request_logs
+        """)
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row:
+            prompt_tokens = row[0] or 0
+            completion_tokens = row[1] or 0
+            total_tokens = prompt_tokens + completion_tokens
+            cost = float(row[2] or 0.0)
+            request_count = row[3] or 0
+            return {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens,
+                "total_consumed_million_tokens": round(total_tokens / 1000000.0, 4),
+                "total_cost": cost,
+                "request_count": request_count
+            }
+        return {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "total_consumed_million_tokens": 0.0,
+            "total_cost": 0.0,
+            "request_count": 0
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch global telemetry: {e}")
+        return {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "total_consumed_million_tokens": 0.0,
+            "total_cost": 0.0,
+            "request_count": 0
+        }
+
 @router.get("/accounts")
 async def list_accounts(search: Optional[str] = None, authorization: Optional[str] = Header(None)):
     if not _verify_admin(authorization):
@@ -326,7 +414,24 @@ async def list_accounts(search: Optional[str] = None, authorization: Optional[st
     if search:
         query = query.or_(f"email.ilike.%{search}%,display_name.ilike.%{search}%")
     result = query.order("created_at", desc=True).execute()
-    return {"accounts": result.data}
+    
+    # Enrich with user consumption stats
+    consumptions = get_user_consumptions()
+    accounts = []
+    for acc in result.data:
+        acc_id = acc["id"]
+        stats = consumptions.get(acc_id, {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "cost": 0.0,
+            "request_count": 0,
+            "million_tokens": 0.0
+        })
+        acc["consumption"] = stats
+        accounts.append(acc)
+        
+    return {"accounts": accounts}
 
 @router.patch("/accounts/{account_id}")
 async def update_account(account_id: str, body: UpdateAccountRequest, authorization: Optional[str] = Header(None)):
@@ -528,7 +633,71 @@ async def get_stats(authorization: Optional[str] = Header(None)):
     if not _verify_admin(authorization): raise HTTPException(status_code=401, detail="Admin access required")
     providers = get_supabase().table("providers").select("id, health_status, total_requests, total_errors, in_flight").execute()
     accounts = get_supabase().table("accounts").select("id, tier, monthly_requests, monthly_limit, status").execute()
+    global_telemetry = get_global_telemetry()
     return {
         "providers": {"total": len(providers.data), "active": len([p for p in providers.data if p["health_status"] == "active"]), "total_requests": sum(p["total_requests"] for p in providers.data), "total_errors": sum(p["total_errors"] for p in providers.data)},
         "accounts": {"total": len(accounts.data), "active": len([a for a in accounts.data if a["status"] == "active"]), "by_tier": {t: len([a for a in accounts.data if a["tier"] == t]) for t in ("free", "pro", "enterprise")}},
+        "global_telemetry": global_telemetry
     }
+
+
+@router.get("/settings")
+async def get_admin_settings(authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    res = supabase.table("system_settings").select("*").execute()
+    settings_dict = {row["key"]: row["value"] for row in res.data}
+    if "gateway_enabled" not in settings_dict:
+        settings_dict["gateway_enabled"] = "true"
+    return {"settings": settings_dict}
+
+
+@router.patch("/settings")
+async def update_admin_settings(body: UpdateSettingsRequest, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    val_str = "true" if body.gateway_enabled else "false"
+    supabase.table("system_settings").upsert({"key": "gateway_enabled", "value": val_str}).execute()
+    
+    # Evict cache immediately
+    from app.core.cache import evict_system_settings_cache
+    evict_system_settings_cache()
+    
+    return {"ok": True, "gateway_enabled": body.gateway_enabled}
+
+
+@router.get("/models")
+async def admin_list_models(authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    res = supabase.table("model_mapping").select("*").execute()
+    return {"models": res.data}
+
+
+@router.patch("/models/{alias}")
+async def admin_update_model(alias: str, body: UpdateModelRequest, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    # Check if model mapping exists in DB
+    check_res = supabase.table("model_mapping").select("alias").eq("alias", alias).execute()
+    if not check_res.data:
+        upstream = settings.model_mapping.get(alias, alias)
+        supabase.table("model_mapping").insert({
+            "alias": alias,
+            "upstream_model": upstream,
+            "display_name": alias.replace("-", " ").title(),
+            "is_active": body.is_active
+        }).execute()
+    else:
+        supabase.table("model_mapping").update({"is_active": body.is_active}).eq("alias", alias).execute()
+    
+    # Evict local cache immediately
+    from app.core.cache import evict_model_active_cache
+    evict_model_active_cache(alias)
+    
+    return {"ok": True, "alias": alias, "is_active": body.is_active}

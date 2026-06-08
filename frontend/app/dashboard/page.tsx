@@ -8,6 +8,7 @@ import {
   getMe,
   getUsage,
   getAnalytics,
+  getModels,
   type UsageStats,
   type ModelAnalytics,
   type UserInfo,
@@ -27,6 +28,7 @@ export default function UserDashboard() {
   const [token, setToken] = useState<string>('')
   const [usage, setUsage] = useState<UsageStats | null>(null)
   const [analytics, setAnalytics] = useState<ModelAnalytics[]>([])
+  const [modelsList, setModelsList] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   
@@ -62,6 +64,16 @@ export default function UserDashboard() {
       setUsage(usageData)
       const modelsAnalytics = analyticsData.models || []
       setAnalytics(modelsAnalytics)
+
+      // Gracefully load models list
+      let modelsData: any = { data: [] }
+      try {
+        const data = await getModels()
+        modelsData = data
+      } catch (e) {
+        console.error("Failed to load models list:", e)
+      }
+      setModelsList(modelsData.data || [])
 
       // Process trace logs from actual request logs if available, otherwise generate mock logs
       const logsList: typeof traceLogs = []
@@ -274,6 +286,14 @@ response = client.chat.completions.create(
 
         {/* Canvas */}
         <main className="flex-1 p-0 grid-bg relative">
+          {usage?.gateway_enabled === false && (
+            <div className="bg-[#ef4444]/15 border-b border-[#ef4444]/30 text-[#ef4444] px-6 py-3 font-mono text-[11px] flex items-center justify-between animate-pulse uppercase tracking-wider font-bold">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-[#ef4444] rounded-full status-pulse red-glow" />
+                [SYSTEM_ALERT_OFFLINE]: THE AKAROUTER API GATEWAY IS TEMPORARILY DISABLED BY ADMINISTRATOR. ALL API ENDPOINTS WILL RETURN 503 SERVICE UNAVAILABLE.
+              </div>
+            </div>
+          )}
           <div className="p-6">
             <div className="grid grid-cols-12 gap-0 tech-border bg-[#0e0e10] crosshair-corners">
               
@@ -453,39 +473,72 @@ response = client.chat.completions.create(
 
               {/* Providers Health / Model Matrix */}
               <div className="col-span-12 lg:col-span-4 p-6 flex flex-col justify-between bg-[#0e0e10]">
-                <div className="space-y-5">
-                  <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
-                    <div className="w-[3px] h-3 bg-zinc-800"></div>
-                    MODEL_METRIC_ROUTING
-                  </h2>
-                  <div className="space-y-2">
-                    {loading ? (
-                      <>
-                        <div className="h-11 bg-[#050507] border border-zinc-900 animate-pulse flex items-center justify-between px-3">
-                          <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">LOADING_METRICS_PRO...</span>
-                          <span className="w-12 h-3 bg-zinc-900 animate-pulse" />
-                        </div>
-                        <div className="h-11 bg-[#050507] border border-zinc-900 animate-pulse flex items-center justify-between px-3">
-                          <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">LOADING_METRICS_FSH...</span>
-                          <span className="w-12 h-3 bg-zinc-900 animate-pulse" />
-                        </div>
-                      </>
-                    ) : analytics.length === 0 ? (
-                      <p className="text-xs text-zinc-655 py-4 font-mono uppercase text-center">[NO_MODEL_ANALYTICS_YET]</p>
-                    ) : (
-                      analytics.map((m) => (
-                        <div key={m.model} className="flex justify-between items-center p-3 bg-[#050507] border border-zinc-900 hover:border-zinc-800 transition-all group">
-                          <div className="flex items-center gap-3">
-                            <span className={`w-1.5 h-1.5 ${m.error_requests > 0 ? 'bg-[#ef4444] status-pulse red-glow' : 'bg-[#10b981]'}`} />
-                            <span className="font-mono text-[11px] text-zinc-400 group-hover:text-white uppercase transition-colors">{m.model}</span>
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <div className="w-[3px] h-3 bg-zinc-800"></div>
+                      MODEL_METRIC_ROUTING
+                    </h2>
+                    <div className="space-y-2">
+                      {loading ? (
+                        <>
+                          <div className="h-11 bg-[#050507] border border-zinc-900 animate-pulse flex items-center justify-between px-3">
+                            <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">LOADING_METRICS_PRO...</span>
+                            <span className="w-12 h-3 bg-zinc-900 animate-pulse" />
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-[11px] text-zinc-500">{m.total_requests} TX</span>
-                            <span className="font-mono text-[11px] text-[#10b981]">{m.avg_latency_ms}ms</span>
+                          <div className="h-11 bg-[#050507] border border-zinc-900 animate-pulse flex items-center justify-between px-3">
+                            <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">LOADING_METRICS_FSH...</span>
+                            <span className="w-12 h-3 bg-zinc-900 animate-pulse" />
                           </div>
-                        </div>
-                      ))
-                    )}
+                        </>
+                      ) : analytics.length === 0 ? (
+                        <p className="text-xs text-zinc-655 py-4 font-mono uppercase text-center">[NO_MODEL_ANALYTICS_YET]</p>
+                      ) : (
+                        analytics.map((m) => (
+                          <div key={m.model} className="flex justify-between items-center p-3 bg-[#050507] border border-zinc-900 hover:border-zinc-800 transition-all group">
+                            <div className="flex items-center gap-3">
+                              <span className={`w-1.5 h-1.5 ${m.error_requests > 0 ? 'bg-[#ef4444] status-pulse red-glow' : 'bg-[#10b981]'}`} />
+                              <span className="font-mono text-[11px] text-zinc-400 group-hover:text-white uppercase transition-colors">{m.model}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[11px] text-zinc-500">{m.total_requests} TX</span>
+                              <span className="font-mono text-[11px] text-[#10b981]">{m.avg_latency_ms}ms</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-zinc-900 my-4" />
+
+                  <div className="space-y-4">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <div className="w-[3px] h-3 bg-[#ef4444] red-glow"></div>
+                      ROUTING_MODEL_REGISTRY
+                    </h2>
+                    <div className="space-y-2">
+                      {loading ? (
+                        <p className="text-[10px] font-mono text-zinc-650 uppercase py-2 text-center animate-pulse">[SYNCHRONIZING_REGISTRY...]</p>
+                      ) : modelsList.length === 0 ? (
+                        <p className="text-[10px] font-mono text-zinc-650 uppercase py-2 text-center">[NO_ACTIVE_MODELS]</p>
+                      ) : (
+                        modelsList.map((m) => (
+                          <div key={m.id} className={`flex justify-between items-center p-3 bg-[#050507] border ${m.is_active ? 'border-zinc-900' : 'border-[#ef4444]/20 opacity-60'} transition-all group`}>
+                            <div className="flex items-center gap-3">
+                              <span className={`w-1.5 h-1.5 ${m.is_active ? 'bg-emerald-400 status-pulse' : 'bg-[#ef4444]'}`} />
+                              <div className="flex flex-col">
+                                <span className="font-mono text-[11px] text-zinc-400 uppercase">{m.display_name || m.id}</span>
+                                <span className="font-mono text-[8px] text-zinc-600 uppercase tracking-tighter">{m.id}</span>
+                              </div>
+                            </div>
+                            <span className={`font-mono text-[9px] font-bold uppercase ${m.is_active ? 'text-emerald-450' : 'text-[#ef4444] red-glow-text'}`}>
+                              {m.is_active ? 'ACTIVE' : 'DISABLED'}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
                 </div>
 

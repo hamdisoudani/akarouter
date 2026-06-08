@@ -25,6 +25,13 @@ class ChatRequest(BaseModel):
 
 @router.post("/v1/chat/completions")
 async def proxy_chat(request: ChatRequest, req: Request) -> dict:
+    if request.model not in settings.model_mapping:
+        raise HTTPException(status_code=400, detail=f"Unknown model '{request.model}'")
+
+    from app.core.cache import is_model_active
+    if not is_model_active(request.model):
+        raise HTTPException(status_code=400, detail=f"Model '{request.model}' is disabled by administrator")
+
     # Resolve model alias → upstream model
     upstream_model = settings.resolve_model(request.model)
 

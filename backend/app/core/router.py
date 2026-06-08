@@ -31,6 +31,10 @@ class BudgetLimitException(Exception):
     pass
 
 
+class SuspendedAccountException(Exception):
+    pass
+
+
 async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optional[dict]:
     if not api_key:
         return None
@@ -47,7 +51,7 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
         supabase = get_supabase()
         result = (
             supabase.table("api_keys")
-            .select("id, key_name, scopes, allowed_models, is_active, account_id, accounts(id, email, tier, status, monthly_requests, monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, budget_reset_at)")
+            .select("id, key_name, scopes, allowed_models, is_active, account_id, accounts(id, email, tier, status, monthly_requests, monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, budget_reset_at, suspended_reason)")
             .eq("key_hash", key_hash)
             .eq("is_active", True)
             .execute()
@@ -57,9 +61,13 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
             return None
         key_row = result.data[0]
         account = key_row.get("accounts")
-        if not account or account.get("status") != "active":
-            logger.warning(f"Account inactive for key: {key_row['id']}")
+        if not account:
+            logger.warning(f"No account found for key: {key_row['id']}")
             return None
+        if account.get("status") != "active":
+            reason = account.get("suspended_reason") or "No reason provided"
+            logger.warning(f"Account suspended for key: {key_row['id']} | Reason: {reason}")
+            raise SuspendedAccountException(f"Account is suspended: {reason}")
         if account.get("monthly_requests", 0) >= account.get("monthly_limit", 1000):
             logger.warning(f"Rate limit exceeded for account: {account['id']}")
             return None
@@ -76,6 +84,8 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
             "tokens_5h_limit": account.get("tokens_5h_limit") or 1.0,
             "tokens_7d_limit": account.get("tokens_7d_limit") or 5.0,
             "budget_reset_at": account.get("budget_reset_at"),
+            "status": account.get("status") or "active",
+            "suspended_reason": account.get("suspended_reason") or "",
         }
         # Cache auth response (TTL 30 seconds)
         set_api_key_cache(key_hash, auth_metadata)
@@ -90,6 +100,11 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
             }).eq("id", auth_metadata["key_id"]).execute()
         except Exception as e:
             logger.error(f"Failed to update key last_used_at: {e}")
+
+    # Enforce account suspension check (always run, even on key cache hit)
+    if auth_metadata.get("status") != "active":
+        reason = auth_metadata.get("suspended_reason") or "No reason provided"
+        raise SuspendedAccountException(f"Account is suspended: {reason}")
 
     # Enforce limits (always run, even on key cache hit, but only if check_limits is True)
     account_id = auth_metadata["account_id"]

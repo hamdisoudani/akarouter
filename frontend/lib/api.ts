@@ -55,6 +55,7 @@ export interface UsageStats {
   consumed_budget_7d?: number
   progress_percentage_5h?: number
   progress_percentage_7d?: number
+  gateway_enabled?: boolean
 }
 
 export interface ModelAnalytics {
@@ -260,5 +261,61 @@ export async function adminDeletePlan(token: string, planId: string): Promise<{ 
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) throw new Error('Failed to delete plan preset')
+  return res.json()
+}
+
+export interface AdminModelMapping {
+  alias: string
+  upstream_model: string
+  display_name: string
+  description: string
+  is_active: boolean
+}
+
+export async function adminGetSettings(token: string): Promise<{ settings: Record<string, string> }> {
+  const res = await fetch(`${API_BASE}/admin/settings`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch system settings')
+  return res.json()
+}
+
+export async function adminUpdateSettings(token: string, data: { gateway_enabled: boolean }): Promise<{ ok: boolean; gateway_enabled: boolean }> {
+  const res = await fetch(`${API_BASE}/admin/settings`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to update system settings')
+  }
+  return res.json()
+}
+
+export async function adminGetModels(token: string): Promise<{ models: AdminModelMapping[] }> {
+  const res = await fetch(`${API_BASE}/admin/models`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch admin models list')
+  return res.json()
+}
+
+export async function adminUpdateModel(token: string, alias: string, data: { is_active: boolean }): Promise<{ ok: boolean; alias: string; is_active: boolean }> {
+  const res = await fetch(`${API_BASE}/admin/models/${alias}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to update model settings')
+  }
   return res.json()
 }

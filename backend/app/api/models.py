@@ -12,7 +12,7 @@ async def list_models(request: Request) -> dict:
     # Try DB first (allows dynamic updates from admin)
     try:
         supabase = get_supabase()
-        result = supabase.table("model_mapping").select("alias, display_name, description, is_active").eq("is_active", True).execute()
+        result = supabase.table("model_mapping").select("alias, display_name, description, is_active").execute()
         if result.data:
             return {
                 "object": "list",
@@ -23,6 +23,7 @@ async def list_models(request: Request) -> dict:
                         "owned_by": "akarouter",
                         "display_name": row.get("display_name", row["alias"]),
                         "description": row.get("description", ""),
+                        "is_active": row.get("is_active", True),
                     }
                     for row in result.data
                 ],
@@ -39,6 +40,7 @@ async def list_models(request: Request) -> dict:
                 "object": "model",
                 "owned_by": "akarouter",
                 "display_name": alias.replace("-", " ").title(),
+                "is_active": True,
             }
             for alias in settings.model_mapping
         ],

@@ -12,7 +12,12 @@ import {
   adminCreatePlan,
   adminUpdatePlan,
   adminDeletePlan,
-  type PlanPreset
+  adminGetSettings,
+  adminUpdateSettings,
+  adminGetModels,
+  adminUpdateModel,
+  type PlanPreset,
+  type AdminModelMapping
 } from '@/lib/api'
 import { 
   Shield, 
@@ -87,7 +92,12 @@ export default function AdminDashboard() {
   const [copiedUserCode, setCopiedUserCode] = useState(false)
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<'providers' | 'users' | 'plans'>('providers')
+  const [activeTab, setActiveTab] = useState<'providers' | 'users' | 'plans' | 'settings'>('providers')
+
+  // Settings & Models state
+  const [systemSettings, setSystemSettings] = useState<any>({ gateway_enabled: 'true' })
+  const [adminModels, setAdminModels] = useState<AdminModelMapping[]>([])
+  const [loadingSettings, setLoadingSettings] = useState(false)
 
   // Plans state
   const [plans, setPlans] = useState<PlanPreset[]>([])
@@ -167,9 +177,27 @@ export default function AdminDashboard() {
     setLoadingAccounts(false)
   }, [token])
 
+  const loadSettings = useCallback(async () => {
+    if (!token) return
+    setLoadingSettings(true)
+    try {
+      const data = await adminGetSettings(token)
+      setSystemSettings(data.settings)
+    } catch {}
+    setLoadingSettings(false)
+  }, [token])
+
+  const loadAdminModels = useCallback(async () => {
+    if (!token) return
+    try {
+      const data = await adminGetModels(token)
+      setAdminModels(data.models || [])
+    } catch {}
+  }, [token])
+
   useEffect(() => {
     if (!authChecked || !isAdmin) return
-    loadProviders(); loadStats(); loadPlans(); loadAccounts()
+    loadProviders(); loadStats(); loadPlans(); loadAccounts(); loadSettings(); loadAdminModels()
     const channel = supabase
       .channel('admin-providers')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'providers' }, (payload: any) => {
@@ -184,7 +212,7 @@ export default function AdminDashboard() {
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [authChecked, isAdmin, loadProviders, loadStats, loadPlans, loadAccounts])
+  }, [authChecked, isAdmin, loadProviders, loadStats, loadPlans, loadAccounts, loadSettings, loadAdminModels])
 
   // Plan Preset Handlers
   const handleCreatePlan = async (e: React.FormEvent) => {
@@ -467,7 +495,7 @@ export default function AdminDashboard() {
 
             {/* Admin Stats Grid */}
             {stats && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-slide-in">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 animate-slide-in">
                 <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative">
                   <span className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[7px] text-zinc-600">ST_01</span>
                   <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Total Providers</p>
@@ -493,6 +521,22 @@ export default function AdminDashboard() {
                   <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Active Users</p>
                   <p className="text-2xl font-bold text-[#ef4444] font-mono red-glow-text">{stats.accounts?.total || 0}</p>
                   <p className="text-[9px] text-emerald-400 font-mono uppercase">{stats.accounts?.active || 0} active sessions</p>
+                </div>
+                <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative">
+                  <span className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[7px] text-zinc-600">ST_05</span>
+                  <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Global consumed Tokens</p>
+                  <p className="text-2xl font-bold text-white font-mono">
+                    {stats.global_telemetry?.total_consumed_million_tokens ? `${stats.global_telemetry.total_consumed_million_tokens.toFixed(3)}M` : '0.000M'}
+                  </p>
+                  <p className="text-[9px] text-zinc-600 font-mono uppercase">million tokens count</p>
+                </div>
+                <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative bg-emerald-500/5">
+                  <span className="absolute right-0 top-0 p-1 bg-emerald-500/20 border-b border-l border-emerald-500/30 font-mono text-[7px] text-emerald-450 font-bold">ST_06</span>
+                  <p className="text-[9px] text-zinc-400 font-mono uppercase tracking-wider">global consumed cost</p>
+                  <p className="text-2xl font-bold text-emerald-400 font-mono">
+                    ${stats.global_telemetry?.total_cost ? stats.global_telemetry.total_cost.toFixed(4) : '0.0000'}
+                  </p>
+                  <p className="text-[9px] text-emerald-500 font-mono uppercase">aggregated cost usd</p>
                 </div>
               </div>
             )}
@@ -527,6 +571,16 @@ export default function AdminDashboard() {
                 }`}
               >
                 [03_PLAN_PRESETS]
+              </button>
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all ${
+                  activeTab === 'settings'
+                    ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
+                    : 'text-zinc-500 hover:text-white'
+                }`}
+              >
+                [04_SYSTEM_CONTROL]
               </button>
             </div>
 
@@ -705,6 +759,8 @@ export default function AdminDashboard() {
                           <th className="p-4">Monthly Limit</th>
                           <th className="p-4">Role</th>
                           <th className="p-4">Status</th>
+                          <th className="p-4">Tokens (M)</th>
+                          <th className="p-4">Cost (USD)</th>
                           <th className="p-4 text-right">Action</th>
                         </tr>
                       </thead>
@@ -739,6 +795,12 @@ export default function AdminDashboard() {
                                   Reason: {acc.suspended_reason}
                                 </p>
                               )}
+                            </td>
+                            <td className="p-4 font-mono text-zinc-400">
+                              {acc.consumption?.million_tokens ? `${acc.consumption.million_tokens.toFixed(3)}M` : '0.000M'}
+                            </td>
+                            <td className="p-4 font-mono text-emerald-400 font-semibold">
+                              ${acc.consumption?.cost ? acc.consumption.cost.toFixed(4) : '0.0000'}
                             </td>
                             <td className="p-4 text-right space-x-2">
                               <button 
@@ -899,7 +961,120 @@ export default function AdminDashboard() {
               </section>
             )}
 
-            {/* Modal: Edit User Metadata details */}
+            {/* Tab Panel: Settings */}
+            {activeTab === 'settings' && (
+              <section className="grid grid-cols-12 gap-6 animate-slide-in relative">
+                {/* Global Gateway Status Switch Card */}
+                <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <Shield className="w-4 h-4 text-[#ef4444]" />
+                      GLOBAL_GATEWAY_SUSPENSION
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                      Stop the entire OpenAI compatibility endpoint. If offline, users will see an alert and all completions fail with 503.
+                    </p>
+                  </div>
+
+                  <div className="p-5 bg-zinc-950 border border-zinc-900 flex flex-col gap-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider font-bold">
+                        API GATEWAY ENDPOINT STATUS:
+                      </span>
+                      <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
+                        systemSettings.gateway_enabled === 'true'
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444] red-glow-text animate-pulse'
+                      }`}>
+                        {systemSettings.gateway_enabled === 'true' ? 'ONLINE (ACTIVE)' : 'OFFLINE (SUSPENDED)'}
+                      </span>
+                    </div>
+
+                    <div className="border-t border-zinc-900 my-2" />
+
+                    <button
+                      onClick={async () => {
+                        const nextVal = systemSettings.gateway_enabled !== 'true';
+                        try {
+                          await adminUpdateSettings(token, { gateway_enabled: nextVal });
+                          setSystemSettings((prev: any) => ({ ...prev, gateway_enabled: nextVal ? 'true' : 'false' }));
+                          await loadStats();
+                        } catch (err: any) {
+                          setError(err.message);
+                        }
+                      }}
+                      className={`w-full font-mono text-xs font-bold py-3 transition-all crosshair-corners flex items-center justify-center gap-2 ${
+                        systemSettings.gateway_enabled === 'true'
+                          ? 'bg-red-950/15 border border-[#ef4444]/30 text-[#ef4444] hover:bg-[#ef4444]/15 hover:text-white'
+                          : 'bg-emerald-500 text-black hover:bg-emerald-400'
+                      }`}
+                    >
+                      {systemSettings.gateway_enabled === 'true' ? 'STOP / SUSPEND GATEWAY' : 'START / ACTIVATE GATEWAY'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Model active switches Card */}
+                <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <Cpu className="w-4 h-4 text-[#ef4444]" />
+                      MODEL_ACTIVATION_MATRIX
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                      Enable or disable inference models. Disabled models will return 400 Bad Request if called and show as inactive on user dashboards.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {adminModels.length === 0 ? (
+                      <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center">[SYNCHRONIZING_MODELS_LIST_WITH_SETTINGS_FALLBACK...]</p>
+                    ) : (
+                      adminModels.map((m) => (
+                        <div key={m.alias} className="flex justify-between items-center p-4 bg-zinc-950 border border-zinc-900 hover:border-zinc-850 transition-all group">
+                          <div className="flex flex-col gap-1">
+                            <span className="font-mono text-xs font-bold text-white uppercase">{m.alias}</span>
+                            <span className="font-mono text-[9px] text-zinc-500 uppercase">{m.upstream_model}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-4">
+                            <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
+                              m.is_active
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444] red-glow-text'
+                            }`}>
+                              {m.is_active ? 'ACTIVE' : 'DISABLED'}
+                            </span>
+
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await adminUpdateModel(token, m.alias, { is_active: !m.is_active });
+                                  setAdminModels(prev =>
+                                    prev.map(item =>
+                                      item.alias === m.alias ? { ...item, is_active: !m.is_active } : item
+                                    )
+                                  );
+                                } catch (err: any) {
+                                  setError(err.message);
+                                }
+                              }}
+                              className={`px-3 py-1 font-mono text-[10px] font-bold border transition-all ${
+                                m.is_active
+                                  ? 'border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] hover:bg-[#ef4444]/20 hover:text-red-350'
+                                  : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-350'
+                              }`}
+                            >
+                              {m.is_active ? 'DISABLE' : 'ENABLE'}
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
             {editingAccountId && (
               <div className="fixed inset-0 z-50 bg-[#09090b]/80 backdrop-blur-sm flex items-center justify-center p-4">
                 <div className="bg-[#0e0e10] border border-[#ef4444]/35 p-6 w-full max-w-lg crosshair-corners relative animate-fade-in space-y-4">
