@@ -33,6 +33,9 @@ _model_active_cache: dict[str, tuple[bool, float]] = {}
 # In-flight tracker (provider_id -> count) - persistent in memory
 _in_flight_tracker: dict[str, int] = {}
 
+# Consecutive error tracking for providers (provider_id -> count)
+_provider_consecutive_errors: dict[str, int] = {}
+
 # Buffers for deferred database updates
 _account_usage_buffer: dict[str, dict[str, int]] = {}  # account_id -> {"monthly": int, "total": int}
 _provider_usage_buffer: dict[str, dict[str, int]] = {}  # provider_id -> {"requests": int, "errors": int}
@@ -274,6 +277,22 @@ def dec_in_flight(provider_id: str) -> int:
         current = _in_flight_tracker.get(provider_id, 0)
         _in_flight_tracker[provider_id] = max(0, current - 1)
         return _in_flight_tracker[provider_id]
+
+
+# --- Consecutive Error Tracking ---
+
+def inc_consecutive_errors(provider_id: str) -> int:
+    """Increment and return consecutive error count for a provider."""
+    with _lock:
+        current = _provider_consecutive_errors.get(provider_id, 0)
+        _provider_consecutive_errors[provider_id] = current + 1
+        return _provider_consecutive_errors[provider_id]
+
+
+def reset_consecutive_errors(provider_id: str) -> None:
+    """Reset consecutive error count for a provider to 0."""
+    with _lock:
+        _provider_consecutive_errors[provider_id] = 0
 
 
 # --- Throttled Database Updates Gate ---

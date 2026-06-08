@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+import logging
 from typing import Any
 
 import httpx
@@ -11,6 +12,8 @@ from pydantic import BaseModel, Field
 from app.core.config import settings
 from app.core.router import select_provider, release_provider, log_request
 from app.core.supabase import get_supabase
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -114,7 +117,12 @@ async def _upstream(provider: dict, model: str, messages: list[dict[str, Any]], 
             json=body,
         )
         response.raise_for_status()
-        return response.json()
+        try:
+            return response.json()
+        except Exception as exc:
+            text_preview = response.text[:500] if response.text else "<empty response>"
+            logger.error(f"Failed to parse JSON response from upstream {settings.nous_api_base}: {exc}. Response text: {text_preview}")
+            raise ValueError(f"Upstream returned invalid JSON response: {text_preview}")
 
 
 async def _try_refresh(provider: dict) -> bool:

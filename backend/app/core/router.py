@@ -204,10 +204,21 @@ async def select_provider(model: str) -> Optional[dict]:
             .execute()
         )
         if not result.data:
-            logger.error("No active providers available")
-            return None
-        providers = result.data
-        set_active_providers_cache(providers)
+            logger.warning("No active providers available, trying degraded fallback")
+            result = (
+                supabase.table("providers")
+                .select("id, account_label, access_token, refresh_token, token_expires_at, health_status, weight, total_requests, total_errors, in_flight, max_concurrent, last_used_at, refresh_lock_acquired_at")
+                .eq("health_status", "degraded")
+                .order("last_used_at", desc=False, nullsfirst=True)
+                .execute()
+            )
+            if not result.data:
+                logger.error("No active or degraded providers available")
+                return None
+            providers = result.data
+        else:
+            providers = result.data
+            set_active_providers_cache(providers)
 
     now = time.time()
     best = None
@@ -255,8 +266,11 @@ async def select_provider(model: str) -> Optional[dict]:
 
 
 async def release_provider(provider_id: str, success: bool, error_msg: Optional[str] = None) -> None:
-    """Release a provider after request completion."""
-    from app.core.cache import dec_in_flight, buffer_provider_usage, clear_active_providers_cache
+    """Release a provider after request completion with failure thresholds and healing."""
+    from app.core.cache import (
+        dec_in_flight, buffer_provider_usage, clear_active_providers_cache,
+        inc_consecutive_errors, reset_consecutive_errors
+    )
     
     # 1. Decrement in-flight count locally
     dec_in_flight(provider_id)
@@ -264,21 +278,47 @@ async def release_provider(provider_id: str, success: bool, error_msg: Optional[
     # 2. Buffer requests / error stats locally
     buffer_provider_usage(provider_id, success)
 
-    # 3. If failed, trigger instant failover by degrading in the DB immediately
-    if not success:
-        clear_active_providers_cache()
+    # 3. Handle healing and threshold-based degradation
+    if success:
+        reset_consecutive_errors(provider_id)
+        # Attempt to auto-heal provider if it was degraded or dead
         try:
             supabase = get_supabase()
-            update = {
-                "health_status": "degraded",
-                "last_used_at": datetime.now(timezone.utc).isoformat(),
-            }
-            if error_msg:
-                update["last_error_at"] = datetime.now(timezone.utc).isoformat()
-                update["last_error_msg"] = error_msg[:500]
-            supabase.table("providers").update(update).eq("id", provider_id).execute()
+            res = (
+                supabase.table("providers")
+                .update({
+                    "health_status": "active",
+                    "last_used_at": datetime.now(timezone.utc).isoformat(),
+                })
+                .eq("id", provider_id)
+                .in_("health_status", ["degraded", "dead"])
+                .execute()
+            )
+            if res.data:
+                logger.info(f"Provider {provider_id} auto-healed and marked active in database")
+                clear_active_providers_cache()
         except Exception as e:
-            logger.error(f"Failed to degrade provider {provider_id} in DB: {e}")
+            logger.error(f"Failed to auto-heal provider {provider_id} in DB: {e}")
+    else:
+        consecutive_errors = inc_consecutive_errors(provider_id)
+        logger.warning(f"Provider {provider_id} recorded request failure. Consecutive errors: {consecutive_errors}")
+        
+        # Only degrade in the DB after 3 consecutive failures
+        if consecutive_errors >= 3:
+            logger.error(f"Provider {provider_id} reached {consecutive_errors} consecutive failures. Marking as degraded.")
+            clear_active_providers_cache()
+            try:
+                supabase = get_supabase()
+                update = {
+                    "health_status": "degraded",
+                    "last_used_at": datetime.now(timezone.utc).isoformat(),
+                }
+                if error_msg:
+                    update["last_error_at"] = datetime.now(timezone.utc).isoformat()
+                    update["last_error_msg"] = error_msg[:500]
+                supabase.table("providers").update(update).eq("id", provider_id).execute()
+            except Exception as e:
+                logger.error(f"Failed to degrade provider {provider_id} in DB: {e}")
 
 
 async def log_request(
