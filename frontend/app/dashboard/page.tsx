@@ -21,7 +21,9 @@ import {
   Copy,
   Check,
   Menu,
-  X
+  X,
+  Layers,
+  FileText
 } from 'lucide-react'
 
 export default function UserDashboard() {
@@ -35,8 +37,7 @@ export default function UserDashboard() {
   const [error, setError] = useState('')
   const [mobileOpen, setMobileOpen] = useState(false)
   
-  // Track copied states
-  const [copiedSDK, setCopiedSDK] = useState(false)
+  // Custom logs for the trace buffer
 
   // Custom logs for the trace buffer
   const [traceLogs, setTraceLogs] = useState<Array<{
@@ -48,13 +49,7 @@ export default function UserDashboard() {
     isError: boolean;
   }>>([])
 
-  const [origin, setOrigin] = useState('http://localhost:8000')
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setOrigin(window.location.origin)
-    }
-  }, [])
 
   const loadData = useCallback(async (accessToken: string) => {
     try {
@@ -188,23 +183,7 @@ export default function UserDashboard() {
     router.push('/auth/login')
   }
 
-  const copyToClipboard = (text: string, id: string, setCopiedState: (v: any) => void) => {
-    navigator.clipboard.writeText(text)
-    setCopiedState(true)
-    setTimeout(() => setCopiedState(false), 2000)
-  }
 
-  const sdkCode = `from openai import OpenAI
-
-client = OpenAI(
-    base_url="${origin}/v1",
-    api_key="YOUR_API_KEY"
-)
-
-response = client.chat.completions.create(
-    model="akarouter-pro",
-    messages=[{"role": "user", "content": "Hello!"}]
-)`
 
   return (
     <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex antialiased selection:bg-[#ef4444]/30 selection:text-white">
@@ -236,6 +215,20 @@ response = client.chat.completions.create(
               <KeyRound className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
             </span>
             <span className="tracking-widest font-mono uppercase text-[11px]">API Keys</span>
+          </Link>
+
+          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/usage">
+            <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
+              <Layers className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
+            </span>
+            <span className="tracking-widest font-mono uppercase text-[11px]">Usage</span>
+          </Link>
+
+          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/docs">
+            <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
+              <FileText className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
+            </span>
+            <span className="tracking-widest font-mono uppercase text-[11px]">Docs</span>
           </Link>
 
           {user?.role === 'admin' && (
@@ -319,6 +312,28 @@ response = client.chat.completions.create(
                 <span className="tracking-widest font-mono uppercase text-xs">API Keys</span>
               </Link>
 
+              <Link 
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+                href="/usage"
+              >
+                <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                  <Layers className="w-3.5 h-3.5 text-zinc-400" />
+                </span>
+                <span className="tracking-widest font-mono uppercase text-xs">Usage</span>
+              </Link>
+
+              <Link 
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+                href="/docs"
+              >
+                <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                  <FileText className="w-3.5 h-3.5 text-zinc-400" />
+                </span>
+                <span className="tracking-widest font-mono uppercase text-xs">Docs</span>
+              </Link>
+
               {user?.role === 'admin' && (
                 <Link 
                   onClick={() => setMobileOpen(false)}
@@ -326,7 +341,7 @@ response = client.chat.completions.create(
                   href="/admin"
                 >
                   <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
-                    <Shield className="w-3.5 h-3.5 text-zinc-450" />
+                    <Shield className="w-3.5 h-3.5 text-zinc-455" />
                   </span>
                   <span className="tracking-widest font-mono uppercase text-xs">Admin Panel</span>
                 </Link>
@@ -421,185 +436,41 @@ response = client.chat.completions.create(
                 </div>
               </div>
 
-              {/* Main Content Grid Area */}
-              <div className="col-span-12 lg:col-span-8 lg:tech-border-r border-b lg:border-b-0 border-zinc-900 p-6 space-y-6 flex flex-col justify-between">
-                
-                {/* Sliding Token Budgets & Quotas */}
+              {/* Symmetrical columns */}
+              <div className="col-span-12 lg:col-span-6 lg:tech-border-r border-b lg:border-b-0 border-zinc-900 p-6 space-y-6 flex flex-col justify-between">
                 <div className="space-y-4">
-                  <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
-                      <div className="w-[3px] h-3 bg-[#ef4444] red-glow"></div>
-                      SLIDING_WINDOW_TELEMETRY
-                    </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Real-time sliding budgets and active token counts.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* 5-Hour budget progress */}
-                    <div className="bg-[#050507] border border-zinc-900 p-4 space-y-3">
-                      <div className="flex justify-between items-center text-[10px] font-mono">
-                        <span className="text-zinc-400 font-bold uppercase tracking-wider">5-Hour Sliding Budget</span>
-                        <span className="text-[#ef4444] font-bold">
-                          {usage ? `${(usage.progress_percentage_5h ?? 0).toFixed(1)}%` : '...'}
-                        </span>
-                      </div>
-                      
-                      {/* Bar progress */}
-                      <div className="w-full h-1.5 bg-zinc-950 border border-zinc-900 overflow-hidden">
-                        <div 
-                          className="h-full bg-[#ef4444] red-glow transition-all duration-500" 
-                          style={{ width: `${usage ? (usage.progress_percentage_5h ?? 0) : 0}%` }}
-                        />
-                      </div>
-
-                      <div className="flex justify-between items-center text-[9px] font-mono text-zinc-500">
-                        <span>CONSUMED: ${usage ? (usage.consumed_budget_5h ?? 0).toFixed(4) : '0.0000'}</span>
-                        <span>LIMIT: ${usage ? (usage.tokens_5h_limit ?? 1.0).toFixed(2) : '1.00'}</span>
-                      </div>
-                    </div>
-
-                    {/* 7-Day budget progress */}
-                    <div className="bg-[#050507] border border-zinc-900 p-4 space-y-3">
-                      <div className="flex justify-between items-center text-[10px] font-mono">
-                        <span className="text-zinc-400 font-bold uppercase tracking-wider">7-Day Sliding Budget</span>
-                        <span className="text-[#ef4444] font-bold">
-                          {usage ? `${(usage.progress_percentage_7d ?? 0).toFixed(1)}%` : '...'}
-                        </span>
-                      </div>
-
-                      {/* Bar progress */}
-                      <div className="w-full h-1.5 bg-zinc-950 border border-zinc-900 overflow-hidden">
-                        <div 
-                          className="h-full bg-[#ef4444] red-glow transition-all duration-500" 
-                          style={{ width: `${usage ? (usage.progress_percentage_7d ?? 0) : 0}%` }}
-                        />
-                      </div>
-
-                      <div className="flex justify-between items-center text-[9px] font-mono text-zinc-500">
-                        <span>CONSUMED: ${usage ? (usage.consumed_budget_7d ?? 0).toFixed(4) : '0.0000'}</span>
-                        <span>LIMIT: ${usage ? (usage.tokens_7d_limit ?? 5.0).toFixed(2) : '5.00'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Consumed Tokens breakdown */}
-                  <div className="bg-[#050507] border border-zinc-900 p-4 grid grid-cols-2 gap-4">
-                    <div className="flex flex-col">
-                      <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">Input Tokens (Active Period)</span>
-                      <span className="font-mono text-base text-white font-bold tracking-wider mt-1">
-                        {usage ? (usage.consumed_tokens_input ?? 0).toLocaleString() : '...'}
-                        <span className="text-zinc-700 text-[10px] ml-1">TOKENS</span>
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col border-l border-zinc-900 pl-4">
-                      <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">Output Tokens (Active Period)</span>
-                      <span className="font-mono text-base text-white font-bold tracking-wider mt-1">
-                        {usage ? (usage.consumed_tokens_output ?? 0).toLocaleString() : '...'}
-                        <span className="text-zinc-700 text-[10px] ml-1">TOKENS</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-zinc-900 my-4" />
-
-                {/* Quick Start Guide */}
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
-                      <div className="w-[3px] h-3 bg-zinc-800"></div>
-                      QUICK_START_CONNECTION_GUIDE
-                    </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Seamless integration using any standard OpenAI-compatible client library.</p>
-                  </div>
-
-                  <div className="bg-[#050507] border border-zinc-900">
-                    <div className="bg-[#0e0e10] border-b border-zinc-900 px-4 py-2 flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-zinc-500 font-bold uppercase tracking-wider">python_openai_sdk.py</span>
-                      <button
-                        onClick={() => copyToClipboard(sdkCode, 'sdkCode', (v) => setCopiedSDK(!!v))}
-                        className="text-zinc-500 hover:text-white p-1 border border-zinc-900 bg-zinc-950 transition-all"
-                        title="Copy code block"
-                      >
-                        {copiedSDK ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <pre className="p-4 font-mono text-[11px] text-zinc-400 leading-relaxed overflow-x-auto whitespace-pre">
-                      {sdkCode}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-
-              {/* Providers Health / Model Matrix */}
-              <div className="col-span-12 lg:col-span-4 p-6 flex flex-col justify-between bg-[#0e0e10]">
-                <div className="space-y-6">
-                  <div className="space-y-4">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
-                      <div className="w-[3px] h-3 bg-zinc-800"></div>
-                      MODEL_METRIC_ROUTING
-                    </h2>
-                    <div className="space-y-2">
-                      {loading ? (
-                        <>
-                          <div className="h-11 bg-[#050507] border border-zinc-900 animate-pulse flex items-center justify-between px-3">
-                            <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">LOADING_METRICS_PRO...</span>
-                            <span className="w-12 h-3 bg-zinc-900 animate-pulse" />
+                  <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <div className="w-[3px] h-3 bg-zinc-800"></div>
+                    MODEL_METRIC_ROUTING
+                  </h2>
+                  <div className="space-y-2">
+                    {loading ? (
+                      <>
+                        <div className="h-11 bg-[#050507] border border-zinc-900 animate-pulse flex items-center justify-between px-3">
+                          <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">LOADING_METRICS_PRO...</span>
+                          <span className="w-12 h-3 bg-zinc-900 animate-pulse" />
+                        </div>
+                        <div className="h-11 bg-[#050507] border border-zinc-900 animate-pulse flex items-center justify-between px-3">
+                          <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">LOADING_METRICS_FSH...</span>
+                          <span className="w-12 h-3 bg-zinc-900 animate-pulse" />
+                        </div>
+                      </>
+                    ) : analytics.length === 0 ? (
+                      <p className="text-xs text-zinc-655 py-4 font-mono uppercase text-center">[NO_MODEL_ANALYTICS_YET]</p>
+                    ) : (
+                      analytics.map((m) => (
+                        <div key={m.model} className="flex justify-between items-center p-3 bg-[#050507] border border-zinc-900 hover:border-zinc-800 transition-all group">
+                          <div className="flex items-center gap-3">
+                            <span className={`w-1.5 h-1.5 ${m.error_requests > 0 ? 'bg-[#ef4444] status-pulse red-glow' : 'bg-[#10b981]'}`} />
+                            <span className="font-mono text-[11px] text-zinc-400 group-hover:text-white uppercase transition-colors">{m.model}</span>
                           </div>
-                          <div className="h-11 bg-[#050507] border border-zinc-900 animate-pulse flex items-center justify-between px-3">
-                            <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">LOADING_METRICS_FSH...</span>
-                            <span className="w-12 h-3 bg-zinc-900 animate-pulse" />
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-[11px] text-zinc-500">{m.total_requests} TX</span>
+                            <span className="font-mono text-[11px] text-[#10b981]">{m.avg_latency_ms}ms</span>
                           </div>
-                        </>
-                      ) : analytics.length === 0 ? (
-                        <p className="text-xs text-zinc-655 py-4 font-mono uppercase text-center">[NO_MODEL_ANALYTICS_YET]</p>
-                      ) : (
-                        analytics.map((m) => (
-                          <div key={m.model} className="flex justify-between items-center p-3 bg-[#050507] border border-zinc-900 hover:border-zinc-800 transition-all group">
-                            <div className="flex items-center gap-3">
-                              <span className={`w-1.5 h-1.5 ${m.error_requests > 0 ? 'bg-[#ef4444] status-pulse red-glow' : 'bg-[#10b981]'}`} />
-                              <span className="font-mono text-[11px] text-zinc-400 group-hover:text-white uppercase transition-colors">{m.model}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-[11px] text-zinc-500">{m.total_requests} TX</span>
-                              <span className="font-mono text-[11px] text-[#10b981]">{m.avg_latency_ms}ms</span>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="border-t border-zinc-900 my-4" />
-
-                  <div className="space-y-4">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
-                      <div className="w-[3px] h-3 bg-[#ef4444] red-glow"></div>
-                      ROUTING_MODEL_REGISTRY
-                    </h2>
-                    <div className="space-y-2">
-                      {loading ? (
-                        <p className="text-[10px] font-mono text-zinc-650 uppercase py-2 text-center animate-pulse">[SYNCHRONIZING_REGISTRY...]</p>
-                      ) : modelsList.length === 0 ? (
-                        <p className="text-[10px] font-mono text-zinc-650 uppercase py-2 text-center">[NO_ACTIVE_MODELS]</p>
-                      ) : (
-                        modelsList.map((m) => (
-                          <div key={m.id} className={`flex justify-between items-center p-3 bg-[#050507] border ${m.is_active ? 'border-zinc-900' : 'border-[#ef4444]/20 opacity-60'} transition-all group`}>
-                            <div className="flex items-center gap-3">
-                              <span className={`w-1.5 h-1.5 ${m.is_active ? 'bg-emerald-400 status-pulse' : 'bg-[#ef4444]'}`} />
-                              <div className="flex flex-col">
-                                <span className="font-mono text-[11px] text-zinc-400 uppercase">{m.display_name || m.id}</span>
-                                <span className="font-mono text-[8px] text-zinc-600 uppercase tracking-tighter">{m.id}</span>
-                              </div>
-                            </div>
-                            <span className={`font-mono text-[9px] font-bold uppercase ${m.is_active ? 'text-emerald-450' : 'text-[#ef4444] red-glow-text'}`}>
-                              {m.is_active ? 'ACTIVE' : 'DISABLED'}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -607,6 +478,37 @@ response = client.chat.completions.create(
                   <div className="flex justify-between items-center px-1 font-mono text-[9px]">
                     <span className="text-zinc-600">LOAD_BALANCER_TYPE</span>
                     <span className="text-white">RR_WEIGHTED</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-span-12 lg:col-span-6 p-6 space-y-6 flex flex-col justify-between bg-[#0e0e10]">
+                <div className="space-y-4">
+                  <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <div className="w-[3px] h-3 bg-[#ef4444] red-glow"></div>
+                    ROUTING_MODEL_REGISTRY
+                  </h2>
+                  <div className="space-y-2">
+                    {loading ? (
+                      <p className="text-[10px] font-mono text-zinc-650 uppercase py-2 text-center animate-pulse">[SYNCHRONIZING_REGISTRY...]</p>
+                    ) : modelsList.length === 0 ? (
+                      <p className="text-[10px] font-mono text-zinc-650 uppercase py-2 text-center">[NO_ACTIVE_MODELS]</p>
+                    ) : (
+                      modelsList.map((m) => (
+                        <div key={m.id} className={`flex justify-between items-center p-3 bg-[#050507] border ${m.is_active ? 'border-zinc-900' : 'border-[#ef4444]/20 opacity-60'} transition-all group`}>
+                          <div className="flex items-center gap-3">
+                            <span className={`w-1.5 h-1.5 ${m.is_active ? 'bg-emerald-400 status-pulse' : 'bg-[#ef4444]'}`} />
+                            <div className="flex flex-col">
+                              <span className="font-mono text-[11px] text-zinc-400 uppercase">{m.display_name || m.id}</span>
+                              <span className="font-mono text-[8px] text-zinc-600 uppercase tracking-tighter">{m.id}</span>
+                            </div>
+                          </div>
+                          <span className={`font-mono text-[9px] font-bold uppercase ${m.is_active ? 'text-emerald-450' : 'text-[#ef4444] red-glow-text'}`}>
+                            {m.is_active ? 'ACTIVE' : 'DISABLED'}
+                          </span>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
