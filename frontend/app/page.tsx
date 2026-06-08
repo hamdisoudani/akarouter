@@ -167,7 +167,7 @@ response = client.chat.completions.create(
                   </div>
                   <div>
                     <h4 className="font-semibold font-mono text-white text-xs uppercase tracking-wider">akarouter-pro</h4>
-                    <p className="text-[9px] text-zinc-500 font-mono">Target: Step 3.7 Flash</p>
+                    <p className="text-[9px] text-zinc-500 font-mono">Tier: High Intelligence Reasoning</p>
                   </div>
                 </div>
                 <span className="px-2 py-0.5 border border-[#ef4444]/30 bg-[#ef4444]/10 text-[9px] font-mono text-[#ef4444] uppercase tracking-wider">Default</span>
@@ -183,7 +183,7 @@ response = client.chat.completions.create(
                   </div>
                   <div>
                     <h4 className="font-semibold font-mono text-white text-xs uppercase tracking-wider">akarouter-flash</h4>
-                    <p className="text-[9px] text-zinc-500 font-mono">Target: Nemotron 3 Ultra</p>
+                    <p className="text-[9px] text-zinc-500 font-mono">Tier: Low-latency Completion</p>
                   </div>
                 </div>
                 <span className="px-2 py-0.5 border border-zinc-800 bg-zinc-900 text-[9px] font-mono text-zinc-400 uppercase tracking-wider">Fast</span>

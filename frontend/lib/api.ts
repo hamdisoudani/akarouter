@@ -46,6 +46,15 @@ export interface UsageStats {
   monthly_limit: number
   total_requests: number
   remaining: number
+  rpm_limit?: number
+  tokens_5h_limit?: number
+  tokens_7d_limit?: number
+  consumed_tokens_input?: number
+  consumed_tokens_output?: number
+  consumed_budget_5h?: number
+  consumed_budget_7d?: number
+  progress_percentage_5h?: number
+  progress_percentage_7d?: number
 }
 
 export interface ModelAnalytics {

@@ -287,7 +287,9 @@ response = client.chat.completions.create(
                   <div className="font-mono text-2xl text-white font-bold tracking-wider uppercase">
                     {usage ? usage.tier : <span className="text-zinc-700 animate-pulse">[LOAD_VAULT...]</span>}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-600 mt-1 uppercase tracking-tighter">PLAN STATUS: ACTIVE</span>
+                  <span className="font-mono text-[9px] text-zinc-600 mt-1 uppercase tracking-tighter">
+                    {usage ? `RPM LIMIT: ${usage.rpm_limit ?? 60}` : 'PLAN STATUS: ACTIVE'}
+                  </span>
                 </div>
 
                 <div className="p-5 tech-border-r flex flex-col justify-center relative overflow-hidden group">
@@ -341,6 +343,86 @@ response = client.chat.completions.create(
               {/* Main Content Grid Area */}
               <div className="col-span-12 lg:col-span-8 tech-border-r p-6 space-y-6 flex flex-col justify-between">
                 
+                {/* Sliding Token Budgets & Quotas */}
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <div className="w-[3px] h-3 bg-[#ef4444] red-glow"></div>
+                      SLIDING_WINDOW_TELEMETRY
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Real-time sliding budgets and active token counts.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* 5-Hour budget progress */}
+                    <div className="bg-[#050507] border border-zinc-900 p-4 space-y-3">
+                      <div className="flex justify-between items-center text-[10px] font-mono">
+                        <span className="text-zinc-400 font-bold uppercase tracking-wider">5-Hour Sliding Budget</span>
+                        <span className="text-[#ef4444] font-bold">
+                          {usage ? `${(usage.progress_percentage_5h ?? 0).toFixed(1)}%` : '...'}
+                        </span>
+                      </div>
+                      
+                      {/* Bar progress */}
+                      <div className="w-full h-1.5 bg-zinc-950 border border-zinc-900 overflow-hidden">
+                        <div 
+                          className="h-full bg-[#ef4444] red-glow transition-all duration-500" 
+                          style={{ width: `${usage ? (usage.progress_percentage_5h ?? 0) : 0}%` }}
+                        />
+                      </div>
+
+                      <div className="flex justify-between items-center text-[9px] font-mono text-zinc-500">
+                        <span>CONSUMED: ${usage ? (usage.consumed_budget_5h ?? 0).toFixed(4) : '0.0000'}</span>
+                        <span>LIMIT: ${usage ? (usage.tokens_5h_limit ?? 1.0).toFixed(2) : '1.00'}</span>
+                      </div>
+                    </div>
+
+                    {/* 7-Day budget progress */}
+                    <div className="bg-[#050507] border border-zinc-900 p-4 space-y-3">
+                      <div className="flex justify-between items-center text-[10px] font-mono">
+                        <span className="text-zinc-400 font-bold uppercase tracking-wider">7-Day Sliding Budget</span>
+                        <span className="text-[#ef4444] font-bold">
+                          {usage ? `${(usage.progress_percentage_7d ?? 0).toFixed(1)}%` : '...'}
+                        </span>
+                      </div>
+
+                      {/* Bar progress */}
+                      <div className="w-full h-1.5 bg-zinc-950 border border-zinc-900 overflow-hidden">
+                        <div 
+                          className="h-full bg-[#ef4444] red-glow transition-all duration-500" 
+                          style={{ width: `${usage ? (usage.progress_percentage_7d ?? 0) : 0}%` }}
+                        />
+                      </div>
+
+                      <div className="flex justify-between items-center text-[9px] font-mono text-zinc-500">
+                        <span>CONSUMED: ${usage ? (usage.consumed_budget_7d ?? 0).toFixed(4) : '0.0000'}</span>
+                        <span>LIMIT: ${usage ? (usage.tokens_7d_limit ?? 5.0).toFixed(2) : '5.00'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Consumed Tokens breakdown */}
+                  <div className="bg-[#050507] border border-zinc-900 p-4 grid grid-cols-2 gap-4">
+                    <div className="flex flex-col">
+                      <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">Input Tokens (Active Period)</span>
+                      <span className="font-mono text-base text-white font-bold tracking-wider mt-1">
+                        {usage ? (usage.consumed_tokens_input ?? 0).toLocaleString() : '...'}
+                        <span className="text-zinc-700 text-[10px] ml-1">TOKENS</span>
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col border-l border-zinc-900 pl-4">
+                      <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">Output Tokens (Active Period)</span>
+                      <span className="font-mono text-base text-white font-bold tracking-wider mt-1">
+                        {usage ? (usage.consumed_tokens_output ?? 0).toLocaleString() : '...'}
+                        <span className="text-zinc-700 text-[10px] ml-1">TOKENS</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-zinc-900 my-4" />
+
                 {/* Quick Start Guide */}
                 <div className="space-y-3">
                   <div className="space-y-1">
