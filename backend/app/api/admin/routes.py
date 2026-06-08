@@ -290,19 +290,154 @@ async def revoke_api_key(key_id: str, authorization: Optional[str] = Header(None
     return {"ok": True}
 
 
-@router.get("/accounts")
-async def list_accounts(authorization: Optional[str] = Header(None)):
-    if not _verify_admin(authorization): raise HTTPException(status_code=401, detail="Admin access required")
-    return {"accounts": get_supabase().table("accounts").select("*").execute().data}
+from pydantic import BaseModel
 
+class UpdateAccountRequest(BaseModel):
+    tier: Optional[str] = None
+    monthly_limit: Optional[int] = None
+    status: Optional[str] = None
+    suspended_reason: Optional[str] = None
+    role: Optional[str] = None
+    display_name: Optional[str] = None
+
+class CreatePlanRequest(BaseModel):
+    tier: str
+    monthly_limit: int
+
+class UpdatePlanRequest(BaseModel):
+    tier: Optional[str] = None
+    monthly_limit: Optional[int] = None
+
+@router.get("/accounts")
+async def list_accounts(search: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    query = supabase.table("accounts").select("*")
+    if search:
+        query = query.or_(f"email.ilike.%{search}%,display_name.ilike.%{search}%")
+    result = query.order("created_at", desc=True).execute()
+    return {"accounts": result.data}
+
+@router.patch("/accounts/{account_id}")
+async def update_account(account_id: str, body: UpdateAccountRequest, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    # Check if account exists
+    check_res = supabase.table("accounts").select("id").eq("id", account_id).execute()
+    if not check_res.data:
+        raise HTTPException(status_code=404, detail="Account not found")
+        
+    updates = {}
+    if body.tier is not None:
+        updates["tier"] = body.tier
+    if body.monthly_limit is not None:
+        updates["monthly_limit"] = body.monthly_limit
+    if body.status is not None:
+        if body.status not in ("active", "suspended", "cancelled"):
+            raise HTTPException(status_code=400, detail="Invalid status")
+        updates["status"] = body.status
+    if body.suspended_reason is not None:
+        updates["suspended_reason"] = body.suspended_reason
+    if body.role is not None:
+        if body.role not in ("user", "admin"):
+            raise HTTPException(status_code=400, detail="Invalid role")
+        updates["role"] = body.role
+    if body.display_name is not None:
+        updates["display_name"] = body.display_name
+        
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+        
+    result = supabase.table("accounts").update(updates).eq("id", account_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to update account")
+    return {"ok": True, "account": result.data[0]}
 
 @router.patch("/accounts/{account_id}/tier")
 async def update_account_tier(account_id: str, tier: str, authorization: Optional[str] = Header(None)):
-    if not _verify_admin(authorization): raise HTTPException(status_code=401, detail="Admin access required")
-    if tier not in ("free", "pro", "enterprise"): raise HTTPException(status_code=400, detail="Invalid tier")
-    limits = {"free": settings.free_monthly_limit, "pro": settings.pro_monthly_limit, "enterprise": 999999999}
-    get_supabase().table("accounts").update({"tier": tier, "monthly_limit": limits.get(tier, 1000)}).eq("id", account_id).execute()
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    plan_res = supabase.table("plan_presets").select("monthly_limit").eq("tier", tier).execute()
+    limit = 1000
+    if plan_res.data:
+        limit = plan_res.data[0]["monthly_limit"]
+    else:
+        limits = {"free": 1000, "pro": 10000, "enterprise": 999999999}
+        limit = limits.get(tier, 1000)
+        
+    supabase.table("accounts").update({"tier": tier, "monthly_limit": limit}).eq("id", account_id).execute()
     return {"ok": True, "tier": tier}
+
+# Plan Presets CRUD Endpoints
+@router.get("/plans")
+async def list_plans(authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    result = get_supabase().table("plan_presets").select("*").order("tier").execute()
+    return {"plans": result.data}
+
+@router.post("/plans")
+async def create_plan(body: CreatePlanRequest, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    exist_res = supabase.table("plan_presets").select("id").eq("tier", body.tier).execute()
+    if exist_res.data:
+        raise HTTPException(status_code=400, detail=f"Plan preset with tier '{body.tier}' already exists")
+        
+    result = supabase.table("plan_presets").insert({
+        "tier": body.tier,
+        "monthly_limit": body.monthly_limit
+    }).execute()
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to create plan preset")
+    return {"ok": True, "plan": result.data[0]}
+
+@router.patch("/plans/{plan_id}")
+async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    check_res = supabase.table("plan_presets").select("id").eq("id", plan_id).execute()
+    if not check_res.data:
+        raise HTTPException(status_code=404, detail="Plan preset not found")
+        
+    updates = {}
+    if body.tier is not None:
+        conflict_res = supabase.table("plan_presets").select("id").eq("tier", body.tier).neq("id", plan_id).execute()
+        if conflict_res.data:
+            raise HTTPException(status_code=400, detail=f"Plan preset with tier '{body.tier}' already exists")
+        updates["tier"] = body.tier
+    if body.monthly_limit is not None:
+        updates["monthly_limit"] = body.monthly_limit
+        
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+        
+    result = supabase.table("plan_presets").update(updates).eq("id", plan_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to update plan preset")
+    return {"ok": True, "plan": result.data[0]}
+
+@router.delete("/plans/{plan_id}")
+async def delete_plan(plan_id: str, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    check_res = supabase.table("plan_presets").select("id").eq("id", plan_id).execute()
+    if not check_res.data:
+        raise HTTPException(status_code=404, detail="Plan preset not found")
+        
+    supabase.table("plan_presets").delete().eq("id", plan_id).execute()
+    return {"ok": True}
 
 
 @router.get("/stats")

@@ -1,18 +1,15 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
-
-const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'AkaRouter — AI Inference API',
-  description: 'OpenAI-compatible AI inference proxy. One key, every model.',
+  description: 'OpenAI-compatible AI inference gateway. One key, every model.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.className} bg-[#0a0a0f] text-white antialiased`}>{children}</body>
+      <body className="bg-[#09090b] text-[#e5e1e4] antialiased">{children}</body>
     </html>
   )
 }

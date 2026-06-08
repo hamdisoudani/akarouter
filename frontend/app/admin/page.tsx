@@ -3,7 +3,17 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { getMe } from '@/lib/api'
+import Link from 'next/link'
+import { 
+  getMe,
+  adminGetAccounts,
+  adminUpdateAccount,
+  adminGetPlans,
+  adminCreatePlan,
+  adminUpdatePlan,
+  adminDeletePlan,
+  type PlanPreset
+} from '@/lib/api'
 import { 
   Shield, 
   ArrowLeft, 
@@ -16,7 +26,14 @@ import {
   ServerCrash,
   Users,
   Copy,
-  Check
+  Check,
+  Terminal,
+  LogOut,
+  KeyRound,
+  Search,
+  Ban,
+  Edit,
+  Trash2
 } from 'lucide-react'
 
 interface ProviderAccount {
@@ -38,13 +55,13 @@ function StatusDot({ status }: { status: string }) {
     healthy: 'bg-emerald-400 shadow-emerald-500/50', 
     refreshing: 'bg-sky-400 shadow-sky-500/50',
     degraded: 'bg-amber-400 shadow-amber-500/50', 
-    dead: 'bg-rose-500 shadow-rose-500/50', 
+    dead: 'bg-[#ef4444] shadow-[#ef4444]/50', 
     pending: 'bg-zinc-500 shadow-zinc-500/50',
   }
   return (
-    <span className="flex items-center gap-2">
-      <span className={`w-2 h-2 rounded-full shadow-sm animate-pulse ${colors[status] || 'bg-zinc-500 shadow-zinc-500/50'}`} />
-      <span className="text-zinc-300 font-medium capitalize text-xs">{status}</span>
+    <span className="flex items-center gap-2 font-mono">
+      <span className={`w-1.5 h-1.5 rounded-full status-pulse ${colors[status] || 'bg-zinc-550'}`} />
+      <span className="text-zinc-400 capitalize text-[10px] tracking-wider">{status}</span>
     </span>
   )
 }
@@ -69,6 +86,29 @@ export default function AdminDashboard() {
   // Track copied and refresh state
   const [copiedUserCode, setCopiedUserCode] = useState(false)
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
+
+  const [activeTab, setActiveTab] = useState<'providers' | 'users' | 'plans'>('providers')
+
+  // Plans state
+  const [plans, setPlans] = useState<PlanPreset[]>([])
+  const [loadingPlans, setLoadingPlans] = useState(false)
+  const [newPlanTier, setNewPlanTier] = useState('')
+  const [newPlanLimit, setNewPlanLimit] = useState(1000)
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null)
+  const [editingPlanLimit, setEditingPlanLimit] = useState<number>(1000)
+
+  // Users state
+  const [accounts, setAccounts] = useState<any[]>([])
+  const [loadingAccounts, setLoadingAccounts] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null)
+  const [editingDisplayName, setEditingDisplayName] = useState('')
+  const [editingTier, setEditingTier] = useState('')
+  const [editingLimit, setEditingLimit] = useState(1000)
+  const [editingRole, setEditingRole] = useState('user')
+  const [editingStatus, setEditingStatus] = useState('active')
+  const [editingSuspendedReason, setEditingSuspendedReason] = useState('')
+  const [updatingAccount, setUpdatingAccount] = useState(false)
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://akarouter-production.up.railway.app'
   const authHeaders = useCallback(() => ({ Authorization: `Bearer ${token}` }), [token])
@@ -107,9 +147,29 @@ export default function AdminDashboard() {
     } catch {}
   }, [API_URL, token, authHeaders])
 
+  const loadPlans = useCallback(async () => {
+    if (!token) return
+    setLoadingPlans(true)
+    try {
+      const data = await adminGetPlans(token)
+      setPlans(data.plans || [])
+    } catch {}
+    setLoadingPlans(false)
+  }, [token])
+
+  const loadAccounts = useCallback(async (search?: string) => {
+    if (!token) return
+    setLoadingAccounts(true)
+    try {
+      const data = await adminGetAccounts(token, search)
+      setAccounts(data.accounts || [])
+    } catch {}
+    setLoadingAccounts(false)
+  }, [token])
+
   useEffect(() => {
     if (!authChecked || !isAdmin) return
-    loadProviders(); loadStats()
+    loadProviders(); loadStats(); loadPlans(); loadAccounts()
     const channel = supabase
       .channel('admin-providers')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'providers' }, (payload: any) => {
@@ -124,7 +184,111 @@ export default function AdminDashboard() {
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [authChecked, isAdmin, loadProviders, loadStats])
+  }, [authChecked, isAdmin, loadProviders, loadStats, loadPlans, loadAccounts])
+
+  // Plan Preset Handlers
+  const handleCreatePlan = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newPlanTier) return
+    try {
+      await adminCreatePlan(token, newPlanTier.toLowerCase(), newPlanLimit)
+      setNewPlanTier('')
+      setNewPlanLimit(1000)
+      await loadPlans()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleUpdatePlan = async (planId: string) => {
+    try {
+      await adminUpdatePlan(token, planId, { monthly_limit: editingPlanLimit })
+      setEditingPlanId(null)
+      await loadPlans()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleDeletePlan = async (planId: string) => {
+    if (!confirm('Are you sure you want to delete this plan preset?')) return
+    try {
+      await adminDeletePlan(token, planId)
+      await loadPlans()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  // Account Handlers
+  const handleEditAccountClick = (acc: any) => {
+    setEditingAccountId(acc.id)
+    setEditingDisplayName(acc.display_name || '')
+    setEditingTier(acc.tier || 'free')
+    setEditingLimit(acc.monthly_limit || 1000)
+    setEditingRole(acc.role || 'user')
+    setEditingStatus(acc.status || 'active')
+    setEditingSuspendedReason(acc.suspended_reason || '')
+  }
+
+  const handleUpdateAccount = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingAccountId) return
+    setUpdatingAccount(true)
+    try {
+      await adminUpdateAccount(token, editingAccountId, {
+        display_name: editingDisplayName,
+        tier: editingTier,
+        monthly_limit: Number(editingLimit),
+        role: editingRole,
+        status: editingStatus,
+        suspended_reason: editingStatus === 'suspended' ? editingSuspendedReason : null
+      })
+      setEditingAccountId(null)
+      await loadAccounts(searchQuery)
+      await loadStats()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setUpdatingAccount(false)
+    }
+  }
+
+  const handleTierChange = (tierName: string) => {
+    setEditingTier(tierName)
+    const matchedPlan = plans.find(p => p.tier === tierName)
+    if (matchedPlan) {
+      setEditingLimit(matchedPlan.monthly_limit)
+    }
+  }
+
+  const handleBanUser = async (acc: any) => {
+    const reason = prompt(`Enter suspension reason for user ${acc.email}:`)
+    if (reason === null) return
+    try {
+      await adminUpdateAccount(token, acc.id, {
+        status: 'suspended',
+        suspended_reason: reason || 'Suspended by Administrator'
+      })
+      await loadAccounts(searchQuery)
+      await loadStats()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleUnbanUser = async (acc: any) => {
+    try {
+      await adminUpdateAccount(token, acc.id, {
+        status: 'active',
+        suspended_reason: null
+      })
+      await loadAccounts(searchQuery)
+      await loadStats()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
@@ -179,13 +343,18 @@ export default function AdminDashboard() {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const signOut = async () => {
+    await supabase.auth.signOut()
+    router.push('/auth/login')
+  }
+
   if (!authChecked) {
     return (
-      <div className="relative min-h-screen bg-[#030303] flex items-center justify-center overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-rose-500/5 rounded-full blur-[80px]" />
-        <div className="text-zinc-500 font-medium text-sm flex items-center gap-2 z-10">
-          <Activity className="w-5 h-5 animate-pulse text-rose-500" />
-          Verifying administrator status…
+      <div className="relative min-h-screen bg-[#09090b] flex items-center justify-center overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-[#ef4444]/5 rounded-full blur-[80px]" />
+        <div className="text-zinc-500 font-mono text-xs flex items-center gap-2 z-10 uppercase tracking-widest">
+          <Activity className="w-5 h-5 animate-pulse text-[#ef4444] red-glow" />
+          Verifying credentials...
         </div>
       </div>
     )
@@ -193,206 +362,657 @@ export default function AdminDashboard() {
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-[#030303] flex items-center justify-center">
-        <div className="glass-panel p-6 rounded-2xl border-rose-500/20 text-center max-w-sm">
-          <p className="text-rose-400 font-bold text-sm">Access Denied</p>
-          <p className="text-zinc-500 text-xs mt-1">You must possess administrator privileges to access this area.</p>
+      <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
+        <div className="bg-[#0e0e10] border border-[#ef4444]/30 p-6 text-center max-w-sm crosshair-corners">
+          <p className="text-[#ef4444] font-mono font-bold text-xs uppercase tracking-widest">Access Denied</p>
+          <p className="text-zinc-500 font-mono text-[10px] mt-2 uppercase tracking-wide">You must possess administrator privileges to access this area.</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="relative min-h-screen bg-[#030303] text-zinc-100 flex flex-col overflow-x-hidden selection:bg-rose-500/30 selection:text-white">
-      {/* Background Radial Glow */}
-      <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-rose-500/5 rounded-full blur-[150px] pointer-events-none" />
-
-      {/* Header */}
-      <header className="sticky top-0 w-full z-50 border-b border-zinc-800/40 bg-[#030303]/70 backdrop-blur-xl">
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-rose-500 to-orange-600 flex items-center justify-center shadow-md shadow-rose-500/10">
-              <Shield className="w-4.5 h-4.5 text-white" />
+    <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex antialiased selection:bg-[#ef4444]/30 selection:text-white">
+      
+      {/* SideNavBar */}
+      <nav className="hidden md:flex flex-col h-screen w-64 tech-border-r bg-[#09090b] py-6 fixed left-0 top-0 z-20 micro-grid">
+        <div className="px-6 mb-8 flex flex-col gap-1">
+          <div className="w-full">
+            <div className="w-full h-16 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
+              <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
             </div>
-            <span className="text-base font-bold bg-gradient-to-r from-white via-zinc-100 to-zinc-400 bg-clip-text text-transparent">
-              AkaRouter
-            </span>
-            <span className="text-[10px] font-bold text-rose-400 px-2 py-0.5 rounded-lg bg-rose-500/10 border border-rose-500/10 uppercase tracking-widest ml-1">
-              Admin
-            </span>
           </div>
+          <div className="flex items-center gap-2 mt-3">
+            <div className="w-1.5 h-1.5 bg-[#ef4444] red-glow status-pulse"></div>
+            <p className="font-mono text-[9px] text-zinc-600 tracking-widest uppercase">Kernel: v4.2.0-STABLE</p>
+          </div>
+        </div>
+
+        <div className="flex-1 px-2 space-y-1">
+          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/dashboard">
+            <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
+              <Terminal className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
+            </span>
+            <span className="tracking-widest font-mono uppercase text-[11px]">Telemetry</span>
+          </Link>
+
+          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/keys">
+            <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
+              <KeyRound className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
+            </span>
+            <span className="tracking-widest font-mono uppercase text-[11px]">API Keys</span>
+          </Link>
+
+          <Link className="flex items-center gap-3 px-3 py-2 w-full text-white nav-item-active" href="/admin">
+            <span className="border border-[#ef4444] p-1 bg-[#ef4444]/10 text-[#ef4444] flex items-center justify-center red-glow">
+              <Shield className="w-3.5 h-3.5 text-[#ef4444]" />
+            </span>
+            <span className="tracking-widest font-mono uppercase text-[11px]">Admin Panel</span>
+          </Link>
+        </div>
+
+        <div className="px-6 mt-auto">
+          <div className="font-mono text-[9px] text-zinc-600 mb-2 flex justify-between tracking-tighter">
+            <span>[SYS_SESSION]</span>
+            <span className="text-[#ef4444] uppercase font-bold">Admin</span>
+          </div>
+          <button 
+            onClick={signOut}
+            className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono text-[10px] py-3 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white transition-all flex items-center justify-center gap-2 group crosshair-corners"
+          >
+            <LogOut className="w-3.5 h-3.5 group-hover:text-[#ef4444] transition-colors" />
+            <span className="tracking-widest uppercase font-bold">Sign Out</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col md:ml-64 w-full relative">
+        
+        {/* TopAppBar */}
+        <header className="flex justify-between items-center w-full px-6 py-3 bg-[#09090b] tech-border-b sticky top-0 z-10 micro-grid">
+          <div className="md:hidden flex items-center gap-3">
+            <div className="w-20 h-10 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
+              <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
+            </div>
+          </div>
+
+          <div className="hidden md:flex font-mono text-[11px] text-zinc-400 items-center gap-4">
+            <div className="w-[2px] h-4 bg-[#ef4444]"></div>
+            <span className="tracking-[0.2em] uppercase font-bold text-zinc-300">ADMINISTRATOR CONTROL MATRIX</span>
+          </div>
+
           <a 
             href="/dashboard" 
-            className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors font-mono uppercase"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            Dashboard
+            Telemetry
           </a>
-        </div>
-      </header>
+        </header>
 
-      {/* Main Workspace */}
-      <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-10 space-y-6 z-10">
-        {error && (
-          <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 flex items-center justify-between animate-fade-in">
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-              {error}
-            </div>
-            <button onClick={() => setError('')} className="text-red-500 hover:text-red-400 font-bold ml-4 text-base">×</button>
-          </div>
-        )}
+        {/* Canvas */}
+        <main className="flex-1 p-0 grid-bg relative">
+          <div className="p-6 space-y-6">
+            
+            {error && (
+              <div className="p-4 bg-[#ef4444]/10 border border-[#ef4444] text-[11px] font-mono text-[#ef4444] flex items-center justify-between animate-fade-in">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-[#ef4444] status-pulse red-glow" />
+                  {error.toUpperCase()}
+                </div>
+                <button onClick={() => setError('')} className="text-[#ef4444] hover:text-red-400 font-bold ml-4 text-base">×</button>
+              </div>
+            )}
 
-        {/* Admin Stats Grid */}
-        {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-slide-in">
-            <div className="glass-card p-5 rounded-2xl space-y-1">
-              <p className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider">Total Providers</p>
-              <p className="text-2xl font-bold text-white">{stats.providers?.total || 0}</p>
-              <p className="text-[10px] text-emerald-400">{stats.providers?.active || 0} active providers</p>
-            </div>
-            <div className="glass-card p-5 rounded-2xl space-y-1">
-              <p className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider">Routed Requests</p>
-              <p className="text-2xl font-bold text-white">{(stats.providers?.total_requests || 0).toLocaleString()}</p>
-              <p className="text-[10px] text-zinc-500">all provider accounts</p>
-            </div>
-            <div className="glass-card p-5 rounded-2xl space-y-1">
-              <p className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider">Request Errors</p>
-              <p className={`text-2xl font-bold ${stats.providers?.total_errors > 0 ? 'text-rose-400' : 'text-zinc-400'}`}>
-                {stats.providers?.total_errors || 0}
-              </p>
-              <p className="text-[10px] text-zinc-500">aggregated error log</p>
-            </div>
-            <div className="glass-card p-5 rounded-2xl space-y-1">
-              <p className="text-[10px] text-zinc-500 uppercase font-semibold tracking-wider">Active Users</p>
-              <p className="text-2xl font-bold text-rose-400">{stats.accounts?.total || 0}</p>
-              <p className="text-[10px] text-emerald-400">{stats.accounts?.active || 0} active accounts</p>
-            </div>
-          </div>
-        )}
-
-        {/* Connected Accounts Section */}
-        <section className="glass-panel p-6 rounded-3xl glow-rose space-y-5 animate-slide-in">
-          <div className="flex items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <Cpu className="w-5 h-5 text-rose-500" />
-                Hermes Provider Connections
-              </h2>
-              <p className="text-xs text-zinc-500">Connect and manage provider accounts, balance weights, and trigger key refreshes.</p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider bg-zinc-900 border border-zinc-800/80 px-2.5 py-1 rounded-xl">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Realtime Channel
-              </span>
+            {/* Admin Stats Grid */}
+            {stats && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-slide-in">
+                <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative">
+                  <span className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[7px] text-zinc-600">ST_01</span>
+                  <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Total Providers</p>
+                  <p className="text-2xl font-bold text-white font-mono">{stats.providers?.total || 0}</p>
+                  <p className="text-[9px] text-emerald-400 font-mono uppercase">{stats.providers?.active || 0} active connections</p>
+                </div>
+                <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative">
+                  <span className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[7px] text-zinc-600">ST_02</span>
+                  <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Routed Requests</p>
+                  <p className="text-2xl font-bold text-white font-mono">{(stats.providers?.total_requests || 0).toLocaleString()}</p>
+                  <p className="text-[9px] text-zinc-600 font-mono uppercase">all provider channels</p>
+                </div>
+                <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative">
+                  <span className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[7px] text-zinc-600">ST_03</span>
+                  <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Request Errors</p>
+                  <p className={`text-2xl font-bold font-mono ${stats.providers?.total_errors > 0 ? 'text-[#ef4444] red-glow-text' : 'text-zinc-400'}`}>
+                    {stats.providers?.total_errors || 0}
+                  </p>
+                  <p className="text-[9px] text-zinc-650 font-mono uppercase">aggregated fail logs</p>
+                </div>
+                <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative">
+                  <span className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[7px] text-zinc-600">ST_04</span>
+                  <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Active Users</p>
+                  <p className="text-2xl font-bold text-[#ef4444] font-mono red-glow-text">{stats.accounts?.total || 0}</p>
+                  <p className="text-[9px] text-emerald-400 font-mono uppercase">{stats.accounts?.active || 0} active sessions</p>
+                </div>
+              </div>
+            )}
+            {/* Tabs Selector Navigation */}
+            <div className="flex border-b border-zinc-900 bg-zinc-950/40 p-1 mb-6">
               <button
-                onClick={handleAddAccount}
-                disabled={addingAccount}
-                className="rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 px-4 py-2 text-xs font-bold text-white shadow-md active:scale-[0.98] transition-all flex items-center gap-1.5"
+                onClick={() => setActiveTab('providers')}
+                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all ${
+                  activeTab === 'providers'
+                    ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
+                    : 'text-zinc-500 hover:text-white'
+                }`}
               >
-                <Plus className="w-4 h-4" />
-                {addingAccount ? 'Starting...' : 'Add Account'}
+                [01_PROVIDERS]
+              </button>
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all ${
+                  activeTab === 'users'
+                    ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
+                    : 'text-zinc-500 hover:text-white'
+                }`}
+              >
+                [02_USER_MATRIX]
+              </button>
+              <button
+                onClick={() => setActiveTab('plans')}
+                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all ${
+                  activeTab === 'plans'
+                    ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
+                    : 'text-zinc-500 hover:text-white'
+                }`}
+              >
+                [03_PLAN_PRESETS]
               </button>
             </div>
-          </div>
 
-          {/* Device OAuth Panel */}
-          {deviceCodeInfo && (
-            <div className="p-5 rounded-2xl bg-[#090506] border border-rose-500/10 text-xs space-y-4 animate-fade-in glow-rose">
-              <div className="space-y-1 border-b border-rose-500/10 pb-3">
-                <h3 className="font-bold text-rose-400 text-sm">OAuth Verification Needed</h3>
-                <p className="text-zinc-500 text-[10px]">Follow these steps to link the new Hermes Provider connection.</p>
-              </div>
+            {/* Tab Panel: Providers */}
+            {activeTab === 'providers' && (
+              <section className="bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-5 animate-slide-in relative">
+                <div className="absolute inset-0 opacity-[0.03] micro-grid pointer-events-none" />
+                
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <Cpu className="w-4 h-4 text-[#ef4444]" />
+                      HERMES_PROVIDER_CONNECTIONS
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Connect and manage provider accounts, balance weights, and trigger manual key syncs.</p>
+                  </div>
 
-              <ol className="space-y-2 text-zinc-300 list-decimal list-inside font-medium leading-relaxed">
-                <li>
-                  Open the authorization link: 
-                  <a 
-                    href={deviceCodeInfo.verification_uri_complete || deviceCodeInfo.verification_uri} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="inline-flex items-center gap-1 text-rose-400 hover:text-rose-300 font-bold underline ml-1.5"
-                  >
-                    {deviceCodeInfo.verification_uri}
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </li>
-                <li className="flex items-center flex-wrap gap-2">
-                  Enter the verification code: 
-                  <code className="bg-rose-500/10 border border-rose-500/20 text-rose-300 px-2 py-0.5 rounded font-mono font-bold text-xs select-all">
-                    {deviceCodeInfo.user_code}
-                  </code>
-                  <button 
-                    onClick={() => copyToClipboard(deviceCodeInfo.user_code, setCopiedUserCode)}
-                    className="p-1 rounded-lg bg-zinc-950 border border-zinc-800/80 hover:text-white text-zinc-500 transition-all shrink-0"
-                    title="Copy Code"
-                  >
-                    {copiedUserCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  </button>
-                </li>
-              </ol>
-
-              <div className="flex items-center gap-3 pt-2">
-                <StatusDot status={pollStatus} />
-                {pollStatus === 'polling' && (
-                  <span className="text-[10px] text-zinc-500 animate-pulse font-medium">
-                    Waiting for provider login authorization…
-                  </span>
-                )}
-              </div>
-              {pollResult && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 font-medium">
-                  ✓ Account <strong>{pollResult.account_label}</strong> linked successfully!
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1.5 text-[9px] text-zinc-500 font-mono uppercase tracking-wider bg-zinc-950 border border-zinc-900 px-2.5 py-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      REALTIME_STREAM
+                    </span>
+                    <button
+                      onClick={handleAddAccount}
+                      disabled={addingAccount}
+                      className="bg-[#ef4444] text-black font-mono text-xs font-bold py-2 px-4 hover:bg-[#ff5451] transition-all disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {addingAccount ? 'CONNECTING...' : 'ADD PROVIDER'}
+                    </button>
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
 
-          {loading ? (
-            <div className="py-12 text-center text-xs text-zinc-600">Loading active provider accounts…</div>
-          ) : providers.length === 0 ? (
-            <p className="text-xs text-zinc-600 py-6 text-center">No accounts connected. Use the Add Account button to initialize device auth.</p>
-          ) : (
-            <div className="overflow-x-auto border border-zinc-800/60 rounded-2xl bg-zinc-950/20">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-zinc-800/60 bg-zinc-950/60 text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">
-                    <th className="p-4">Label</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">In Flight Load</th>
-                    <th className="p-4">Requests</th>
-                    <th className="p-4">Errors</th>
-                    <th className="p-4 text-right">Refresh Hook</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/30">
-                  {providers.map(a => (
-                    <tr key={a.id} className="hover:bg-zinc-950/40 transition-colors">
-                      <td className="p-4 font-bold text-white">{a.account_label || '—'}</td>
-                      <td className="p-4"><StatusDot status={a.health_status} /></td>
-                      <td className="p-4 text-zinc-400 font-medium">{a.in_flight}/{a.max_concurrent}</td>
-                      <td className="p-4 text-zinc-300 font-mono">{(a.total_requests || 0).toLocaleString()}</td>
-                      <td className="p-4 text-zinc-400 font-mono">{(a.total_errors || 0).toLocaleString()}</td>
-                      <td className="p-4 text-right">
-                        <button 
-                          onClick={() => handleRefresh(a.id)} 
-                          disabled={refreshingId === a.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-bold bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white transition-all disabled:opacity-50"
+                {deviceCodeInfo && (
+                  <div className="p-5 bg-[#090506] border border-[#ef4444]/20 text-[11px] font-mono space-y-4 animate-fade-in relative">
+                    <div className="absolute right-2 top-2 w-2 h-2 bg-[#ef4444] red-glow" />
+                    <div className="space-y-1 border-b border-[#ef4444]/10 pb-3">
+                      <h3 className="font-bold text-[#ef4444] uppercase tracking-wider">[SYSTEM_OVERRIDE_OAUTH_REQUIRED]</h3>
+                      <p className="text-zinc-500 text-[9px] uppercase">Follow authorization matrix to connect new Hermes provider account.</p>
+                    </div>
+
+                    <ol className="space-y-2 text-zinc-300 list-decimal list-inside leading-relaxed uppercase">
+                      <li>
+                        Open verification URL: 
+                        <a 
+                          href={deviceCodeInfo.verification_uri_complete || deviceCodeInfo.verification_uri} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="inline-flex items-center gap-1 text-[#ef4444] hover:text-[#ff5451] font-bold underline ml-1.5"
                         >
-                          <RefreshCw className={`w-3 h-3 ${refreshingId === a.id ? 'animate-spin' : ''}`} />
-                          Sync
+                          {deviceCodeInfo.verification_uri}
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </li>
+                      <li className="flex items-center flex-wrap gap-2">
+                        Enter user authorization code: 
+                        <code className="bg-[#ef4444]/10 border border-[#ef4444]/25 text-[#ef4444] px-2 py-0.5 font-mono font-bold text-xs select-all">
+                          {deviceCodeInfo.user_code}
+                        </code>
+                        <button 
+                          onClick={() => copyToClipboard(deviceCodeInfo.user_code, setCopiedUserCode)}
+                          className="p-1 border border-zinc-800 bg-zinc-950 hover:text-white text-zinc-500 transition-all shrink-0"
+                          title="Copy Code"
+                        >
+                          {copiedUserCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </main>
+                      </li>
+                    </ol>
+
+                    <div className="flex items-center gap-3 pt-2">
+                      <StatusDot status={pollStatus} />
+                      {pollStatus === 'polling' && (
+                        <span className="text-[9px] text-zinc-500 animate-pulse font-mono uppercase">
+                          Waiting for provider authorization code input…
+                        </span>
+                      )}
+                    </div>
+                    {pollResult && (
+                      <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 uppercase font-mono">
+                        ✓ Provider account <strong>{pollResult.account_label}</strong> connected successfully!
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {loading ? (
+                  <div className="py-12 text-center font-mono text-xs text-zinc-600 uppercase">[SYNCHRONIZING_CONNECTIONS_TABLE]</div>
+                ) : providers.length === 0 ? (
+                  <p className="text-xs text-zinc-650 py-6 font-mono uppercase text-center">[NO_ACTIVE_Hermes_CONNECTIONS_CONNECTED_GENERATE_DEVICE_AUTH]</p>
+                ) : (
+                  <div className="overflow-x-auto border border-zinc-900 bg-zinc-950/20">
+                    <table className="w-full text-left text-xs border-collapse font-mono">
+                      <thead>
+                        <tr className="border-b border-zinc-900 bg-zinc-950/60 text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">
+                          <th className="p-4">Label</th>
+                          <th className="p-4">Status</th>
+                          <th className="p-4">Concurrency Load</th>
+                          <th className="p-4">Requests</th>
+                          <th className="p-4">Errors</th>
+                          <th className="p-4 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-900/40">
+                        {providers.map(a => (
+                          <tr key={a.id} className="hover:bg-zinc-900/10 transition-colors">
+                            <td className="p-4 font-bold text-white uppercase">{a.account_label || '—'}</td>
+                            <td className="p-4"><StatusDot status={a.health_status} /></td>
+                            <td className="p-4 text-zinc-400">{a.in_flight}/{a.max_concurrent}</td>
+                            <td className="p-4 text-zinc-400 font-mono">{(a.total_requests || 0).toLocaleString()}</td>
+                            <td className="p-4 text-[#ef4444] font-mono">{(a.total_errors || 0).toLocaleString()}</td>
+                            <td className="p-4 text-right">
+                              <button 
+                                onClick={() => handleRefresh(a.id)} 
+                                disabled={refreshingId === a.id}
+                                className="inline-flex items-center gap-1.5 px-3 py-1 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-550 transition-all disabled:opacity-50 text-[10px]"
+                              >
+                                <RefreshCw className={`w-3 h-3 ${refreshingId === a.id ? 'animate-spin' : ''}`} />
+                                SYNC
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Tab Panel: User Matrix */}
+            {activeTab === 'users' && (
+              <section className="bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-5 animate-slide-in relative">
+                <div className="absolute inset-0 opacity-[0.03] micro-grid pointer-events-none" />
+                
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <Users className="w-4 h-4 text-[#ef4444]" />
+                      USER_ACCOUNT_ADMINISTRATION
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Search, filter, update details, adjust limitations, and ban/unban user accounts.</p>
+                  </div>
+
+                  <form onSubmit={(e) => { e.preventDefault(); loadAccounts(searchQuery) }} className="flex gap-2 w-full md:max-w-md">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-zinc-500" />
+                      <input
+                        type="text"
+                        placeholder="SEARCH BY EMAIL OR NAME..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-900 pl-9 pr-4 py-2 text-xs font-mono text-white placeholder-zinc-700 focus:outline-none focus:border-[#ef4444] transition-colors"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono text-[10px] font-bold px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white transition-all"
+                    >
+                      QUERY
+                    </button>
+                  </form>
+                </div>
+
+                {loadingAccounts ? (
+                  <div className="py-12 text-center font-mono text-xs text-zinc-650 uppercase animate-pulse">[LOADING_ACCOUNTS_FROM_DB...]</div>
+                ) : accounts.length === 0 ? (
+                  <div className="py-12 text-center font-mono text-xs text-zinc-600 uppercase">[NO_USER_ACCOUNTS_FOUND_MATCHING_FILTER]</div>
+                ) : (
+                  <div className="overflow-x-auto border border-zinc-900 bg-zinc-950/20">
+                    <table className="w-full text-left text-xs border-collapse font-mono">
+                      <thead>
+                        <tr className="border-b border-zinc-900 bg-zinc-950/60 text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">
+                          <th className="p-4">Email</th>
+                          <th className="p-4">Name</th>
+                          <th className="p-4">Plan / Tier</th>
+                          <th className="p-4">Monthly Limit</th>
+                          <th className="p-4">Role</th>
+                          <th className="p-4">Status</th>
+                          <th className="p-4 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-900/40">
+                        {accounts.map(acc => (
+                          <tr key={acc.id} className="hover:bg-zinc-900/10 transition-colors">
+                            <td className="p-4 text-white font-semibold">{acc.email}</td>
+                            <td className="p-4 text-zinc-400">{acc.display_name || '—'}</td>
+                            <td className="p-4">
+                              <span className="px-2 py-0.5 border border-zinc-800 bg-zinc-900 text-zinc-300 text-[10px] uppercase font-bold">
+                                {acc.tier}
+                              </span>
+                            </td>
+                            <td className="p-4 text-zinc-400 font-mono">
+                              {acc.monthly_limit >= 999999999 ? 'UNLIMITED' : acc.monthly_limit.toLocaleString()}
+                            </td>
+                            <td className="p-4 text-zinc-400 uppercase text-[10px]">
+                              {acc.role || 'user'}
+                            </td>
+                            <td className="p-4">
+                              <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-sm border ${
+                                acc.status === 'active' 
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                                  : acc.status === 'suspended'
+                                  ? 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444] red-glow-text'
+                                  : 'bg-zinc-800/40 border-zinc-800 text-zinc-500'
+                              }`}>
+                                {acc.status}
+                              </span>
+                              {acc.status === 'suspended' && acc.suspended_reason && (
+                                <p className="text-[9px] text-[#ef4444]/70 mt-1 uppercase max-w-xs truncate" title={acc.suspended_reason}>
+                                  Reason: {acc.suspended_reason}
+                                </p>
+                              )}
+                            </td>
+                            <td className="p-4 text-right space-x-2">
+                              <button 
+                                onClick={() => handleEditAccountClick(acc)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 border border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-white hover:border-zinc-550 transition-all text-[10px]"
+                              >
+                                <Edit className="w-3 h-3" />
+                                EDIT
+                              </button>
+
+                              {acc.status === 'suspended' ? (
+                                <button 
+                                  onClick={() => handleUnbanUser(acc)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all text-[10px]"
+                                >
+                                  UNBAN
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => handleBanUser(acc)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 border border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] hover:bg-[#ef4444]/20 hover:text-red-400 transition-all text-[10px]"
+                                >
+                                  <Ban className="w-3 h-3" />
+                                  BAN
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Tab Panel: Plan Presets */}
+            {activeTab === 'plans' && (
+              <section className="grid grid-cols-12 gap-6 animate-slide-in relative">
+                
+                {/* Plans Table */}
+                <div className="col-span-12 lg:col-span-8 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-4">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <Shield className="w-4 h-4 text-[#ef4444]" />
+                      PLAN_LIMITATIONS_TEMPLATES
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Define global default limitation templates. Users assigned to these plans will pull their request limits from here.</p>
+                  </div>
+
+                  {loadingPlans ? (
+                    <div className="py-12 text-center font-mono text-xs text-zinc-650 uppercase animate-pulse">[LOADING_PLANS_FROM_DB...]</div>
+                  ) : plans.length === 0 ? (
+                    <p className="text-xs text-zinc-600 py-6 font-mono uppercase text-center">[NO_PLAN_PRESETS_DEFINED]</p>
+                  ) : (
+                    <div className="overflow-x-auto border border-zinc-900 bg-zinc-950/20">
+                      <table className="w-full text-left text-xs border-collapse font-mono">
+                        <thead>
+                          <tr className="border-b border-zinc-900 bg-zinc-950/60 text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">
+                            <th className="p-4">Plan Name</th>
+                            <th className="p-4">Default Monthly limit</th>
+                            <th className="p-4 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-900/40">
+                          {plans.map(p => (
+                            <tr key={p.id} className="hover:bg-zinc-900/10 transition-colors">
+                              <td className="p-4 font-bold text-white uppercase">{p.tier}</td>
+                              <td className="p-4 text-zinc-300">
+                                {editingPlanId === p.id ? (
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="number"
+                                      value={editingPlanLimit}
+                                      onChange={e => setEditingPlanLimit(Number(e.target.value))}
+                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-28 text-xs focus:outline-none focus:border-[#ef4444]"
+                                    />
+                                    <button onClick={() => handleUpdatePlan(p.id)} className="text-emerald-400 font-bold hover:underline">SAVE</button>
+                                    <button onClick={() => setEditingPlanId(null)} className="text-zinc-500 font-bold hover:underline">CANCEL</button>
+                                  </div>
+                                ) : (
+                                  <span>{p.monthly_limit >= 999999999 ? 'UNLIMITED' : p.monthly_limit.toLocaleString()} REQ</span>
+                                )}
+                              </td>
+                              <td className="p-4 text-right space-x-2">
+                                {editingPlanId !== p.id && (
+                                  <button 
+                                    onClick={() => { setEditingPlanId(p.id); setEditingPlanLimit(p.monthly_limit) }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-550 transition-all text-[10px]"
+                                  >
+                                    EDIT
+                                  </button>
+                                )}
+                                
+                                {/* Protect standard plans from accidental deletions */}
+                                {!['free', 'pro', 'enterprise'].includes(p.tier) && (
+                                  <button 
+                                    onClick={() => handleDeletePlan(p.id)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 border border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] hover:bg-[#ef4444]/20 hover:text-red-400 transition-all text-[10px]"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    DELETE
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Plan Creation Panel */}
+                <div className="col-span-12 lg:col-span-4 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-4">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <Plus className="w-4 h-4 text-[#ef4444]" />
+                      NEW_PLAN_PRESET
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Define a brand new subscription plan defaults.</p>
+                  </div>
+
+                  <form onSubmit={handleCreatePlan} className="space-y-4 font-mono text-xs text-zinc-300">
+                    <div className="space-y-1">
+                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Plan Name / Identifier</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. developer, startup, scale..."
+                        value={newPlanTier}
+                        onChange={e => setNewPlanTier(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white placeholder-zinc-800 focus:outline-none focus:border-[#ef4444]"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Default Monthly Request Limit</label>
+                      <input
+                        type="number"
+                        value={newPlanLimit}
+                        onChange={e => setNewPlanLimit(Number(e.target.value))}
+                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                        required
+                        min={1}
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-[#ef4444] text-black font-bold py-3 hover:bg-[#ff5451] transition-all flex items-center justify-center gap-2 group crosshair-corners"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="tracking-widest uppercase font-bold">CREATE TEMPLATE</span>
+                    </button>
+                  </form>
+                </div>
+              </section>
+            )}
+
+            {/* Modal: Edit User Metadata details */}
+            {editingAccountId && (
+              <div className="fixed inset-0 z-50 bg-[#09090b]/80 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-[#0e0e10] border border-[#ef4444]/35 p-6 w-full max-w-lg crosshair-corners relative animate-fade-in space-y-4">
+                  <div className="absolute right-3 top-3 w-2.5 h-2.5 bg-[#ef4444] status-pulse red-glow" />
+                  <h3 className="font-mono text-sm text-white font-bold tracking-widest border-b border-zinc-900 pb-2">
+                    [CONTROL_OVERRIDE_USER_METADATA]
+                  </h3>
+                  
+                  <form onSubmit={handleUpdateAccount} className="space-y-4 font-mono text-xs text-zinc-300">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Display Name</label>
+                        <input
+                          type="text"
+                          value={editingDisplayName}
+                          onChange={e => setEditingDisplayName(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                        />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Role</label>
+                        <select
+                          value={editingRole}
+                          onChange={e => setEditingRole(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] uppercase"
+                        >
+                          <option value="user">User</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Plan / Tier</label>
+                        <select
+                          value={editingTier}
+                          onChange={e => handleTierChange(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] uppercase"
+                        >
+                          {plans.map(p => (
+                            <option key={p.id} value={p.tier}>{p.tier.toUpperCase()}</option>
+                          ))}
+                          {!plans.some(p => p.tier === editingTier) && (
+                            <option value={editingTier}>{editingTier.toUpperCase()} (CUSTOM)</option>
+                          )}
+                        </select>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Monthly Request Limit</label>
+                        <input
+                          type="number"
+                          value={editingLimit}
+                          onChange={e => setEditingLimit(Number(e.target.value))}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Status</label>
+                        <select
+                          value={editingStatus}
+                          onChange={e => setEditingStatus(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] uppercase"
+                        >
+                          <option value="active">Active</option>
+                          <option value="suspended">Suspended (Banned)</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {editingStatus === 'suspended' && (
+                      <div className="space-y-1 animate-fade-in">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Suspension Reason</label>
+                        <textarea
+                          value={editingSuspendedReason}
+                          onChange={e => setEditingSuspendedReason(e.target.value)}
+                          placeholder="VIOLATION OF TERMS / MISUSE / QUOTA EXCEEDED..."
+                          rows={2}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] uppercase placeholder-zinc-800"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingAccountId(null)}
+                        className="px-4 py-2 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors"
+                      >
+                        CANCEL
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={updatingAccount}
+                        className="px-4 py-2 bg-[#ef4444] text-black font-bold hover:bg-[#ff5451] transition-colors disabled:opacity-50"
+                      >
+                        {updatingAccount ? 'SAVING...' : 'COMMIT CHANGES'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+
     </div>
   )
 }

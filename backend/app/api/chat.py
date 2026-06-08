@@ -158,4 +158,10 @@ async def _try_refresh(provider: dict) -> bool:
         "refresh_lock_acquired_at": None,
     }).eq("id", provider["id"]).execute()
 
+    # Update provider dict inline for the caller
+    provider["access_token"] = token_resp["access_token"]
+    if "refresh_token" in token_resp:
+        provider["refresh_token"] = token_resp["refresh_token"]
+    provider["token_expires_at"] = new_expires
+
     return True

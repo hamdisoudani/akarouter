@@ -187,6 +187,7 @@ async def get_my_analytics(request: Request):
     return {
         "models": list(model_stats.values()),
         "total_logs": len(logs),
+        "recent_logs": logs[:100],
     }
 
 

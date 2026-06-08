@@ -59,9 +59,21 @@ export interface ModelAnalytics {
   avg_latency_ms: number
 }
 
+export interface RequestLog {
+  model: string
+  upstream_model?: string
+  status_code: number
+  latency_ms: number
+  prompt_tokens?: number
+  completion_tokens?: number
+  total_tokens?: number
+  created_at: string
+}
+
 export interface AnalyticsResponse {
   models: ModelAnalytics[]
   total_logs: number
+  recent_logs?: RequestLog[]
 }
 
 export interface UserInfo {
@@ -141,10 +153,103 @@ export async function getAnalytics(token: string): Promise<AnalyticsResponse> {
   return res.json()
 }
 
+export interface PlanPreset {
+  id: string
+  tier: string
+  monthly_limit: number
+  created_at: string
+  updated_at: string
+}
+
 export async function getMe(token: string): Promise<UserInfo> {
   const res = await fetch(`${API_BASE}/user/me`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) throw new Error('Not authenticated')
+  return res.json()
+}
+
+export async function adminGetAccounts(token: string, search?: string): Promise<{ accounts: UserInfo[] & any[] }> {
+  const url = search ? `${API_BASE}/admin/accounts?search=${encodeURIComponent(search)}` : `${API_BASE}/admin/accounts`
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch accounts')
+  return res.json()
+}
+
+export async function adminUpdateAccount(
+  token: string, 
+  accountId: string, 
+  data: {
+    tier?: string
+    monthly_limit?: number
+    status?: string
+    suspended_reason?: string | null
+    role?: string
+    display_name?: string
+  }
+): Promise<{ ok: boolean; account: any }> {
+  const res = await fetch(`${API_BASE}/admin/accounts/${accountId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to update account')
+  }
+  return res.json()
+}
+
+export async function adminGetPlans(token: string): Promise<{ plans: PlanPreset[] }> {
+  const res = await fetch(`${API_BASE}/admin/plans`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch plan presets')
+  return res.json()
+}
+
+export async function adminCreatePlan(token: string, tier: string, monthlyLimit: number): Promise<{ ok: boolean; plan: PlanPreset }> {
+  const res = await fetch(`${API_BASE}/admin/plans`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ tier, monthly_limit: monthlyLimit }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to create plan preset')
+  }
+  return res.json()
+}
+
+export async function adminUpdatePlan(token: string, planId: string, data: { tier?: string; monthly_limit?: number }): Promise<{ ok: boolean; plan: PlanPreset }> {
+  const res = await fetch(`${API_BASE}/admin/plans/${planId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to update plan preset')
+  }
+  return res.json()
+}
+
+export async function adminDeletePlan(token: string, planId: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/admin/plans/${planId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to delete plan preset')
   return res.json()
 }

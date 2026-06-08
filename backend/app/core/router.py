@@ -81,7 +81,7 @@ async def select_provider(model: str) -> Optional[dict]:
 
     for p in result.data:
         expires_at = p.get("token_expires_at", "")
-        if expires_at:
+        if expires_at and not p.get("refresh_token"):
             try:
                 exp = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
                 if exp.timestamp() - now < settings.token_refresh_skew:
@@ -158,10 +158,14 @@ async def log_request(
     except Exception as e:
         logger.error(f"Failed to log request: {e}")
 
-    # Update account monthly_requests
+    # Update account requests count
     try:
-        supabase.table("accounts").update({
-            "monthly_requests": supabase.table("accounts").select("monthly_requests").eq("id", account_id).execute().data[0].get("monthly_requests", 0) + 1,
-        }).eq("id", account_id).execute()
-    except Exception:
-        pass
+        acc_res = supabase.table("accounts").select("monthly_requests, total_requests").eq("id", account_id).execute()
+        if acc_res.data:
+            acc_data = acc_res.data[0]
+            supabase.table("accounts").update({
+                "monthly_requests": acc_data.get("monthly_requests", 0) + 1,
+                "total_requests": acc_data.get("total_requests", 0) + 1,
+            }).eq("id", account_id).execute()
+    except Exception as e:
+        logger.error(f"Failed to update account requests count: {e}")

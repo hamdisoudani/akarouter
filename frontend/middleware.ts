@@ -14,7 +14,7 @@ export async function middleware(request: NextRequest) {
   const hasAuthCookie = request.cookies.getAll().some(c => c.name.includes('auth-token'))
 
   // Protected paths require auth
-  const protectedPaths = ['/dashboard', '/admin']
+  const protectedPaths = ['/dashboard', '/admin', '/keys']
   if (protectedPaths.some(p => pathname.startsWith(p))) {
     if (!hasAuthCookie) {
       const loginUrl = new URL('/auth/login', request.url)
