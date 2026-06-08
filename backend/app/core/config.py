@@ -35,6 +35,22 @@ class Settings(BaseSettings):
         "akarouter-flash": "nvidia/nemotron-3-ultra:free",
     }
 
+    # Model pricing: input and output cost per 1M tokens in USD
+    model_pricing: dict[str, dict[str, float]] = {
+        "akarouter-pro": {
+            "input_cost_per_million": 0.20,
+            "output_cost_per_million": 0.80,
+        },
+        "akarouter-flash": {
+            "input_cost_per_million": 0.05,
+            "output_cost_per_million": 0.15,
+        },
+        "default": {
+            "input_cost_per_million": 0.10,
+            "output_cost_per_million": 0.30,
+        }
+    }
+
     @property
     def supabase_configured(self) -> bool:
         return bool(self.supabase_url and self.supabase_service_role_key)
@@ -42,6 +58,13 @@ class Settings(BaseSettings):
     def resolve_model(self, model_alias: str) -> str:
         """Map AkaRouter model names to upstream model IDs."""
         return self.model_mapping.get(model_alias, model_alias)
+
+    def calculate_cost(self, model_alias: str, prompt_tokens: int, completion_tokens: int) -> float:
+        """Calculate request cost in USD."""
+        pricing = self.model_pricing.get(model_alias, self.model_pricing["default"])
+        input_cost = (prompt_tokens / 1_000_000.0) * pricing.get("input_cost_per_million", 0.10)
+        output_cost = (completion_tokens / 1_000_000.0) * pricing.get("output_cost_per_million", 0.30)
+        return input_cost + output_cost
 
 
 settings = Settings()

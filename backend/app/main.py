@@ -80,7 +80,15 @@ async def auth_middleware(request: Request, call_next):
 
     # Try API key auth first (tokens starting with "akar_")
     if token.startswith("akar_"):
-        auth_result = await authenticate_api_key(token)
+        from app.core.router import RateLimitException, BudgetLimitException
+        check_limits = path.startswith("/v1/")
+        try:
+            auth_result = await authenticate_api_key(token, check_limits=check_limits)
+        except RateLimitException as e:
+            return JSONResponse(status_code=429, content={"detail": str(e)})
+        except BudgetLimitException as e:
+            return JSONResponse(status_code=429, content={"detail": str(e)})
+            
         if auth_result:
             request.state.auth = auth_result
             return await call_next(request)

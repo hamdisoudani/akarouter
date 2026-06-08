@@ -299,14 +299,23 @@ class UpdateAccountRequest(BaseModel):
     suspended_reason: Optional[str] = None
     role: Optional[str] = None
     display_name: Optional[str] = None
+    rpm_limit: Optional[int] = None
+    tokens_5h_limit: Optional[float] = None
+    tokens_7d_limit: Optional[float] = None
 
 class CreatePlanRequest(BaseModel):
     tier: str
     monthly_limit: int
+    rpm_limit: Optional[int] = 60
+    tokens_5h_limit: Optional[float] = 1.0
+    tokens_7d_limit: Optional[float] = 5.0
 
 class UpdatePlanRequest(BaseModel):
     tier: Optional[str] = None
     monthly_limit: Optional[int] = None
+    rpm_limit: Optional[int] = None
+    tokens_5h_limit: Optional[float] = None
+    tokens_7d_limit: Optional[float] = None
 
 @router.get("/accounts")
 async def list_accounts(search: Optional[str] = None, authorization: Optional[str] = Header(None)):
@@ -348,12 +357,24 @@ async def update_account(account_id: str, body: UpdateAccountRequest, authorizat
     if body.display_name is not None:
         updates["display_name"] = body.display_name
         
+    if body.rpm_limit is not None:
+        updates["rpm_limit"] = body.rpm_limit
+    if body.tokens_5h_limit is not None:
+        updates["tokens_5h_limit"] = body.tokens_5h_limit
+    if body.tokens_7d_limit is not None:
+        updates["tokens_7d_limit"] = body.tokens_7d_limit
+        
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
         
     result = supabase.table("accounts").update(updates).eq("id", account_id).execute()
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to update account")
+        
+    # Evict local cache immediately
+    from app.core.cache import evict_account_caches
+    evict_account_caches(account_id)
+    
     return {"ok": True, "account": result.data[0]}
 
 @router.patch("/accounts/{account_id}/tier")
@@ -362,16 +383,69 @@ async def update_account_tier(account_id: str, tier: str, authorization: Optiona
         raise HTTPException(status_code=401, detail="Admin access required")
     supabase = get_supabase()
     
-    plan_res = supabase.table("plan_presets").select("monthly_limit").eq("tier", tier).execute()
+    plan_res = supabase.table("plan_presets").select("monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit").eq("tier", tier).execute()
     limit = 1000
+    rpm_limit = 60
+    tokens_5h_limit = 1.0
+    tokens_7d_limit = 5.0
+    
     if plan_res.data:
-        limit = plan_res.data[0]["monthly_limit"]
+        plan = plan_res.data[0]
+        limit = plan.get("monthly_limit", 1000)
+        rpm_limit = plan.get("rpm_limit", 60)
+        tokens_5h_limit = plan.get("tokens_5h_limit", 1.0)
+        tokens_7d_limit = plan.get("tokens_7d_limit", 5.0)
     else:
         limits = {"free": 1000, "pro": 10000, "enterprise": 999999999}
         limit = limits.get(tier, 1000)
+        if tier == "pro":
+            rpm_limit = 300
+            tokens_5h_limit = 10.0
+            tokens_7d_limit = 50.0
+        elif tier == "enterprise":
+            rpm_limit = 3000
+            tokens_5h_limit = 100.0
+            tokens_7d_limit = 500.0
         
-    supabase.table("accounts").update({"tier": tier, "monthly_limit": limit}).eq("id", account_id).execute()
+    supabase.table("accounts").update({
+        "tier": tier, 
+        "monthly_limit": limit,
+        "rpm_limit": rpm_limit,
+        "tokens_5h_limit": tokens_5h_limit,
+        "tokens_7d_limit": tokens_7d_limit
+    }).eq("id", account_id).execute()
+    
+    # Evict local cache immediately
+    from app.core.cache import evict_account_caches
+    evict_account_caches(account_id)
+    
     return {"ok": True, "tier": tier}
+
+
+@router.post("/accounts/{account_id}/reset-budget")
+async def reset_account_budget(account_id: str, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    # Check if account exists
+    check_res = supabase.table("accounts").select("id").eq("id", account_id).execute()
+    if not check_res.data:
+        raise HTTPException(status_code=404, detail="Account not found")
+        
+    now_iso = datetime.now(timezone.utc).isoformat()
+    result = supabase.table("accounts").update({
+        "budget_reset_at": now_iso
+    }).eq("id", account_id).execute()
+    
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Failed to reset budget")
+        
+    # Evict local cache immediately
+    from app.core.cache import evict_account_caches
+    evict_account_caches(account_id)
+    
+    return {"ok": True, "budget_reset_at": now_iso}
 
 # Plan Presets CRUD Endpoints
 @router.get("/plans")
@@ -393,7 +467,10 @@ async def create_plan(body: CreatePlanRequest, authorization: Optional[str] = He
         
     result = supabase.table("plan_presets").insert({
         "tier": body.tier,
-        "monthly_limit": body.monthly_limit
+        "monthly_limit": body.monthly_limit,
+        "rpm_limit": body.rpm_limit,
+        "tokens_5h_limit": body.tokens_5h_limit,
+        "tokens_7d_limit": body.tokens_7d_limit,
     }).execute()
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create plan preset")
@@ -417,6 +494,12 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         updates["tier"] = body.tier
     if body.monthly_limit is not None:
         updates["monthly_limit"] = body.monthly_limit
+    if body.rpm_limit is not None:
+        updates["rpm_limit"] = body.rpm_limit
+    if body.tokens_5h_limit is not None:
+        updates["tokens_5h_limit"] = body.tokens_5h_limit
+    if body.tokens_7d_limit is not None:
+        updates["tokens_7d_limit"] = body.tokens_7d_limit
         
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")

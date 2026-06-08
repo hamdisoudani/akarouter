@@ -18,6 +18,12 @@ _api_key_cache: dict[str, tuple[dict[str, Any], float]] = {}  # key_hash -> (aut
 _jwt_cache: dict[str, tuple[dict[str, Any], float]] = {}      # token -> (user_info, expire_timestamp)
 _provider_cache: Optional[tuple[list[dict[str, Any]], float]] = None  # (active_providers_list, expire_timestamp)
 
+# In-memory RPM trackers: account_id -> {minute_epoch: count}
+_rpm_trackers: dict[str, dict[int, int]] = {}
+
+# Account-level budget tracking: account_id -> {"consumed_5h": float, "consumed_7d": float, "last_fetched_at": float}
+_account_budgets: dict[str, dict[str, Any]] = {}
+
 # In-flight tracker (provider_id -> count) - persistent in memory
 _in_flight_tracker: dict[str, int] = {}
 
@@ -52,6 +58,81 @@ def set_api_key_cache(key_hash: str, auth_metadata: dict[str, Any], ttl: float =
     """Cache auth metadata for an API key with a given TTL."""
     with _lock:
         _api_key_cache[key_hash] = (auth_metadata, time.time() + ttl)
+
+
+def check_and_increment_rpm(account_id: str, limit: int) -> bool:
+    """
+    Check if account has exceeded its RPM limit for the current minute.
+    If NOT exceeded, increments the count and returns False.
+    If exceeded, returns True.
+    """
+    current_minute = int(time.time() // 60)
+    with _lock:
+        if account_id not in _rpm_trackers:
+            _rpm_trackers[account_id] = {}
+        
+        # Clean up old minutes
+        tracker = _rpm_trackers[account_id]
+        old_minutes = [m for m in tracker if m < current_minute]
+        for m in old_minutes:
+            del tracker[m]
+            
+        current_count = tracker.get(current_minute, 0)
+        if current_count >= limit:
+            return True
+        
+        tracker[current_minute] = current_count + 1
+        return False
+
+
+def get_account_budget(account_id: str) -> Optional[dict[str, Any]]:
+    """Retrieve the cached budget tracking for an account if not expired (TTL 30s)."""
+    with _lock:
+        if account_id in _account_budgets:
+            data = _account_budgets[account_id]
+            if time.time() - data["last_fetched_at"] < 30.0:
+                return data
+            del _account_budgets[account_id]
+    return None
+
+
+def set_account_budget(account_id: str, consumed_5h: float, consumed_7d: float) -> None:
+    """Set the cached budget tracking for an account."""
+    with _lock:
+        _account_budgets[account_id] = {
+            "consumed_5h": consumed_5h,
+            "consumed_7d": consumed_7d,
+            "last_fetched_at": time.time(),
+        }
+
+
+def increment_account_budget(account_id: str, cost: float) -> None:
+    """Atomically increment the cached budget for an account."""
+    with _lock:
+        if account_id in _account_budgets:
+            data = _account_budgets[account_id]
+            data["consumed_5h"] += cost
+            data["consumed_7d"] += cost
+
+
+def evict_account_caches(account_id: str) -> None:
+    """Evict all cached API key auth metadata, RPM records, and budget metrics for a specific account."""
+    with _lock:
+        # Evict from _api_key_cache
+        keys_to_delete = []
+        for key_hash, (auth_metadata, _) in _api_key_cache.items():
+            if auth_metadata.get("account_id") == account_id:
+                keys_to_delete.append(key_hash)
+        for k in keys_to_delete:
+            del _api_key_cache[k]
+            
+        # Evict from _rpm_trackers
+        if account_id in _rpm_trackers:
+            del _rpm_trackers[account_id]
+
+        # Evict from _account_budgets
+        if account_id in _account_budgets:
+            del _account_budgets[account_id]
 
 
 def get_jwt_cache(token: str) -> Optional[dict[str, Any]]:

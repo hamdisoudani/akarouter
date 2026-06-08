@@ -114,15 +114,84 @@ async def get_my_usage(request: Request):
     account_id = _get_user_id(request)
     supabase = get_supabase()
 
-    # Get account info
+    # Get account info including limits and reset timestamp
     result = supabase.table("accounts").select(
-        "monthly_requests, monthly_limit, total_requests, tier, role"
+        "monthly_requests, monthly_limit, total_requests, tier, role, rpm_limit, tokens_5h_limit, tokens_7d_limit, budget_reset_at"
     ).eq("id", account_id).execute()
 
     if not result.data:
         raise HTTPException(status_code=404, detail="Account not found")
 
     account = result.data[0]
+    
+    # 1. Fetch request logs for sliding window budget calculation
+    from datetime import datetime, timezone, timedelta
+    now_dt = datetime.now(timezone.utc)
+    seven_days_ago = now_dt - timedelta(days=7)
+    
+    budget_reset_at = account.get("budget_reset_at")
+    start_dt = seven_days_ago
+    if budget_reset_at:
+        try:
+            reset_dt = datetime.fromisoformat(budget_reset_at.replace("Z", "+00:00"))
+            start_dt = max(seven_days_ago, reset_dt)
+        except Exception:
+            pass
+
+    logs_res = (
+        supabase.table("request_logs")
+        .select("cost, created_at")
+        .eq("account_id", account_id)
+        .gte("created_at", start_dt.isoformat())
+        .execute()
+    )
+    
+    consumed_5h = 0.0
+    consumed_7d = 0.0
+    five_hours_ago = now_dt - timedelta(hours=5)
+    
+    if logs_res and logs_res.data:
+        for log in logs_res.data:
+            cost = log.get("cost") or 0.0
+            created_at_str = log.get("created_at")
+            if created_at_str:
+                try:
+                    log_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                    if log_dt >= five_hours_ago:
+                        consumed_5h += cost
+                    if log_dt >= seven_days_ago:
+                        consumed_7d += cost
+                except Exception:
+                    pass
+
+    # 2. Fetch input/output token counts since last reset
+    start_dt_tokens = None
+    if budget_reset_at:
+        try:
+            start_dt_tokens = datetime.fromisoformat(budget_reset_at.replace("Z", "+00:00"))
+        except Exception:
+            pass
+            
+    tokens_query = supabase.table("request_logs").select("prompt_tokens, completion_tokens").eq("account_id", account_id)
+    if start_dt_tokens:
+        tokens_query = tokens_query.gte("created_at", start_dt_tokens.isoformat())
+    
+    tokens_res = tokens_query.execute()
+    
+    consumed_tokens_input = 0
+    consumed_tokens_output = 0
+    if tokens_res and tokens_res.data:
+        for log in tokens_res.data:
+            consumed_tokens_input += log.get("prompt_tokens") or 0
+            consumed_tokens_output += log.get("completion_tokens") or 0
+
+    rpm_limit = account.get("rpm_limit") or 60
+    tokens_5h_limit = account.get("tokens_5h_limit") or 1.0
+    tokens_7d_limit = account.get("tokens_7d_limit") or 5.0
+    
+    progress_percentage_5h = min(100.0, round((consumed_5h / tokens_5h_limit) * 100.0, 2)) if tokens_5h_limit > 0 else 0.0
+    progress_percentage_7d = min(100.0, round((consumed_7d / tokens_7d_limit) * 100.0, 2)) if tokens_7d_limit > 0 else 0.0
+
     return {
         "tier": account["tier"],
         "role": account.get("role", "user"),
@@ -130,6 +199,15 @@ async def get_my_usage(request: Request):
         "monthly_limit": account["monthly_limit"],
         "total_requests": account["total_requests"],
         "remaining": max(0, account["monthly_limit"] - account["monthly_requests"]),
+        "rpm_limit": rpm_limit,
+        "tokens_5h_limit": tokens_5h_limit,
+        "tokens_7d_limit": tokens_7d_limit,
+        "consumed_tokens_input": consumed_tokens_input,
+        "consumed_tokens_output": consumed_tokens_output,
+        "consumed_budget_5h": round(consumed_5h, 6),
+        "consumed_budget_7d": round(consumed_7d, 6),
+        "progress_percentage_5h": progress_percentage_5h,
+        "progress_percentage_7d": progress_percentage_7d,
     }
 
 
