@@ -624,7 +624,7 @@ response = client.chat.completions.create(
                   </div>
                 </div>
 
-                <div className="h-60 overflow-x-auto overflow-y-auto p-5 font-mono text-[11px] space-y-1 bg-[#050507]" id="trace-log">
+                <div className="h-60 overflow-y-auto p-4 font-mono text-[11px] space-y-1 bg-[#050507]" id="trace-log">
                   {loading ? (
                     <div className="text-zinc-650 py-6 text-center animate-pulse tracking-widest uppercase">
                       [INITIALIZING_BUFFER_STREAM_READING_HISTORICAL_METRICS...]
@@ -632,23 +632,42 @@ response = client.chat.completions.create(
                   ) : traceLogs.length === 0 ? (
                     <div className="text-zinc-700 py-6 text-center">[BUFFER_EMPTY_WAITING_FOR_TRAFFIC]</div>
                   ) : (
-                    <div className="min-w-[640px]">
+                    <div>
                       {traceLogs.map((log, index) => (
-                        <div 
-                          key={index} 
-                          className={`flex gap-6 p-1 group border-b border-zinc-900/50 ${log.isError ? 'bg-[#ef4444]/10 border-l-2 border-[#ef4444] my-1' : 'hover:bg-zinc-900/50'}`}
-                        >
-                          <span className="text-zinc-700 w-24">{log.time}</span> 
-                          <span className={`w-12 font-bold ${log.isError ? 'text-[#ef4444]' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-400'}`}>
-                            {log.type}
-                          </span> 
-                          <span className="text-white w-48 truncate">{log.tx}</span> 
-                          <span className={`w-48 truncate ${log.isError ? 'text-[#ef4444] font-bold' : 'text-zinc-500'}`}>
-                            {log.dest}
-                          </span> 
-                          <span className={`${log.isError ? 'text-[#ef4444] font-bold underline' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-700'} ml-auto`}>
-                            {log.metric}
-                          </span>
+                        <div key={index}>
+                          {/* Desktop View */}
+                          <div className={`hidden md:flex gap-6 p-1 group border-b border-zinc-900/50 ${log.isError ? 'bg-[#ef4444]/10 border-l-2 border-[#ef4444] my-1' : 'hover:bg-zinc-900/50'}`}>
+                            <span className="text-zinc-700 w-24">{log.time}</span> 
+                            <span className={`w-12 font-bold ${log.isError ? 'text-[#ef4444]' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-400'}`}>
+                              {log.type}
+                            </span> 
+                            <span className="text-white w-48 truncate">{log.tx}</span> 
+                            <span className={`w-48 truncate ${log.isError ? 'text-[#ef4444] font-bold' : 'text-zinc-500'}`}>
+                              {log.dest}
+                            </span> 
+                            <span className={`${log.isError ? 'text-[#ef4444] font-bold underline' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-700'} ml-auto`}>
+                              {log.metric}
+                            </span>
+                          </div>
+
+                          {/* Mobile View */}
+                          <div className={`md:hidden flex flex-col p-3 border-b border-zinc-900/50 space-y-1.5 ${log.isError ? 'bg-[#ef4444]/10 border-l-2 border-[#ef4444] my-1' : 'hover:bg-zinc-900/30'}`}>
+                            <div className="flex justify-between items-center text-[10px]">
+                              <span className="text-zinc-600 font-mono">{log.time}</span>
+                              <span className={`font-bold ${log.isError ? 'text-[#ef4444]' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-400'}`}>
+                                {log.type}
+                              </span>
+                            </div>
+                            <div className="text-white text-xs font-mono font-bold truncate">
+                              {log.tx}
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] text-zinc-500 font-mono">
+                              <span className="truncate max-w-[160px]">{log.dest}</span>
+                              <span className={`${log.isError ? 'text-[#ef4444] font-bold underline' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-400'}`}>
+                                {log.metric}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
