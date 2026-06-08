@@ -5,11 +5,10 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  getMe,
-  getUsage,
   type UsageStats,
   type UserInfo,
 } from '@/lib/api'
+import { getMeAction, getUsageAction } from '../actions'
 import { 
   LogOut, 
   KeyRound, 
@@ -31,11 +30,11 @@ export default function UsagePage() {
   const [error, setError] = useState('')
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const loadData = useCallback(async (accessToken: string) => {
+  const loadData = useCallback(async () => {
     try {
       const [me, usageData] = await Promise.all([
-        getMe(accessToken),
-        getUsage(accessToken),
+        getMeAction(),
+        getUsageAction(),
       ])
       setUser(me)
       setUsage(usageData)
@@ -53,7 +52,7 @@ export default function UsagePage() {
         return
       }
       setToken(session.access_token)
-      await loadData(session.access_token)
+      await loadData()
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -61,7 +60,7 @@ export default function UsagePage() {
         router.push('/auth/login')
       } else {
         setToken(session.access_token)
-        await loadData(session.access_token)
+        await loadData()
       }
     })
 
@@ -73,17 +72,7 @@ export default function UsagePage() {
     router.push('/auth/login')
   }
 
-  if (loading && !usage) {
-    return (
-      <div className="relative min-h-screen bg-[#09090b] flex items-center justify-center overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-[#ef4444]/5 rounded-full blur-[80px]" />
-        <div className="text-zinc-500 font-mono text-xs flex items-center gap-2 z-10 uppercase tracking-widest">
-          <Activity className="w-5 h-5 animate-pulse text-[#ef4444] red-glow" />
-          Synchronizing budget metrics...
-        </div>
-      </div>
-    )
-  }
+  // Removed fullscreen loading block to show proper page shell first
 
   return (
     <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex antialiased selection:bg-[#ef4444]/30 selection:text-white">
@@ -280,10 +269,10 @@ export default function UsagePage() {
                     <span className="w-1.5 h-1.5 bg-[#ef4444] status-pulse red-glow"></span> SYSTEM TIER
                   </span>
                   <div className="font-mono text-2xl text-white font-bold tracking-wider uppercase">
-                    {usage ? usage.tier : '[LOAD_VAULT...]'}
+                    {usage ? usage.tier : <span className="text-zinc-700 animate-pulse">[LOAD_VAULT...]</span>}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-600 mt-1 uppercase tracking-tighter">
-                    {usage ? `RPM LIMIT: ${usage.rpm_limit ?? 60}` : 'PLAN STATUS: ACTIVE'}
+                  <span className="font-mono text-[9px] text-zinc-600 mt-1 uppercase tracking-tighter font-mono">
+                    {usage ? `RPM LIMIT: ${usage.rpm_limit ?? 60}` : '[RPM_LIMIT: ...]'}
                   </span>
                 </div>
 
@@ -296,11 +285,11 @@ export default function UsagePage() {
                     {usage ? (
                       <>{usage.monthly_requests.toLocaleString()}<span className="text-zinc-700 text-xs ml-1">REQ</span></>
                     ) : (
-                      '[LOAD_TX...]'
+                      <span className="text-zinc-700 animate-pulse">[LOAD_TX...]</span>
                     )}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-650 mt-1 uppercase tracking-tighter">
-                    {usage ? `LIMIT: ${usage.monthly_limit.toLocaleString()}` : '[READING_LIMIT]'}
+                  <span className="font-mono text-[9px] text-zinc-650 mt-1 uppercase tracking-tighter font-mono">
+                    {usage ? `LIMIT: ${usage.monthly_limit.toLocaleString()}` : '[LIMIT: ...]'}
                   </span>
                 </div>
 
@@ -313,7 +302,7 @@ export default function UsagePage() {
                     {usage ? (
                       <>{usage.remaining.toLocaleString()}<span className="text-[12px] ml-1">REQ</span></>
                     ) : (
-                      '[LOAD_SYS...]'
+                      <span className="text-[#ef4444]/65 animate-pulse">[LOAD_SYS...]</span>
                     )}
                   </div>
                   <span className="font-mono text-[9px] text-[#ef4444] mt-1 uppercase tracking-widest font-bold">SYSTEM BALANCE</span>
@@ -328,10 +317,10 @@ export default function UsagePage() {
                     {usage ? (
                       <>{usage.total_requests.toLocaleString()}<span className="text-zinc-700 text-xs ml-1">REQ</span></>
                     ) : (
-                      '[LOAD_BUF...]'
+                      <span className="text-zinc-700 animate-pulse">[LOAD_BUF...]</span>
                     )}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-600 mt-1 uppercase tracking-widest">TOTAL_LOGGED_TX</span>
+                  <span className="font-mono text-[9px] text-zinc-600 mt-1 uppercase tracking-widest font-mono">TOTAL_LOGGED_TX</span>
                 </div>
               </div>
             </div>
@@ -353,14 +342,14 @@ export default function UsagePage() {
                   <div className="flex justify-between items-center text-xs font-mono">
                     <span className="text-zinc-400 font-bold uppercase tracking-wider">5-Hour Sliding Window</span>
                     <span className="text-[#ef4444] font-bold">
-                      {usage ? `${(usage.progress_percentage_5h ?? 0).toFixed(1)}%` : '0.0%'}
+                      {usage ? `${(usage.progress_percentage_5h ?? 0).toFixed(1)}%` : <span className="animate-pulse">0.0%</span>}
                     </span>
                   </div>
                   
                   {/* Bar progress */}
                   <div className="w-full h-2.5 bg-zinc-950 border border-zinc-900 overflow-hidden">
                     <div 
-                      className="h-full bg-[#ef4444] red-glow transition-all duration-500" 
+                      className={`h-full bg-[#ef4444] red-glow transition-all duration-500 ${!usage ? 'animate-pulse bg-zinc-800' : ''}`}
                       style={{ width: `${usage ? (usage.progress_percentage_5h ?? 0) : 0}%` }}
                     />
                   </div>
@@ -376,14 +365,14 @@ export default function UsagePage() {
                   <div className="flex justify-between items-center text-xs font-mono">
                     <span className="text-zinc-400 font-bold uppercase tracking-wider">7-Day Sliding Window</span>
                     <span className="text-[#ef4444] font-bold">
-                      {usage ? `${(usage.progress_percentage_7d ?? 0).toFixed(1)}%` : '0.0%'}
+                      {usage ? `${(usage.progress_percentage_7d ?? 0).toFixed(1)}%` : <span className="animate-pulse">0.0%</span>}
                     </span>
                   </div>
 
                   {/* Bar progress */}
                   <div className="w-full h-2.5 bg-zinc-950 border border-zinc-900 overflow-hidden">
                     <div 
-                      className="h-full bg-[#ef4444] red-glow transition-all duration-500" 
+                      className={`h-full bg-[#ef4444] red-glow transition-all duration-500 ${!usage ? 'animate-pulse bg-zinc-800' : ''}`}
                       style={{ width: `${usage ? (usage.progress_percentage_7d ?? 0) : 0}%` }}
                     />
                   </div>
@@ -407,16 +396,16 @@ export default function UsagePage() {
                   <div className="bg-[#050507] border border-zinc-900 p-5 flex flex-col justify-center">
                     <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">Input Tokens Count</span>
                     <span className="font-mono text-xl text-white font-bold tracking-wider mt-1">
-                      {usage ? (usage.consumed_tokens_input ?? 0).toLocaleString() : '0'}
-                      <span className="text-zinc-700 text-[11px] ml-1.5">TOKENS</span>
+                      {usage ? (usage.consumed_tokens_input ?? 0).toLocaleString() : <span className="text-zinc-700 animate-pulse">[LOAD_TOKENS...]</span>}
+                      {usage && <span className="text-zinc-700 text-[11px] ml-1.5">TOKENS</span>}
                     </span>
                   </div>
 
                   <div className="bg-[#050507] border border-zinc-900 p-5 flex flex-col justify-center">
                     <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">Output Tokens Count</span>
                     <span className="font-mono text-xl text-white font-bold tracking-wider mt-1">
-                      {usage ? (usage.consumed_tokens_output ?? 0).toLocaleString() : '0'}
-                      <span className="text-zinc-700 text-[11px] ml-1.5">TOKENS</span>
+                      {usage ? (usage.consumed_tokens_output ?? 0).toLocaleString() : <span className="text-zinc-700 animate-pulse">[LOAD_TOKENS...]</span>}
+                      {usage && <span className="text-zinc-700 text-[11px] ml-1.5">TOKENS</span>}
                     </span>
                   </div>
                 </div>
