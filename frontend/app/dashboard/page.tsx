@@ -613,18 +613,18 @@ response = client.chat.completions.create(
 
               {/* Live request logs buffer */}
               <div className="col-span-12 border-t border-[#27272a] bg-[#09090b]">
-                <div className="flex justify-between items-center px-5 py-3 border-b border-[#27272a] bg-[#0e0e10]">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 px-5 py-3 border-b border-[#27272a] bg-[#0e0e10]">
                   <h2 className="font-mono text-[11px] text-zinc-300 flex items-center gap-3 tracking-[0.2em] uppercase font-bold">
                     <span className="material-symbols-outlined text-[16px] text-[#ef4444]">developer_board</span>
                     LIVE_TX_TRACE_BUFFER
                   </h2>
-                  <div className="flex items-center gap-3 border border-[#10b981]/20 bg-[#10b981]/5 px-3 py-1">
+                  <div className="flex items-center gap-3 border border-[#10b981]/20 bg-[#10b981]/5 px-3 py-1 self-start sm:self-auto">
                     <span className="w-1.5 h-1.5 bg-[#10b981] status-pulse"></span>
                     <span className="font-mono text-[9px] text-[#10b981] tracking-[0.2em] font-bold">REAL_TIME_STREAMING</span>
                   </div>
                 </div>
 
-                <div className="h-60 overflow-y-auto p-5 font-mono text-[11px] space-y-1 bg-[#050507]" id="trace-log">
+                <div className="h-60 overflow-x-auto overflow-y-auto p-5 font-mono text-[11px] space-y-1 bg-[#050507]" id="trace-log">
                   {loading ? (
                     <div className="text-zinc-650 py-6 text-center animate-pulse tracking-widest uppercase">
                       [INITIALIZING_BUFFER_STREAM_READING_HISTORICAL_METRICS...]
@@ -632,24 +632,26 @@ response = client.chat.completions.create(
                   ) : traceLogs.length === 0 ? (
                     <div className="text-zinc-700 py-6 text-center">[BUFFER_EMPTY_WAITING_FOR_TRAFFIC]</div>
                   ) : (
-                    traceLogs.map((log, index) => (
-                      <div 
-                        key={index} 
-                        className={`flex gap-6 p-1 group border-b border-zinc-900/50 ${log.isError ? 'bg-[#ef4444]/10 border-l-2 border-[#ef4444] my-1' : 'hover:bg-zinc-900/50'}`}
-                      >
-                        <span className="text-zinc-700 w-24">{log.time}</span> 
-                        <span className={`w-12 font-bold ${log.isError ? 'text-[#ef4444]' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-400'}`}>
-                          {log.type}
-                        </span> 
-                        <span className="text-white w-48 truncate">{log.tx}</span> 
-                        <span className={`w-48 truncate ${log.isError ? 'text-[#ef4444] font-bold' : 'text-zinc-500'}`}>
-                          {log.dest}
-                        </span> 
-                        <span className={`${log.isError ? 'text-[#ef4444] font-bold underline' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-700'} ml-auto`}>
-                          {log.metric}
-                        </span>
-                      </div>
-                    ))
+                    <div className="min-w-[640px]">
+                      {traceLogs.map((log, index) => (
+                        <div 
+                          key={index} 
+                          className={`flex gap-6 p-1 group border-b border-zinc-900/50 ${log.isError ? 'bg-[#ef4444]/10 border-l-2 border-[#ef4444] my-1' : 'hover:bg-zinc-900/50'}`}
+                        >
+                          <span className="text-zinc-700 w-24">{log.time}</span> 
+                          <span className={`w-12 font-bold ${log.isError ? 'text-[#ef4444]' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-400'}`}>
+                            {log.type}
+                          </span> 
+                          <span className="text-white w-48 truncate">{log.tx}</span> 
+                          <span className={`w-48 truncate ${log.isError ? 'text-[#ef4444] font-bold' : 'text-zinc-500'}`}>
+                            {log.dest}
+                          </span> 
+                          <span className={`${log.isError ? 'text-[#ef4444] font-bold underline' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-700'} ml-auto`}>
+                            {log.metric}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
