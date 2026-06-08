@@ -7,16 +7,20 @@ ARG NEXT_PUBLIC_SUPABASE_URL=https://fleouqrgltkodumrgxlt.supabase.co
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZsZW91cXJnbHRrb2R1bXJneGx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MzQ4MTMsImV4cCI6MjA5NjMxMDgxM30.KTL_9jMVbygM8A7bepgdAv37pZZctZ4F-cGAUBm4Jgw
 ARG NEXT_PUBLIC_ADMIN_KEY
 
+# Install pnpm
+RUN npm install -g pnpm
+
 # Set as env vars for the build
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV NEXT_PUBLIC_ADMIN_KEY=$NEXT_PUBLIC_ADMIN_KEY
 
-COPY package.json package-lock.json* ./
-RUN npm ci
+# Copy lock and package files
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
+RUN pnpm install --frozen-lockfile
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
