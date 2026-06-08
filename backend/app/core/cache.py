@@ -1,0 +1,255 @@
+"""AKAROUTER Local In-Memory Cache and Write-Buffering Layer."""
+import time
+import logging
+import threading
+import asyncio
+from datetime import datetime, timezone
+from typing import Any, Optional
+
+from app.core.supabase import get_supabase
+
+logger = logging.getLogger(__name__)
+
+# Thread-safe locks for memory cache and buffers
+_lock = threading.Lock()
+
+# Cache store structures
+_api_key_cache: dict[str, tuple[dict[str, Any], float]] = {}  # key_hash -> (auth_metadata, expire_timestamp)
+_jwt_cache: dict[str, tuple[dict[str, Any], float]] = {}      # token -> (user_info, expire_timestamp)
+_provider_cache: Optional[tuple[list[dict[str, Any]], float]] = None  # (active_providers_list, expire_timestamp)
+
+# In-flight tracker (provider_id -> count) - persistent in memory
+_in_flight_tracker: dict[str, int] = {}
+
+# Buffers for deferred database updates
+_account_usage_buffer: dict[str, dict[str, int]] = {}  # account_id -> {"monthly": int, "total": int}
+_provider_usage_buffer: dict[str, dict[str, int]] = {}  # provider_id -> {"requests": int, "errors": int}
+_request_log_buffer: list[dict[str, Any]] = []
+
+# Throttle timestamp gates for last_used_at database writes (id -> last_db_write_timestamp)
+_last_used_at_timestamps: dict[str, float] = {}
+
+# Background task reference
+_flusher_task: Optional[asyncio.Task] = None
+_should_flush = True
+
+
+# --- Cache Accessors ---
+
+def get_api_key_cache(key_hash: str) -> Optional[dict[str, Any]]:
+    """Retrieve auth metadata for an API key if present and not expired."""
+    with _lock:
+        if key_hash in _api_key_cache:
+            data, expires_at = _api_key_cache[key_hash]
+            if time.time() < expires_at:
+                return data
+            # Clean up expired entry
+            del _api_key_cache[key_hash]
+    return None
+
+
+def set_api_key_cache(key_hash: str, auth_metadata: dict[str, Any], ttl: float = 30.0) -> None:
+    """Cache auth metadata for an API key with a given TTL."""
+    with _lock:
+        _api_key_cache[key_hash] = (auth_metadata, time.time() + ttl)
+
+
+def get_jwt_cache(token: str) -> Optional[dict[str, Any]]:
+    """Retrieve verified user info for a JWT if present and not expired."""
+    with _lock:
+        if token in _jwt_cache:
+            data, expires_at = _jwt_cache[token]
+            if time.time() < expires_at:
+                return data
+            del _jwt_cache[token]
+    return None
+
+
+def set_jwt_cache(token: str, user_info: dict[str, Any], ttl: float = 60.0) -> None:
+    """Cache verified JWT user info with a given TTL."""
+    with _lock:
+        _jwt_cache[token] = (user_info, time.time() + ttl)
+
+
+def get_active_providers_cache() -> Optional[list[dict[str, Any]]]:
+    """Retrieve active providers list from cache if present and not expired."""
+    global _provider_cache
+    with _lock:
+        if _provider_cache is not None:
+            data, expires_at = _provider_cache
+            if time.time() < expires_at:
+                return data
+            _provider_cache = None
+    return None
+
+
+def set_active_providers_cache(providers: list[dict[str, Any]], ttl: float = 5.0) -> None:
+    """Cache active providers list with a short TTL."""
+    global _provider_cache
+    with _lock:
+        _provider_cache = (providers, time.time() + ttl)
+
+
+def clear_active_providers_cache() -> None:
+    """Evict the active providers cache (e.g., when a provider degrades)."""
+    global _provider_cache
+    with _lock:
+        _provider_cache = None
+
+
+# --- In-Flight Request Tracker ---
+
+def get_in_flight(provider_id: str) -> int:
+    """Get the current in-flight request count for a provider."""
+    with _lock:
+        return _in_flight_tracker.get(provider_id, 0)
+
+
+def inc_in_flight(provider_id: str) -> int:
+    """Increment and return the in-flight request count for a provider."""
+    with _lock:
+        current = _in_flight_tracker.get(provider_id, 0)
+        _in_flight_tracker[provider_id] = current + 1
+        return _in_flight_tracker[provider_id]
+
+
+def dec_in_flight(provider_id: str) -> int:
+    """Decrement and return the in-flight request count for a provider (gated at 0)."""
+    with _lock:
+        current = _in_flight_tracker.get(provider_id, 0)
+        _in_flight_tracker[provider_id] = max(0, current - 1)
+        return _in_flight_tracker[provider_id]
+
+
+# --- Throttled Database Updates Gate ---
+
+def should_update_last_used_at(item_id: str, throttle_seconds: float = 60.0) -> bool:
+    """Return True if last_used_at should be written to DB, updating the timestamp gate."""
+    now = time.time()
+    with _lock:
+        last_write = _last_used_at_timestamps.get(item_id, 0.0)
+        if now - last_write > throttle_seconds:
+            _last_used_at_timestamps[item_id] = now
+            return True
+    return False
+
+
+# --- Buffering for Deferred DB Writes ---
+
+def buffer_account_usage(account_id: str) -> None:
+    """Accumulate account usage request counts in memory."""
+    with _lock:
+        if account_id not in _account_usage_buffer:
+            _account_usage_buffer[account_id] = {"monthly": 0, "total": 0}
+        _account_usage_buffer[account_id]["monthly"] += 1
+        _account_usage_buffer[account_id]["total"] += 1
+
+
+def buffer_provider_usage(provider_id: str, success: bool) -> None:
+    """Accumulate provider total requests and error counts in memory."""
+    with _lock:
+        if provider_id not in _provider_usage_buffer:
+            _provider_usage_buffer[provider_id] = {"requests": 0, "errors": 0}
+        _provider_usage_buffer[provider_id]["requests"] += 1
+        if not success:
+            _provider_usage_buffer[provider_id]["errors"] += 1
+
+
+def buffer_request_log(log_data: dict[str, Any]) -> None:
+    """Queue a request log to be batch inserted asynchronously."""
+    with _lock:
+        _request_log_buffer.append(log_data)
+
+
+# --- Asynchronous Background Flusher ---
+
+async def flush_buffers_to_db() -> None:
+    """Perform a batch flush of all memory buffers into Supabase."""
+    global _request_log_buffer, _account_usage_buffer, _provider_usage_buffer
+    
+    # Safely swap out buffer contents under lock to minimize lock-holding time
+    with _lock:
+        logs_to_insert = _request_log_buffer
+        _request_log_buffer = []
+        
+        accounts_to_update = _account_usage_buffer
+        _account_usage_buffer = {}
+        
+        providers_to_update = _provider_usage_buffer
+        _provider_usage_buffer = {}
+
+    supabase = get_supabase()
+
+    # 1. Batch insert request logs
+    if logs_to_insert:
+        try:
+            logger.debug("Flushing %d request logs to Supabase...", len(logs_to_insert))
+            supabase.table("request_logs").insert(logs_to_insert).execute()
+        except Exception as e:
+            logger.error("Failed to batch insert request logs, dropping logs: %s", e)
+
+    # 2. Flush account usages (deferred reads/writes)
+    for account_id, counts in accounts_to_update.items():
+        try:
+            logger.debug("Flushing account usage for %s: %s", account_id, counts)
+            res = supabase.table("accounts").select("monthly_requests, total_requests").eq("id", account_id).execute()
+            if res.data:
+                curr = res.data[0]
+                supabase.table("accounts").update({
+                    "monthly_requests": curr.get("monthly_requests", 0) + counts["monthly"],
+                    "total_requests": curr.get("total_requests", 0) + counts["total"],
+                }).eq("id", account_id).execute()
+        except Exception as e:
+            logger.error("Failed to flush usage for account %s: %s", account_id, e)
+
+    # 3. Flush provider statistics (deferred reads/writes)
+    for provider_id, stats in providers_to_update.items():
+        try:
+            logger.debug("Flushing provider stats for %s: %s", provider_id, stats)
+            res = supabase.table("providers").select("total_requests, total_errors").eq("id", provider_id).execute()
+            if res.data:
+                curr = res.data[0]
+                supabase.table("providers").update({
+                    "total_requests": curr.get("total_requests", 0) + stats["requests"],
+                    "total_errors": curr.get("total_errors", 0) + stats["errors"],
+                }).eq("id", provider_id).execute()
+        except Exception as e:
+            logger.error("Failed to flush stats for provider %s: %s", provider_id, e)
+
+
+async def _flusher_worker() -> None:
+    """Asynchronous worker that flushes buffers periodically."""
+    logger.info("Background cache flusher worker started")
+    while _should_flush:
+        try:
+            await asyncio.sleep(5.0)
+            await flush_buffers_to_db()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error("Error in background cache flusher: %s", e)
+    logger.info("Background cache flusher worker stopped")
+
+
+def start_flusher() -> None:
+    """Start the background flusher task."""
+    global _flusher_task, _should_flush
+    _should_flush = True
+    if _flusher_task is None or _flusher_task.done():
+        _flusher_task = asyncio.create_task(_flusher_worker())
+        logger.info("Cache flusher background task initialized")
+
+
+async def stop_flusher() -> None:
+    """Stop the background flusher task and perform a final cleanup flush."""
+    global _flusher_task, _should_flush
+    _should_flush = False
+    if _flusher_task is not None:
+        _flusher_task.cancel()
+        try:
+            await _flusher_task
+        except asyncio.CancelledError:
+            pass
+        _flusher_task = None
+    logger.info("Performing final cache flush before shutdown...")
+    await flush_buffers_to_db()

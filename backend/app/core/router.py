@@ -27,6 +27,22 @@ async def authenticate_api_key(api_key: str) -> Optional[dict]:
     if not api_key:
         return None
     key_hash = hash_api_key(api_key)
+    
+    # Try in-memory cache first
+    from app.core.cache import get_api_key_cache, set_api_key_cache, should_update_last_used_at
+    cached_auth = get_api_key_cache(key_hash)
+    if cached_auth is not None:
+        # Throttle last_used_at writes to DB (only write if > 60s since last update)
+        if should_update_last_used_at(cached_auth["key_id"]):
+            try:
+                supabase = get_supabase()
+                supabase.table("api_keys").update({
+                    "last_used_at": datetime.now(timezone.utc).isoformat()
+                }).eq("id", cached_auth["key_id"]).execute()
+            except Exception as e:
+                logger.error(f"Failed to update cached key last_used_at: {e}")
+        return cached_auth
+
     supabase = get_supabase()
     result = (
         supabase.table("api_keys")
@@ -47,9 +63,16 @@ async def authenticate_api_key(api_key: str) -> Optional[dict]:
         logger.warning(f"Rate limit exceeded for account: {account['id']}")
         return None
 
-    supabase.table("api_keys").update({"last_used_at": datetime.now(timezone.utc).isoformat()}).eq("id", key_row["id"]).execute()
+    # Throttle last_used_at writes to DB
+    if should_update_last_used_at(key_row["id"]):
+        try:
+            supabase.table("api_keys").update({
+                "last_used_at": datetime.now(timezone.utc).isoformat()
+            }).eq("id", key_row["id"]).execute()
+        except Exception as e:
+            logger.error(f"Failed to update key last_used_at: {e}")
 
-    return {
+    auth_metadata = {
         "api_key_id": key_row["id"],
         "key_id": key_row["id"],
         "account_id": account["id"],
@@ -58,28 +81,40 @@ async def authenticate_api_key(api_key: str) -> Optional[dict]:
         "scopes": key_row.get("scopes", []),
         "allowed_models": key_row.get("allowed_models", ["*"]),
     }
+    # Cache auth response (TTL 30 seconds)
+    set_api_key_cache(key_hash, auth_metadata)
+    return auth_metadata
 
 
 async def select_provider(model: str) -> Optional[dict]:
     """Select the best available provider for a given upstream model."""
-    supabase = get_supabase()
-    result = (
-        supabase.table("providers")
-        .select("id, account_label, access_token, refresh_token, token_expires_at, health_status, weight, total_requests, total_errors, in_flight, max_concurrent, last_used_at, refresh_lock_acquired_at")
-        .eq("health_status", "active")
-        .lt("in_flight", settings.max_concurrent_per_account)
-        .order("last_used_at", desc=False, nullsfirst=True)
-        .execute()
+    from app.core.cache import (
+        get_active_providers_cache, set_active_providers_cache,
+        get_in_flight, inc_in_flight, should_update_last_used_at
     )
-    if not result.data:
-        logger.error("No active providers available")
-        return None
+    
+    # Try providers cache first
+    providers = get_active_providers_cache()
+    if providers is None:
+        supabase = get_supabase()
+        result = (
+            supabase.table("providers")
+            .select("id, account_label, access_token, refresh_token, token_expires_at, health_status, weight, total_requests, total_errors, in_flight, max_concurrent, last_used_at, refresh_lock_acquired_at")
+            .eq("health_status", "active")
+            .order("last_used_at", desc=False, nullsfirst=True)
+            .execute()
+        )
+        if not result.data:
+            logger.error("No active providers available")
+            return None
+        providers = result.data
+        set_active_providers_cache(providers)
 
     now = time.time()
     best = None
     best_score = -1
 
-    for p in result.data:
+    for p in providers:
         expires_at = p.get("token_expires_at", "")
         if expires_at and not p.get("refresh_token"):
             try:
@@ -89,7 +124,11 @@ async def select_provider(model: str) -> Optional[dict]:
             except (ValueError, TypeError):
                 pass
 
-        load = p.get("in_flight", 0) / max(p.get("max_concurrent", 12), 1)
+        # Retrieve current concurrent/in-flight requests tracked locally in memory
+        load = get_in_flight(p["id"]) / max(p.get("max_concurrent", 12), 1)
+        if load >= 1.0:
+            continue  # Max capacity reached locally
+
         w = p.get("weight", 1.0)
         score = w * (1 - load)
         if score > best_score:
@@ -100,35 +139,47 @@ async def select_provider(model: str) -> Optional[dict]:
         logger.warning("All providers expired or at capacity")
         return None
 
-    # Increment in_flight atomically
-    supabase.table("providers").update({
-        "in_flight": best.get("in_flight", 0) + 1,
-        "last_used_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("id", best["id"]).execute()
+    # Track concurrent request locally
+    inc_in_flight(best["id"])
+
+    # Throttle provider last_used_at DB updates
+    if should_update_last_used_at(best["id"]):
+        try:
+            supabase = get_supabase()
+            supabase.table("providers").update({
+                "last_used_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", best["id"]).execute()
+        except Exception as e:
+            logger.error(f"Failed to update provider last_used_at: {e}")
 
     return best
 
 
 async def release_provider(provider_id: str, success: bool, error_msg: Optional[str] = None) -> None:
     """Release a provider after request completion."""
-    supabase = get_supabase()
-    result = supabase.table("providers").select("in_flight, total_requests, total_errors").eq("id", provider_id).execute()
-    if not result.data:
-        return
+    from app.core.cache import dec_in_flight, buffer_provider_usage, clear_active_providers_cache
+    
+    # 1. Decrement in-flight count locally
+    dec_in_flight(provider_id)
 
-    current = result.data[0]
-    update = {
-        "in_flight": max(0, current.get("in_flight", 1) - 1),
-        "total_requests": current.get("total_requests", 0) + 1,
-        "total_errors": current.get("total_errors", 0) + (0 if success else 1),
-        "health_status": "active" if success else "degraded",
-        "last_used_at": datetime.now(timezone.utc).isoformat(),
-    }
-    if not success and error_msg:
-        update["last_error_at"] = datetime.now(timezone.utc).isoformat()
-        update["last_error_msg"] = error_msg[:500]
+    # 2. Buffer requests / error stats locally
+    buffer_provider_usage(provider_id, success)
 
-    supabase.table("providers").update(update).eq("id", provider_id).execute()
+    # 3. If failed, trigger instant failover by degrading in the DB immediately
+    if not success:
+        clear_active_providers_cache()
+        try:
+            supabase = get_supabase()
+            update = {
+                "health_status": "degraded",
+                "last_used_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if error_msg:
+                update["last_error_at"] = datetime.now(timezone.utc).isoformat()
+                update["last_error_msg"] = error_msg[:500]
+            supabase.table("providers").update(update).eq("id", provider_id).execute()
+        except Exception as e:
+            logger.error(f"Failed to degrade provider {provider_id} in DB: {e}")
 
 
 async def log_request(
@@ -137,35 +188,27 @@ async def log_request(
     prompt_tokens=0, completion_tokens=0, total_tokens=0,
     error_message=None, ip_address=None, user_agent=None
 ):
-    """Log a request for analytics."""
-    supabase = get_supabase()
-    try:
-        supabase.table("request_logs").insert({
-            "account_id": account_id,
-            "api_key_id": api_key_id,
-            "provider_id": provider_id,
-            "model": model,
-            "upstream_model": upstream_model,
-            "status_code": status_code,
-            "latency_ms": latency_ms,
-            "error_message": error_message[:500] if error_message else None,
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": total_tokens,
-            "ip_address": ip_address,
-            "user_agent": user_agent,
-        }).execute()
-    except Exception as e:
-        logger.error(f"Failed to log request: {e}")
+    """Log a request to memory buffer for deferred batch insertions."""
+    from app.core.cache import buffer_request_log, buffer_account_usage
+    
+    log_data = {
+        "account_id": account_id,
+        "api_key_id": api_key_id,
+        "provider_id": provider_id,
+        "model": model,
+        "upstream_model": upstream_model,
+        "status_code": status_code,
+        "latency_ms": latency_ms,
+        "error_message": error_message[:500] if error_message else None,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+        "ip_address": ip_address,
+        "user_agent": user_agent,
+    }
+    # Buffer the telemetry log
+    buffer_request_log(log_data)
 
-    # Update account requests count
-    try:
-        acc_res = supabase.table("accounts").select("monthly_requests, total_requests").eq("id", account_id).execute()
-        if acc_res.data:
-            acc_data = acc_res.data[0]
-            supabase.table("accounts").update({
-                "monthly_requests": acc_data.get("monthly_requests", 0) + 1,
-                "total_requests": acc_data.get("total_requests", 0) + 1,
-            }).eq("id", account_id).execute()
-    except Exception as e:
-        logger.error(f"Failed to update account requests count: {e}")
+    # Buffer the account requests increment metrics
+    if account_id:
+        buffer_account_usage(account_id)

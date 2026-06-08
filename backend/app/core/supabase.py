@@ -27,7 +27,14 @@ def reset_supabase() -> None:
 
 
 def _verify_supabase_jwt(token: str) -> dict | None:
-    """Verify a Supabase JWT via Supabase Auth API and return user info with role."""
+    """Verify a Supabase JWT via Supabase Auth API and return user info with role, using local caching."""
+    from app.core.cache import get_jwt_cache, set_jwt_cache
+    
+    # Try cache first
+    cached_user = get_jwt_cache(token)
+    if cached_user is not None:
+        return cached_user
+
     try:
         supabase = get_supabase()
         # Retrieve user from token (validates the signature and session in real-time)
@@ -46,7 +53,7 @@ def _verify_supabase_jwt(token: str) -> dict | None:
             return None
 
         account = account_resp.data[0]
-        return {
+        user_info = {
             "auth_user_id": str(auth_user_id),
             "account_id": account["id"],
             "email": account.get("email", user.email or ""),
@@ -54,6 +61,9 @@ def _verify_supabase_jwt(token: str) -> dict | None:
             "tier": account.get("tier", "free"),
             "status": account.get("status", "active"),
         }
+        # Cache verified user info (TTL 60 seconds)
+        set_jwt_cache(token, user_info)
+        return user_info
     except Exception as exc:
         logger.error("Supabase Auth: verification failed: %s", exc, exc_info=True)
         return None

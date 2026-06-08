@@ -148,3 +148,16 @@ async def startup():
     logger.info(f"AKAROUTER starting in {settings.app_env} mode")
     logger.info(f"Supabase configured: {settings.supabase_configured}")
     logger.info(f"Nous API base: {settings.nous_api_base}")
+    
+    # Start the background cache and write-buffer flusher
+    from app.core.cache import start_flusher
+    start_flusher()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    logger.info("AKAROUTER shutting down")
+    
+    # Stop flusher task and execute final database flush
+    from app.core.cache import stop_flusher
+    await stop_flusher()
