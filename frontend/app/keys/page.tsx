@@ -23,7 +23,9 @@ import {
   Trash2, 
   Terminal,
   Shield,
-  Layers
+  Layers,
+  Menu,
+  X
 } from 'lucide-react'
 
 export default function ApiKeysPage() {
@@ -36,6 +38,7 @@ export default function ApiKeysPage() {
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [mobileOpen, setMobileOpen] = useState(false)
   
   // Track copied states
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null)
@@ -201,10 +204,16 @@ response = client.chat.completions.create(
         
         {/* TopAppBar */}
         <header className="flex justify-between items-center w-full px-6 py-3 bg-[#09090b] tech-border-b sticky top-0 z-10 micro-grid">
-          <div className="md:hidden flex items-center gap-3">
+          <div className="md:hidden flex items-center justify-between w-full">
             <div className="w-20 h-10 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
               <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
             </div>
+            <button 
+              onClick={() => setMobileOpen(!mobileOpen)}
+              className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
+            >
+              {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
           </div>
 
           <div className="hidden md:flex font-mono text-[11px] text-zinc-400 items-center gap-4">
@@ -220,13 +229,65 @@ response = client.chat.completions.create(
           </div>
         </header>
 
+        {/* Mobile Navigation Drawer */}
+        {mobileOpen && (
+          <div className="md:hidden fixed inset-0 z-45 bg-[#09090b]/98 backdrop-blur-md flex flex-col justify-between py-24 px-6 border-b border-zinc-900 animate-fade-in">
+            <div className="space-y-4">
+              <Link 
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+                href="/dashboard"
+              >
+                <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                  <Terminal className="w-3.5 h-3.5 text-zinc-455" />
+                </span>
+                <span className="tracking-widest font-mono uppercase text-xs">Telemetry</span>
+              </Link>
+
+              <Link 
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 w-full border border-[#ef4444] bg-[#ef4444]/10 text-white red-glow"
+                href="/keys"
+              >
+                <span className="border border-[#ef4444] p-1 bg-[#ef4444]/10 text-[#ef4444] flex items-center justify-center red-glow">
+                  <KeyRound className="w-3.5 h-3.5 text-[#ef4444]" />
+                </span>
+                <span className="tracking-widest font-mono uppercase text-xs">API Keys</span>
+              </Link>
+
+              {user?.role === 'admin' && (
+                <Link 
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+                  href="/admin"
+                >
+                  <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                    <Shield className="w-3.5 h-3.5 text-zinc-450" />
+                  </span>
+                  <span className="tracking-widest font-mono uppercase text-xs">Admin Panel</span>
+                </Link>
+              )}
+            </div>
+
+            <div>
+              <button 
+                onClick={() => { setMobileOpen(false); signOut(); }}
+                className="w-full bg-zinc-950 border border-zinc-900 text-zinc-300 font-mono text-[11px] py-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white transition-all flex items-center justify-center gap-2 crosshair-corners"
+              >
+                <LogOut className="w-4 h-4 text-zinc-455" />
+                <span className="tracking-widest uppercase font-bold">Sign Out</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Canvas */}
         <main className="flex-1 p-0 grid-bg relative">
           <div className="p-6">
             <div className="grid grid-cols-12 gap-0 tech-border bg-[#0e0e10] crosshair-corners">
               
               {/* Main Content Grid Area */}
-              <div className="col-span-12 lg:col-span-8 tech-border-r p-6 space-y-6 flex flex-col justify-between">
+              <div className="col-span-12 lg:col-span-8 lg:tech-border-r border-b lg:border-b-0 border-zinc-900 p-6 space-y-6 flex flex-col justify-between">
                 
                 {/* API Key Panel */}
                 <div className="space-y-4">

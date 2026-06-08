@@ -38,7 +38,9 @@ import {
   Search,
   Ban,
   Edit,
-  Trash2
+  Trash2,
+  Menu,
+  X
 } from 'lucide-react'
 
 interface ProviderAccount {
@@ -76,6 +78,8 @@ export default function AdminDashboard() {
   const [token, setToken] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [user, setUser] = useState<any>(null)
   const [providers, setProviders] = useState<ProviderAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [addingAccount, setAddingAccount] = useState(false)
@@ -131,9 +135,14 @@ export default function AdminDashboard() {
         const me = await getMe(session.access_token)
         if (me.role !== 'admin') { router.push('/dashboard'); return }
         setIsAdmin(true)
+        setUser(me)
       } catch {
         const adminKey = process.env.NEXT_PUBLIC_ADMIN_KEY
-        if (adminKey) { setToken(adminKey); setIsAdmin(true) }
+        if (adminKey) {
+          setToken(adminKey)
+          setIsAdmin(true)
+          setUser({ email: 'ADMIN_BYPASS', role: 'admin' })
+        }
         else { router.push('/dashboard'); return }
       }
       setAuthChecked(true)
@@ -456,13 +465,19 @@ export default function AdminDashboard() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col md:ml-64 w-full relative">
-        
+
         {/* TopAppBar */}
         <header className="flex justify-between items-center w-full px-6 py-3 bg-[#09090b] tech-border-b sticky top-0 z-10 micro-grid">
-          <div className="md:hidden flex items-center gap-3">
+          <div className="md:hidden flex items-center justify-between w-full">
             <div className="w-20 h-10 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
               <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
             </div>
+            <button 
+              onClick={() => setMobileOpen(!mobileOpen)}
+              className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
+            >
+              {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
           </div>
 
           <div className="hidden md:flex font-mono text-[11px] text-zinc-400 items-center gap-4">
@@ -470,14 +485,63 @@ export default function AdminDashboard() {
             <span className="tracking-[0.2em] uppercase font-bold text-zinc-300">ADMINISTRATOR CONTROL MATRIX</span>
           </div>
 
-          <a 
-            href="/dashboard" 
-            className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors font-mono uppercase"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Telemetry
-          </a>
+          <div className="flex items-center gap-4 font-mono text-[11px]">
+            <div className="hidden sm:flex items-center gap-2 border border-zinc-800 bg-[#0e0e10] px-3 py-1.5 text-zinc-400">
+              <span className="text-zinc-600">[USER]:</span>
+              <span className="text-white font-semibold">{user ? user.email : 'CONNECTING...'}</span>
+            </div>
+          </div>
         </header>
+
+        {/* Mobile Navigation Drawer */}
+        {mobileOpen && (
+          <div className="md:hidden fixed inset-0 z-45 bg-[#09090b]/98 backdrop-blur-md flex flex-col justify-between py-24 px-6 border-b border-zinc-900 animate-fade-in">
+            <div className="space-y-4">
+              <Link 
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+                href="/dashboard"
+              >
+                <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                  <Terminal className="w-3.5 h-3.5 text-zinc-455" />
+                </span>
+                <span className="tracking-widest font-mono uppercase text-xs">Telemetry</span>
+              </Link>
+
+              <Link 
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+                href="/keys"
+              >
+                <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                  <KeyRound className="w-3.5 h-3.5 text-zinc-455" />
+                </span>
+                <span className="tracking-widest font-mono uppercase text-xs">API Keys</span>
+              </Link>
+
+              <Link 
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 w-full border border-[#ef4444] bg-[#ef4444]/10 text-white red-glow"
+                href="/admin"
+              >
+                <span className="border border-[#ef4444] p-1 bg-[#ef4444]/10 text-[#ef4444] flex items-center justify-center red-glow">
+                  <Shield className="w-3.5 h-3.5 text-[#ef4444]" />
+                </span>
+                <span className="tracking-widest font-mono uppercase text-xs">Admin Panel</span>
+              </Link>
+            </div>
+
+            <div>
+              <button 
+                onClick={() => { setMobileOpen(false); signOut(); }}
+                className="w-full bg-zinc-950 border border-zinc-900 text-zinc-300 font-mono text-[11px] py-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white transition-all flex items-center justify-center gap-2 crosshair-corners"
+              >
+                <LogOut className="w-4 h-4 text-zinc-455" />
+                <span className="tracking-widest uppercase font-bold">Sign Out</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Canvas */}
         <main className="flex-1 p-0 grid-bg relative">
@@ -495,7 +559,7 @@ export default function AdminDashboard() {
 
             {/* Admin Stats Grid */}
             {stats && (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 animate-slide-in">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 animate-slide-in">
                 <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative">
                   <span className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[7px] text-zinc-600">ST_01</span>
                   <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Total Providers</p>
@@ -541,10 +605,10 @@ export default function AdminDashboard() {
               </div>
             )}
             {/* Tabs Selector Navigation */}
-            <div className="flex border-b border-zinc-900 bg-zinc-950/40 p-1 mb-6">
+            <div className="flex border-b border-zinc-900 bg-zinc-950/40 p-1 mb-6 overflow-x-auto whitespace-nowrap scrollbar-none">
               <button
                 onClick={() => setActiveTab('providers')}
-                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all ${
+                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 ${
                   activeTab === 'providers'
                     ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
                     : 'text-zinc-500 hover:text-white'
@@ -554,7 +618,7 @@ export default function AdminDashboard() {
               </button>
               <button
                 onClick={() => setActiveTab('users')}
-                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all ${
+                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 ${
                   activeTab === 'users'
                     ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
                     : 'text-zinc-500 hover:text-white'
@@ -564,7 +628,7 @@ export default function AdminDashboard() {
               </button>
               <button
                 onClick={() => setActiveTab('plans')}
-                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all ${
+                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 ${
                   activeTab === 'plans'
                     ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
                     : 'text-zinc-500 hover:text-white'
@@ -574,7 +638,7 @@ export default function AdminDashboard() {
               </button>
               <button
                 onClick={() => setActiveTab('settings')}
-                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all ${
+                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 ${
                   activeTab === 'settings'
                     ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
                     : 'text-zinc-500 hover:text-white'
@@ -1077,21 +1141,21 @@ export default function AdminDashboard() {
             )}
             {editingAccountId && (
               <div className="fixed inset-0 z-50 bg-[#09090b]/80 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-[#0e0e10] border border-[#ef4444]/35 p-6 w-full max-w-lg crosshair-corners relative animate-fade-in space-y-4">
+                <div className="bg-[#0e0e10] border border-[#ef4444]/35 p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto crosshair-corners relative animate-fade-in space-y-4">
                   <div className="absolute right-3 top-3 w-2.5 h-2.5 bg-[#ef4444] status-pulse red-glow" />
                   <h3 className="font-mono text-sm text-white font-bold tracking-widest border-b border-zinc-900 pb-2">
                     [CONTROL_OVERRIDE_USER_METADATA]
                   </h3>
                   
                   <form onSubmit={handleUpdateAccount} className="space-y-4 font-mono text-xs text-zinc-300">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Display Name</label>
                         <input
-                          type="text"
-                          value={editingDisplayName}
-                          onChange={e => setEditingDisplayName(e.target.value)}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                           type="text"
+                           value={editingDisplayName}
+                           onChange={e => setEditingDisplayName(e.target.value)}
+                           className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
                         />
                       </div>
                       
@@ -1108,7 +1172,7 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Plan / Tier</label>
                         <select
@@ -1136,7 +1200,7 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Status</label>
                         <select

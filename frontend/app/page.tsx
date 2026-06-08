@@ -40,8 +40,8 @@ response = client.chat.completions.create(
           </div>
 
           <div className="flex items-center gap-6">
-            <a href="#features" className="text-xs font-mono uppercase tracking-wider text-zinc-400 hover:text-white transition-colors">Features</a>
-            <a href="#models" className="text-xs font-mono uppercase tracking-wider text-zinc-400 hover:text-white transition-colors">Models</a>
+            <a href="#features" className="hidden sm:block text-xs font-mono uppercase tracking-wider text-zinc-400 hover:text-white transition-colors">Features</a>
+            <a href="#models" className="hidden sm:block text-xs font-mono uppercase tracking-wider text-zinc-400 hover:text-white transition-colors">Models</a>
             <Link href="/auth/login" className="text-xs font-mono uppercase tracking-wider text-zinc-300 hover:text-white transition-colors">
               Sign in
             </Link>
