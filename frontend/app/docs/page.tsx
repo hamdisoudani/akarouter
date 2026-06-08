@@ -232,6 +232,90 @@ claude`
         </div>
       </nav>
 
+      {/* Mobile Navigation Drawer */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-50 bg-[#09090b]/98 backdrop-blur-md flex flex-col justify-between py-24 px-6 border-b border-zinc-900 animate-fade-in">
+          {/* Close button inside mobile drawer */}
+          <div className="absolute top-4 right-6 md:hidden">
+            <button 
+              onClick={() => setMobileOpen(false)}
+              className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <Link 
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+              href="/dashboard"
+            >
+              <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                <Terminal className="w-3.5 h-3.5 text-zinc-455" />
+              </span>
+              <span className="tracking-widest font-mono uppercase text-xs">Telemetry</span>
+            </Link>
+
+            <Link 
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+              href="/keys"
+            >
+              <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                <KeyRound className="w-3.5 h-3.5 text-zinc-455" />
+              </span>
+              <span className="tracking-widest font-mono uppercase text-xs">API Keys</span>
+            </Link>
+
+            <Link 
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+              href="/usage"
+            >
+              <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                <Layers className="w-3.5 h-3.5 text-zinc-450" />
+              </span>
+              <span className="tracking-widest font-mono uppercase text-xs">Usage</span>
+            </Link>
+
+            <Link 
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 w-full border border-[#ef4444] bg-[#ef4444]/10 text-white red-glow"
+              href="/docs"
+            >
+              <span className="border border-[#ef4444] p-1 bg-[#ef4444]/10 text-[#ef4444] flex items-center justify-center red-glow">
+                <FileText className="w-3.5 h-3.5 text-[#ef4444]" />
+              </span>
+              <span className="tracking-widest font-mono uppercase text-xs">Docs</span>
+            </Link>
+
+            {user?.role === 'admin' && (
+              <Link 
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+                href="/admin"
+              >
+                <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                  <Shield className="w-3.5 h-3.5 text-zinc-450" />
+                </span>
+                <span className="tracking-widest font-mono uppercase text-xs">Admin Panel</span>
+              </Link>
+            )}
+          </div>
+
+          <div>
+            <button 
+              onClick={() => { setMobileOpen(false); signOut(); }}
+              className="w-full bg-zinc-950 border border-zinc-900 text-zinc-300 font-mono text-[11px] py-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white transition-all flex items-center justify-center gap-2 crosshair-corners"
+            >
+              <LogOut className="w-4 h-4 text-zinc-455" />
+              <span className="tracking-widest uppercase font-bold">Sign Out</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col md:ml-64 w-full relative">
         
@@ -262,79 +346,7 @@ claude`
           </div>
         </header>
 
-        {/* Mobile Navigation Drawer */}
-        {mobileOpen && (
-          <div className="md:hidden fixed inset-0 z-45 bg-[#09090b]/98 backdrop-blur-md flex flex-col justify-between py-24 px-6 border-b border-zinc-900 animate-fade-in">
-            <div className="space-y-4">
-              <Link 
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
-                href="/dashboard"
-              >
-                <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
-                  <Terminal className="w-3.5 h-3.5 text-zinc-455" />
-                </span>
-                <span className="tracking-widest font-mono uppercase text-xs">Telemetry</span>
-              </Link>
 
-              <Link 
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
-                href="/keys"
-              >
-                <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
-                  <KeyRound className="w-3.5 h-3.5 text-zinc-455" />
-                </span>
-                <span className="tracking-widest font-mono uppercase text-xs">API Keys</span>
-              </Link>
-
-              <Link 
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
-                href="/usage"
-              >
-                <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
-                  <Layers className="w-3.5 h-3.5 text-zinc-455" />
-                </span>
-                <span className="tracking-widest font-mono uppercase text-xs">Usage</span>
-              </Link>
-
-              <Link 
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 w-full border border-[#ef4444] bg-[#ef4444]/10 text-white red-glow"
-                href="/docs"
-              >
-                <span className="border border-[#ef4444] p-1 bg-[#ef4444]/10 text-[#ef4444] flex items-center justify-center red-glow">
-                  <FileText className="w-3.5 h-3.5 text-[#ef4444]" />
-                </span>
-                <span className="tracking-widest font-mono uppercase text-xs">Docs</span>
-              </Link>
-
-              {user?.role === 'admin' && (
-                <Link 
-                  onClick={() => setMobileOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
-                  href="/admin"
-                >
-                  <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
-                    <Shield className="w-3.5 h-3.5 text-zinc-450" />
-                  </span>
-                  <span className="tracking-widest font-mono uppercase text-xs">Admin Panel</span>
-                </Link>
-              )}
-            </div>
-
-            <div>
-              <button 
-                onClick={() => { setMobileOpen(false); signOut(); }}
-                className="w-full bg-zinc-950 border border-zinc-900 text-zinc-300 font-mono text-[11px] py-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white transition-all flex items-center justify-center gap-2 crosshair-corners"
-              >
-                <LogOut className="w-4 h-4 text-zinc-455" />
-                <span className="tracking-widest uppercase font-bold">Sign Out</span>
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Canvas */}
         <main className="flex-1 p-0 grid-bg relative">
