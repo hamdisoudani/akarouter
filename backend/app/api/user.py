@@ -59,12 +59,26 @@ async def list_my_keys(request: Request):
 
 class CreateKeyRequest(BaseModel):
     key_name: str = "default"
+    recaptcha_token: Optional[str] = None
 
 
 @router.post("/keys")
 async def create_my_key(request: Request, body: CreateKeyRequest | None = None):
     """Create a new API key for the currently authenticated user."""
     account_id = _get_user_id(request)
+    
+    # Block pending activation accounts
+    supabase_auth = getattr(request.state, "supabase_user", None)
+    if supabase_auth and supabase_auth.get("status") == "pending":
+        raise HTTPException(status_code=403, detail="Account activation required")
+        
+    # Verify reCAPTCHA token if provided
+    if body and body.recaptcha_token:
+        from app.core.recaptcha import verify_recaptcha
+        is_valid = await verify_recaptcha(body.recaptcha_token)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail="reCAPTCHA verification failed")
+
     key_name = body.key_name if body else "default"
 
     raw_key, key_hash, key_prefix = generate_api_key()
@@ -87,6 +101,80 @@ async def create_my_key(request: Request, body: CreateKeyRequest | None = None):
             "key_name": key_name,
         }
     raise HTTPException(status_code=500, detail="Failed to create API key")
+
+
+class ActivateAccountRequest(BaseModel):
+    code: str
+    recaptcha_token: str
+
+
+@router.post("/activate")
+async def activate_user_account(body: ActivateAccountRequest, request: Request):
+    """Activate a pending user account using an invitation code."""
+    supabase_auth = getattr(request.state, "supabase_user", None)
+    if not supabase_auth:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+        
+    account_id = supabase_auth.get("account_id")
+    email = supabase_auth.get("email")
+    
+    # 1. Rate Limiting (max 5 activation requests per minute)
+    from app.core.cache import check_and_increment_activation_rate_limit, evict_jwt_cache
+    if check_and_increment_activation_rate_limit(account_id, limit=5):
+        logger.warning(f"Activation RPM rate limit exceeded for account: {account_id}")
+        raise HTTPException(status_code=429, detail="Too many activation attempts. Max 5 per minute.")
+        
+    # 2. Verify Google reCAPTCHA v3
+    from app.core.recaptcha import verify_recaptcha
+    is_valid = await verify_recaptcha(body.recaptcha_token)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail="reCAPTCHA verification failed")
+        
+    # 3. Check current account status
+    supabase = get_supabase()
+    acc_res = supabase.table("accounts").select("status").eq("id", account_id).execute()
+    if not acc_res.data:
+        raise HTTPException(status_code=404, detail="Account not found")
+        
+    if acc_res.data[0]["status"] == "active":
+        return {"ok": True, "message": "Account is already active"}
+        
+    # 4. Query the invitation code
+    inv_res = supabase.table("invitation_codes").select("*").eq("code", body.code.strip().upper()).eq("is_active", True).execute()
+    if not inv_res.data:
+        raise HTTPException(status_code=400, detail="Invalid or inactive invitation code")
+        
+    code_row = inv_res.data[0]
+    max_uses = code_row.get("max_uses") or 1
+    used_count = code_row.get("used_count") or 0
+    
+    if used_count >= max_uses:
+        # Suspend the code since max uses reached
+        supabase.table("invitation_codes").update({"is_active": False}).eq("id", code_row["id"]).execute()
+        raise HTTPException(status_code=400, detail="Invitation code has reached its maximum usage limit")
+        
+    # 5. Activate the account
+    up_res = supabase.table("accounts").update({"status": "active"}).eq("id", account_id).execute()
+    if not up_res.data:
+        raise HTTPException(status_code=500, detail="Failed to activate account")
+        
+    # Increment code usage
+    new_used = used_count + 1
+    is_still_active = new_used < max_uses
+    supabase.table("invitation_codes").update({
+        "used_count": new_used,
+        "is_active": is_still_active
+    }).eq("id", code_row["id"]).execute()
+    
+    # 6. Evict JWT Cache to ensure immediate transition
+    auth_header = request.headers.get("authorization", "")
+    parts = auth_header.split(" ", 1)
+    token = parts[1].strip() if len(parts) == 2 and parts[0].lower() == "bearer" else ""
+    if token:
+        evict_jwt_cache(token)
+        
+    logger.info(f"Account activated successfully: {email} using code: {body.code.upper()}")
+    return {"ok": True, "message": "Account activated successfully"}
 
 
 @router.delete("/keys/{key_id}")

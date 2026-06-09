@@ -54,23 +54,26 @@ export default function DocsPage() {
 
   const loadData = useCallback(async (accessToken: string) => {
     try {
-      const [meRes, usageRes] = await Promise.all([
-        fetch('/api/me', { headers: { Authorization: `Bearer ${accessToken}` } }),
-        fetch('/api/usage', { headers: { Authorization: `Bearer ${accessToken}` } }),
-      ])
+      const meRes = await fetch('/api/me', { headers: { Authorization: `Bearer ${accessToken}` } })
       if (!meRes.ok) throw new Error(`Me fetch failed: ${meRes.status}`)
-      if (!usageRes.ok) throw new Error(`Usage fetch failed: ${usageRes.status}`)
-
       const me = await meRes.json()
-      const usageData = await usageRes.json()
       setUser(me)
+      
+      if (me.status === 'pending') {
+        router.push('/dashboard')
+        return
+      }
+
+      const usageRes = await fetch('/api/usage', { headers: { Authorization: `Bearer ${accessToken}` } })
+      if (!usageRes.ok) throw new Error(`Usage fetch failed: ${usageRes.status}`)
+      const usageData = await usageRes.json()
       setUsage(usageData)
     } catch (err: any) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     Prism.highlightAll()

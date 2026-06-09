@@ -54,14 +54,35 @@ export default function ApiKeysPage() {
     }
   }, [])
 
+  const executeRecaptcha = (action: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (typeof window === 'undefined' || !(window as any).grecaptcha) {
+        reject(new Error('reCAPTCHA script not loaded yet. Please wait a moment.'))
+        return
+      }
+      const grecaptcha = (window as any).grecaptcha
+      grecaptcha.ready(() => {
+        grecaptcha
+          .execute('6LcnqxUtAAAAAO9MYeFNsyL4JA-6PlAHKzoZoRCc', { action })
+          .then((token: string) => resolve(token))
+          .catch((err: any) => reject(err))
+      })
+    })
+  }
+
   const loadData = useCallback(async (accessToken: string) => {
     try {
-      const [me, keysData, usageData] = await Promise.all([
-        getMe(accessToken),
+      const me = await getMe(accessToken)
+      setUser(me)
+      if (me.status === 'pending') {
+        router.push('/dashboard')
+        return
+      }
+
+      const [keysData, usageData] = await Promise.all([
         getMyKeys(accessToken),
         getUsage(accessToken),
       ])
-      setUser(me)
       setKeys(keysData.keys)
       setUsage(usageData)
     } catch (err: any) {
@@ -69,7 +90,7 @@ export default function ApiKeysPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -99,7 +120,8 @@ export default function ApiKeysPage() {
     setCreatedKey(null)
     setCopiedCreatedKey(false)
     try {
-      const result = await createKey(token, newKeyName || 'default')
+      const recaptchaToken = await executeRecaptcha('create_key')
+      const result = await createKey(token, newKeyName || 'default', recaptchaToken)
       setCreatedKey(result.api_key)
       setNewKeyName('')
       const keysData = await getMyKeys(token)

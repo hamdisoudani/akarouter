@@ -21,6 +21,9 @@ _provider_cache: Optional[tuple[list[dict[str, Any]], float]] = None  # (active_
 # In-memory RPM trackers: account_id -> {minute_epoch: count}
 _rpm_trackers: dict[str, dict[int, int]] = {}
 
+# In-memory activation rate trackers: account_id -> {minute_epoch: count}
+_activation_trackers: dict[str, dict[int, int]] = {}
+
 # Account-level budget tracking: account_id -> {"consumed_5h": float, "consumed_7d": float, "last_fetched_at": float}
 _account_budgets: dict[str, dict[str, Any]] = {}
 
@@ -95,6 +98,38 @@ def check_and_increment_rpm(account_id: str, limit: int) -> bool:
         
         tracker[current_minute] = current_count + 1
         return False
+
+
+def check_and_increment_activation_rate_limit(account_id: str, limit: int = 5) -> bool:
+    """
+    Check if account has exceeded its activation attempts limit (5 RPM).
+    If NOT exceeded, increments the count and returns False.
+    If exceeded, returns True.
+    """
+    current_minute = int(time.time() // 60)
+    with _lock:
+        if account_id not in _activation_trackers:
+            _activation_trackers[account_id] = {}
+        
+        # Clean up old minutes
+        tracker = _activation_trackers[account_id]
+        old_minutes = [m for m in tracker if m < current_minute]
+        for m in old_minutes:
+            del tracker[m]
+            
+        current_count = tracker.get(current_minute, 0)
+        if current_count >= limit:
+            return True
+        
+        tracker[current_minute] = current_count + 1
+        return False
+
+
+def evict_jwt_cache(token: str) -> None:
+    """Evict a specific JWT token from the in-memory cache."""
+    with _lock:
+        if token in _jwt_cache:
+            del _jwt_cache[token]
 
 
 def get_account_budget(account_id: str) -> Optional[dict[str, Any]]:
@@ -176,6 +211,34 @@ def is_gateway_enabled() -> bool:
         logger.error(f"Failed to check gateway status: {e}")
         # Fallback to true in case of DB failure to avoid false-positive blocking
         return True
+
+
+def is_activation_required() -> bool:
+    """Check if signup activation is required. Cached for 60s."""
+    now = time.time()
+    with _lock:
+        if "require_activation" in _system_settings_cache:
+            val, fetched_at = _system_settings_cache["require_activation"]
+            if now - fetched_at < 60.0:
+                return val == "true"
+    
+    # Cache miss, query DB
+    try:
+        supabase = get_supabase()
+        res = supabase.table("system_settings").select("value").eq("key", "require_activation").execute()
+        val = "false"
+        if res.data:
+            val = res.data[0]["value"]
+        else:
+            # Seed it if missing
+            supabase.table("system_settings").insert({"key": "require_activation", "value": "false"}).execute()
+        
+        with _lock:
+            _system_settings_cache["require_activation"] = (val, now)
+        return val == "true"
+    except Exception as e:
+        logger.error(f"Failed to check require_activation status: {e}")
+        return False
 
 
 def evict_system_settings_cache() -> None:

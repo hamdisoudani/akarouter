@@ -16,6 +16,10 @@ import {
   adminUpdateSettings,
   adminGetModels,
   adminUpdateModel,
+  adminGetInvitations,
+  adminCreateInvitation,
+  adminUpdateInvitation,
+  adminDeleteInvitation,
   type PlanPreset,
   type AdminModelMapping
 } from '@/lib/api'
@@ -98,7 +102,15 @@ export default function AdminDashboard() {
   const [copiedUserCode, setCopiedUserCode] = useState(false)
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<'providers' | 'users' | 'plans' | 'settings'>('providers')
+  const [activeTab, setActiveTab] = useState<'providers' | 'users' | 'plans' | 'settings' | 'invitations'>('providers')
+
+  // Invitation management state
+  const [invitations, setInvitations] = useState<any[]>([])
+  const [loadingInvitations, setLoadingInvitations] = useState(false)
+  const [newInvCode, setNewInvCode] = useState('')
+  const [newInvMaxUses, setNewInvMaxUses] = useState(1)
+  const [editingInvId, setEditingInvId] = useState<string | null>(null)
+  const [editingInvMaxUses, setEditingInvMaxUses] = useState<number>(1)
 
   // Settings & Models state
   const [systemSettings, setSystemSettings] = useState<any>({ gateway_enabled: 'true' })
@@ -215,9 +227,62 @@ export default function AdminDashboard() {
     } catch {}
   }, [token])
 
+  const loadInvitations = useCallback(async () => {
+    if (!token) return
+    setLoadingInvitations(true)
+    try {
+      const data = await adminGetInvitations(token)
+      setInvitations(data.invitations || [])
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setLoadingInvitations(false)
+  }, [token])
+
+  const handleCreateInvitation = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      await adminCreateInvitation(token, newInvCode.trim() || undefined, newInvMaxUses)
+      setNewInvCode('')
+      setNewInvMaxUses(1)
+      await loadInvitations()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleUpdateInvitation = async (id: string, maxUses: number) => {
+    try {
+      await adminUpdateInvitation(token, id, { max_uses: maxUses })
+      setEditingInvId(null)
+      await loadInvitations()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleToggleInvitationActive = async (id: string, currentActive: boolean) => {
+    try {
+      await adminUpdateInvitation(token, id, { is_active: !currentActive })
+      await loadInvitations()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleDeleteInvitation = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this invitation code?')) return
+    try {
+      await adminDeleteInvitation(token, id)
+      await loadInvitations()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
   useEffect(() => {
     if (!authChecked || !isAdmin) return
-    loadProviders(); loadStats(); loadPlans(); loadAccounts(); loadSettings(); loadAdminModels()
+    loadProviders(); loadStats(); loadPlans(); loadAccounts(); loadSettings(); loadAdminModels(); loadInvitations()
     const channel = supabase
       .channel('admin-providers')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'providers' }, (payload: any) => {
@@ -723,6 +788,16 @@ export default function AdminDashboard() {
                 }`}
               >
                 [04_SYSTEM_CONTROL]
+              </button>
+              <button
+                onClick={() => setActiveTab('invitations')}
+                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 ${
+                  activeTab === 'invitations'
+                    ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
+                    : 'text-zinc-500 hover:text-white'
+                }`}
+              >
+                [05_INVITATION_CODES]
               </button>
             </div>
 
@@ -1237,6 +1312,55 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
+                {/* Require User Activation Switch Card */}
+                <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <Shield className="w-4 h-4 text-[#ef4444]" />
+                      USER_SIGNUP_ACTIVATION_CONTROL
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                      Require new users to contact the administrator to activate their account and generate API keys.
+                    </p>
+                  </div>
+
+                  <div className="p-5 bg-zinc-950 border border-zinc-900 flex flex-col gap-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider font-bold">
+                        ACTIVATION REQUIREMENT STATUS:
+                      </span>
+                      <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
+                        systemSettings.require_activation === 'true'
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-450'
+                          : 'bg-zinc-500/10 border-zinc-500/30 text-zinc-400'
+                      }`}>
+                        {systemSettings.require_activation === 'true' ? 'MANDATORY (PENDING)' : 'DISABLED (AUTO-ACTIVE)'}
+                      </span>
+                    </div>
+
+                    <div className="border-t border-zinc-900 my-2" />
+
+                    <button
+                      onClick={async () => {
+                        const nextVal = systemSettings.require_activation !== 'true';
+                        try {
+                          await adminUpdateSettings(token, { require_activation: nextVal });
+                          setSystemSettings((prev: any) => ({ ...prev, require_activation: nextVal ? 'true' : 'false' }));
+                        } catch (err: any) {
+                          setError(err.message);
+                        }
+                      }}
+                      className={`w-full font-mono text-xs font-bold py-3 transition-all crosshair-corners flex items-center justify-center gap-2 ${
+                        systemSettings.require_activation === 'true'
+                          ? 'bg-zinc-905 border border-zinc-800 text-zinc-400 hover:border-zinc-500 hover:text-white'
+                          : 'bg-[#ef4444] text-black hover:bg-[#ff5451]'
+                      }`}
+                    >
+                      {systemSettings.require_activation === 'true' ? 'DISABLE REQUIRE ACTIVATION' : 'ENABLE REQUIRE ACTIVATION'}
+                    </button>
+                  </div>
+                </div>
+
                 {/* Model active switches Card */}
                 <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
                   <div className="space-y-1">
@@ -1340,6 +1464,149 @@ export default function AdminDashboard() {
                                 </button>
                               </div>
                             </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+            {activeTab === 'invitations' && (
+              <section className="grid grid-cols-12 gap-6 animate-slide-in relative">
+                {/* Create Invitation Card */}
+                <div className="col-span-12 lg:col-span-4 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <Plus className="w-4 h-4 text-[#ef4444]" />
+                      GENERATE_INVITATION_CODE
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                      Create new invitation keys with custom usage limits. Leave code blank to auto-generate a random key.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleCreateInvitation} className="space-y-4 font-mono text-xs text-zinc-300">
+                    <div className="space-y-1">
+                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Invitation Code (Optional)</label>
+                      <input
+                        type="text"
+                        value={newInvCode}
+                        onChange={e => setNewInvCode(e.target.value)}
+                        placeholder="AUTO-GENERATE IF BLANK"
+                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white placeholder-zinc-800 uppercase focus:outline-none focus:border-[#ef4444] rounded-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Max Allowed Uses</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={newInvMaxUses}
+                        onChange={e => setNewInvMaxUses(Number(e.target.value))}
+                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] rounded-none"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-[#ef4444] text-black font-bold py-3 hover:bg-[#ff5451] transition-all crosshair-corners uppercase tracking-wider rounded-none"
+                    >
+                      [+] Create Code
+                    </button>
+                  </form>
+                </div>
+
+                {/* List & Manage Invitations Card */}
+                <div className="col-span-12 lg:col-span-8 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <KeyRound className="w-4 h-4 text-[#ef4444]" />
+                      ACTIVE_INVITATION_REGISTRY
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                      Manage active registration keys. You can delete, toggle active status, or edit/extend usage limits.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                    {loadingInvitations ? (
+                      <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center animate-pulse">[LOADING_INVITATION_REGISTRY...]</p>
+                    ) : invitations.length === 0 ? (
+                      <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center">[NO_ACTIVE_INVITATION_CODES_FOUND]</p>
+                    ) : (
+                      invitations.map((inv) => (
+                        <div key={inv.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-zinc-950 border border-zinc-900 hover:border-zinc-850 transition-all group">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-sm font-bold text-white uppercase select-all tracking-wider">{inv.code}</span>
+                              <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
+                                inv.is_active
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                  : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444] red-glow-text'
+                              }`}>
+                                {inv.is_active ? 'ACTIVE' : 'SUSPENDED'}
+                              </span>
+                            </div>
+                            <div className="font-mono text-[10px] text-zinc-550 uppercase">
+                              Uses: <span className="text-zinc-300 font-bold">{inv.used_count}</span> / <span className="text-zinc-350 font-bold">{inv.max_uses}</span> • Created: {new Date(inv.created_at).toLocaleDateString()}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {editingInvId === inv.id ? (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  min={inv.used_count}
+                                  value={editingInvMaxUses}
+                                  onChange={e => setEditingInvMaxUses(Number(e.target.value))}
+                                  className="w-20 bg-zinc-900 border border-zinc-800 text-white text-xs px-2 py-1 focus:outline-none"
+                                />
+                                <button
+                                  onClick={() => handleUpdateInvitation(inv.id, editingInvMaxUses)}
+                                  className="px-2 py-1 bg-[#ef4444] text-black font-bold text-[9px] uppercase hover:bg-[#ff5451] transition-all"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingInvId(null)}
+                                  className="px-2 py-1 bg-zinc-900 border border-zinc-800 text-zinc-400 text-[9px] uppercase hover:text-white transition-all"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setEditingInvId(inv.id)
+                                    setEditingInvMaxUses(inv.max_uses)
+                                  }}
+                                  className="px-2.5 py-1.5 border border-zinc-850 hover:border-zinc-500 hover:bg-zinc-900 font-mono text-[9px] font-bold text-zinc-350 hover:text-white transition-all uppercase"
+                                >
+                                  Extend
+                                </button>
+                                <button
+                                  onClick={() => handleToggleInvitationActive(inv.id, inv.is_active)}
+                                  className={`px-2.5 py-1.5 border font-mono text-[9px] font-bold transition-all uppercase ${
+                                    inv.is_active
+                                      ? 'border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] hover:bg-[#ef4444]/15'
+                                      : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/15'
+                                  }`}
+                                >
+                                  {inv.is_active ? 'Suspend' : 'Resume'}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteInvitation(inv.id)}
+                                  className="p-1.5 border border-zinc-900 bg-zinc-950 text-zinc-650 hover:text-[#ef4444] hover:border-[#ef4444]/30 hover:bg-[#ef4444]/5 transition-all"
+                                  title="Delete Code"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       ))

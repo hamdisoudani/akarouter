@@ -318,7 +318,16 @@ class UpdatePlanRequest(BaseModel):
     tokens_7d_limit: Optional[float] = None
 
 class UpdateSettingsRequest(BaseModel):
-    gateway_enabled: bool
+    gateway_enabled: Optional[bool] = None
+    require_activation: Optional[bool] = None
+
+class CreateInvitationRequest(BaseModel):
+    code: Optional[str] = None
+    max_uses: Optional[int] = 1
+
+class UpdateInvitationRequest(BaseModel):
+    max_uses: Optional[int] = None
+    is_active: Optional[bool] = None
 
 class UpdateModelRequest(BaseModel):
     is_active: Optional[bool] = None
@@ -652,6 +661,8 @@ async def get_admin_settings(authorization: Optional[str] = Header(None)):
     settings_dict = {row["key"]: row["value"] for row in res.data}
     if "gateway_enabled" not in settings_dict:
         settings_dict["gateway_enabled"] = "true"
+    if "require_activation" not in settings_dict:
+        settings_dict["require_activation"] = "false"
     return {"settings": settings_dict}
 
 
@@ -660,14 +671,114 @@ async def update_admin_settings(body: UpdateSettingsRequest, authorization: Opti
     if not _verify_admin(authorization):
         raise HTTPException(status_code=401, detail="Admin access required")
     supabase = get_supabase()
-    val_str = "true" if body.gateway_enabled else "false"
-    supabase.table("system_settings").upsert({"key": "gateway_enabled", "value": val_str}).execute()
+    
+    response = {"ok": True}
+    if body.gateway_enabled is not None:
+        val_str = "true" if body.gateway_enabled else "false"
+        supabase.table("system_settings").upsert({"key": "gateway_enabled", "value": val_str}).execute()
+        response["gateway_enabled"] = body.gateway_enabled
+        
+    if body.require_activation is not None:
+        val_str = "true" if body.require_activation else "false"
+        supabase.table("system_settings").upsert({"key": "require_activation", "value": val_str}).execute()
+        response["require_activation"] = body.require_activation
     
     # Evict cache immediately
     from app.core.cache import evict_system_settings_cache
     evict_system_settings_cache()
     
-    return {"ok": True, "gateway_enabled": body.gateway_enabled}
+    return response
+
+
+@router.get("/invitations")
+async def list_invitations(authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    res = supabase.table("invitation_codes").select("*").order("created_at", desc=True).execute()
+    return {"invitations": res.data}
+
+
+@router.post("/invitations")
+async def create_invitation(body: CreateInvitationRequest, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    import random
+    import string
+    
+    code = body.code.strip() if (body.code and body.code.strip()) else "".join(random.choices(string.ascii_uppercase + string.digits, k=12))
+    max_uses = body.max_uses if body.max_uses is not None else 1
+    if max_uses < 1:
+        raise HTTPException(status_code=400, detail="max_uses must be at least 1")
+        
+    # Check duplicate
+    chk = supabase.table("invitation_codes").select("id").eq("code", code).execute()
+    if chk.data:
+        raise HTTPException(status_code=400, detail=f"Invitation code '{code}' already exists")
+        
+    res = supabase.table("invitation_codes").insert({
+        "code": code,
+        "max_uses": max_uses,
+        "used_count": 0,
+        "is_active": True
+    }).execute()
+    
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create invitation code")
+        
+    return {"ok": True, "invitation": res.data[0]}
+
+
+@router.patch("/invitations/{inv_id}")
+async def update_invitation(inv_id: str, body: UpdateInvitationRequest, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    # Check if exists
+    chk = supabase.table("invitation_codes").select("id, max_uses, used_count").eq("id", inv_id).execute()
+    if not chk.data:
+        raise HTTPException(status_code=404, detail="Invitation code not found")
+        
+    inv = chk.data[0]
+    
+    updates = {}
+    if body.max_uses is not None:
+        if body.max_uses < inv["used_count"]:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"max_uses ({body.max_uses}) cannot be less than used count ({inv['used_count']})"
+            )
+        updates["max_uses"] = body.max_uses
+    if body.is_active is not None:
+        updates["is_active"] = body.is_active
+        
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+        
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    res = supabase.table("invitation_codes").update(updates).eq("id", inv_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to update invitation code")
+        
+    return {"ok": True, "invitation": res.data[0]}
+
+
+@router.delete("/invitations/{inv_id}")
+async def delete_invitation(inv_id: str, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    # Check if exists
+    chk = supabase.table("invitation_codes").select("id").eq("id", inv_id).execute()
+    if not chk.data:
+        raise HTTPException(status_code=404, detail="Invitation code not found")
+        
+    supabase.table("invitation_codes").delete().eq("id", inv_id).execute()
+    return {"ok": True}
 
 
 @router.get("/models")

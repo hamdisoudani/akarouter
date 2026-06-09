@@ -110,12 +110,19 @@ async def auth_middleware(request: Request, call_next):
         try:
             user_info = _verify_supabase_jwt(token)
             if user_info:
-                if user_info.get("status") != "active":
-                    if not (path.startswith(ADMIN_PREFIX) and user_info.get("role") == "admin"):
-                        return JSONResponse(
-                            status_code=403, 
-                            content={"detail": f"Account is suspended: {user_info.get('suspended_reason') or 'Suspended by administrator'}"}
-                        )
+                user_status = user_info.get("status") or "active"
+                if user_status != "active":
+                    # Pending activation accounts can access /user/me, /user/usage, and /user/activate
+                    is_allowed_pending_path = user_status == "pending" and path in ("/user/me", "/user/usage", "/user/activate")
+                    if not is_allowed_pending_path:
+                        if not (path.startswith(ADMIN_PREFIX) and user_info.get("role") == "admin"):
+                            detail_msg = f"Account status is {user_status}"
+                            if user_status == "suspended":
+                                detail_msg = f"Account is suspended: {user_info.get('suspended_reason') or 'Suspended by administrator'}"
+                            return JSONResponse(
+                                status_code=403, 
+                                content={"detail": detail_msg}
+                            )
                 request.state.supabase_user = user_info
                 request.state.auth = {
                     "account_id": user_info["account_id"],

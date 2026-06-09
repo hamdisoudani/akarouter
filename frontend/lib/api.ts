@@ -134,11 +134,11 @@ export async function getMyKeys(token: string): Promise<{ keys: ApiKey[] }> {
   return res.json()
 }
 
-export async function createKey(token: string, keyName: string = 'default'): Promise<{ ok: boolean; api_key: string; key_prefix: string; key_name: string }> {
+export async function createKey(token: string, keyName: string = 'default', recaptchaToken?: string): Promise<{ ok: boolean; api_key: string; key_prefix: string; key_name: string }> {
   const res = await fetch(`${API_BASE}/user/keys`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key_name: keyName }),
+    body: JSON.stringify({ key_name: keyName, recaptcha_token: recaptchaToken }),
   })
   if (!res.ok) throw new Error('Failed to create key')
   return res.json()
@@ -316,7 +316,7 @@ export async function adminGetSettings(token: string): Promise<{ settings: Recor
   return res.json()
 }
 
-export async function adminUpdateSettings(token: string, data: { gateway_enabled: boolean }): Promise<{ ok: boolean; gateway_enabled: boolean }> {
+export async function adminUpdateSettings(token: string, data: { gateway_enabled?: boolean; require_activation?: boolean }): Promise<{ ok: boolean; gateway_enabled?: boolean; require_activation?: boolean }> {
   const res = await fetch(`${API_BASE}/admin/settings`, {
     method: 'PATCH',
     headers: {
@@ -361,5 +361,92 @@ export async function adminUpdateModel(
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || 'Failed to update model settings')
   }
+  return res.json()
+}
+
+export interface InvitationCode {
+  id: string
+  code: string
+  max_uses: number
+  used_count: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export async function activateAccount(
+  token: string,
+  code: string,
+  recaptchaToken: string
+): Promise<{ ok: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/user/activate`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ code, recaptcha_token: recaptchaToken }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to activate account')
+  }
+  return res.json()
+}
+
+export async function adminGetInvitations(token: string): Promise<{ invitations: InvitationCode[] }> {
+  const res = await fetch(`${API_BASE}/admin/invitations`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch invitations')
+  return res.json()
+}
+
+export async function adminCreateInvitation(
+  token: string,
+  code?: string,
+  maxUses?: number
+): Promise<{ ok: boolean; invitation: InvitationCode }> {
+  const res = await fetch(`${API_BASE}/admin/invitations`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ code, max_uses: maxUses }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to create invitation')
+  }
+  return res.json()
+}
+
+export async function adminUpdateInvitation(
+  token: string,
+  id: string,
+  data: { max_uses?: number; is_active?: boolean }
+): Promise<{ ok: boolean; invitation: InvitationCode }> {
+  const res = await fetch(`${API_BASE}/admin/invitations/${id}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to update invitation')
+  }
+  return res.json()
+}
+
+export async function adminDeleteInvitation(token: string, id: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/admin/invitations/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to delete invitation')
   return res.json()
 }

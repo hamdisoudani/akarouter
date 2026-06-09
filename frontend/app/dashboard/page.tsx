@@ -9,6 +9,7 @@ import {
   getUsage,
   getAnalytics,
   getModels,
+  activateAccount,
   type UsageStats,
   type ModelAnalytics,
   type UserInfo,
@@ -36,8 +37,56 @@ export default function UserDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [mobileOpen, setMobileOpen] = useState(false)
-  
-  // Custom logs for the trace buffer
+
+  // Activation states
+  const [activationCode, setActivationCode] = useState('')
+  const [activationLoading, setActivationLoading] = useState(false)
+  const [activationError, setActivationError] = useState('')
+  const [activationSuccess, setActivationSuccess] = useState('')
+
+  const executeRecaptcha = (action: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (typeof window === 'undefined' || !(window as any).grecaptcha) {
+        reject(new Error('reCAPTCHA script not loaded yet. Please wait a moment.'))
+        return
+      }
+      const grecaptcha = (window as any).grecaptcha
+      grecaptcha.ready(() => {
+        grecaptcha
+          .execute('6LcnqxUtAAAAAO9MYeFNsyL4JA-6PlAHKzoZoRCc', { action })
+          .then((token: string) => resolve(token))
+          .catch((err: any) => reject(err))
+      })
+    })
+  }
+
+  const handleActivate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!activationCode.trim()) {
+      setActivationError('Please enter an invitation code')
+      return
+    }
+    setActivationLoading(true)
+    setActivationError('')
+    setActivationSuccess('')
+    
+    try {
+      const recaptchaToken = await executeRecaptcha('activate')
+      const res = await activateAccount(token, activationCode.trim(), recaptchaToken)
+      if (res.ok) {
+        setActivationSuccess('Account activated successfully! Reloading...')
+        setTimeout(async () => {
+          await loadData(token)
+        }, 1500)
+      } else {
+        setActivationError('Failed to activate account')
+      }
+    } catch (err: any) {
+      setActivationError(err.message || 'An error occurred during activation')
+    } finally {
+      setActivationLoading(false)
+    }
+  }
 
   // Custom logs for the trace buffer
   const [traceLogs, setTraceLogs] = useState<Array<{
@@ -49,16 +98,22 @@ export default function UserDashboard() {
     isError: boolean;
   }>>([])
 
-
-
   const loadData = useCallback(async (accessToken: string) => {
     try {
-      const [me, usageData, analyticsData] = await Promise.all([
-        getMe(accessToken),
+      const me = await getMe(accessToken)
+      setUser(me)
+      
+      if (me.status === 'pending') {
+        const usageData = await getUsage(accessToken)
+        setUsage(usageData)
+        setLoading(false)
+        return
+      }
+
+      const [usageData, analyticsData] = await Promise.all([
         getUsage(accessToken),
         getAnalytics(accessToken),
       ])
-      setUser(me)
       setUsage(usageData)
       const modelsAnalytics = analyticsData.models || []
       setAnalytics(modelsAnalytics)
@@ -184,6 +239,116 @@ export default function UserDashboard() {
   }
 
 
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#09090b] flex items-center justify-center font-mono text-xs text-zinc-500 uppercase tracking-widest">
+        <div className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 bg-[#ef4444] status-pulse red-glow"></span>
+          <span>[INITIALIZING_CONNECTION_PORTAL...]</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (user?.status === 'pending') {
+    return (
+      <div className="min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col items-center justify-center p-4 selection:bg-[#ef4444]/30 selection:text-white relative grid-bg">
+        <div className="absolute top-4 right-4 z-20">
+          <button 
+            onClick={signOut}
+            className="bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white font-mono text-[10px] py-2 px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all flex items-center gap-2 crosshair-corners"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="tracking-widest uppercase font-bold">Sign Out</span>
+          </button>
+        </div>
+        
+        <div className="w-full max-w-md tech-border bg-[#0e0e10] p-8 space-y-6 crosshair-corners relative red-glow">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-48 h-16 border border-[#ef4444]/30 bg-[#ef4444]/5 flex items-center justify-center overflow-hidden">
+              <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <div className="w-2 h-2 bg-[#ef4444] red-glow animate-pulse rounded-full"></div>
+              <p className="font-mono text-[10px] text-zinc-400 tracking-widest uppercase font-bold">ACCOUNT PENDING ACTIVATION</p>
+            </div>
+          </div>
+
+          <div className="space-y-4 font-mono text-xs text-zinc-400 border-y border-zinc-850 py-6">
+            <p className="leading-relaxed text-zinc-300">
+              Welcome to <span className="text-white font-bold">AkaRouter</span>. To maintain API reliability and prevent system abuse, new accounts require administrator activation.
+            </p>
+            <p className="leading-relaxed">
+              Please contact the admin via the official channels below to request your access keys:
+            </p>
+            <div className="space-y-2.5 pt-2">
+              <a 
+                href="https://t.me/mrdedatn" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center gap-3 p-2.5 border border-zinc-850 hover:border-[#ef4444]/35 hover:bg-[#ef4444]/5 transition-all group"
+              >
+                <span className="text-[#ef4444] font-bold">[TELEGRAM]</span>
+                <span className="text-zinc-300 group-hover:text-white transition-colors">@mrdedatn</span>
+              </a>
+              <a 
+                href="https://linkedin.com/in/hamdisoudani" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center gap-3 p-2.5 border border-zinc-850 hover:border-[#ef4444]/35 hover:bg-[#ef4444]/5 transition-all group"
+              >
+                <span className="text-[#ef4444] font-bold">[LINKEDIN]</span>
+                <span className="text-zinc-300 group-hover:text-white transition-colors">hamdisoudani</span>
+              </a>
+            </div>
+          </div>
+
+          <form onSubmit={handleActivate} className="space-y-4">
+            <div className="space-y-2">
+              <label className="block font-mono text-[9px] text-zinc-500 uppercase tracking-widest font-bold">
+                ENTER INVITATION CODE
+              </label>
+              <input 
+                type="text" 
+                value={activationCode}
+                onChange={(e) => setActivationCode(e.target.value)}
+                placeholder="AKAR-XXXX-XXXX"
+                disabled={activationLoading}
+                className="w-full bg-[#050507] border border-zinc-850 focus:border-[#ef4444] focus:outline-none text-white px-3 py-2.5 text-xs font-mono uppercase tracking-wider placeholder-zinc-700 transition-colors rounded-none"
+              />
+            </div>
+
+            {activationError && (
+              <div className="p-3 border border-red-900/40 bg-red-950/15 text-[#ef4444] font-mono text-[10px] uppercase tracking-wide">
+                [ERROR]: {activationError}
+              </div>
+            )}
+
+            {activationSuccess && (
+              <div className="p-3 border border-emerald-900/40 bg-emerald-950/15 text-emerald-450 font-mono text-[10px] uppercase tracking-wide">
+                [SUCCESS]: {activationSuccess}
+              </div>
+            )}
+
+            <button 
+              type="submit"
+              disabled={activationLoading}
+              className="w-full bg-[#ef4444] hover:bg-[#ef4444]/90 disabled:bg-zinc-800 disabled:border-zinc-700 disabled:text-zinc-500 text-white font-mono font-bold text-xs py-3 tracking-widest uppercase transition-all crosshair-corners red-glow"
+            >
+              {activationLoading ? 'ACTIVATING SYSTEM...' : 'SUBMIT ACTIVATION CODE'}
+            </button>
+          </form>
+          
+          <div className="text-center">
+            <p className="font-mono text-[8px] text-zinc-650 tracking-wider">
+              VERIFIED BY GOOGLE RECAPTCHA V3 • STRICT RATE LIMITS APPLY (5 RPM)
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex antialiased selection:bg-[#ef4444]/30 selection:text-white">
