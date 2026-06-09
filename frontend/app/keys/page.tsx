@@ -156,7 +156,7 @@ response = client.chat.completions.create(
           </div>
           <div className="flex items-center gap-2 mt-3">
             <div className="w-1.5 h-1.5 bg-[#ef4444] red-glow status-pulse"></div>
-            <p className="font-mono text-[9px] text-zinc-600 tracking-widest uppercase">Kernel: v4.2.0-STABLE</p>
+            <p className="font-mono text-[9px] text-zinc-600 tracking-widest uppercase">Kernel: v1.0.0-STABLE</p>
           </div>
         </div>
 

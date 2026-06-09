@@ -197,7 +197,7 @@ response = client.chat.completions.create(
       {/* Footer */}
       <footer className="border-t border-[#27272a] py-8 text-center text-xs text-zinc-600 bg-[#09090b] micro-grid">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 font-mono text-[10px]">
-          <p>© 2026 AkaRouter. Kernel: v4.2.0-STABLE. Powered by Supabase & Next.js.</p>
+          <p>© 2026 AkaRouter. Kernel: v1.0.0-STABLE. Powered by Supabase & Next.js.</p>
           <div className="flex items-center gap-4">
             <a href="#" className="hover:text-zinc-400 transition-colors uppercase">Documentation</a>
             <a href="#" className="hover:text-zinc-400 transition-colors uppercase">Terms of Service</a>
