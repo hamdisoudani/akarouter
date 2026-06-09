@@ -3,7 +3,7 @@ import hashlib
 import time
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from app.core.config import settings
@@ -68,9 +68,6 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
             reason = account.get("suspended_reason") or "No reason provided"
             logger.warning(f"Account suspended for key: {key_row['id']} | Reason: {reason}")
             raise SuspendedAccountException(f"Account is suspended: {reason}")
-        if account.get("monthly_requests", 0) >= account.get("monthly_limit", 1000):
-            logger.warning(f"Rate limit exceeded for account: {account['id']}")
-            return None
 
         auth_metadata = {
             "api_key_id": key_row["id"],
@@ -118,8 +115,6 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
     # Enforce Token sliding budgets
     budget = get_account_budget(account_id)
     if budget is None:
-        # Cache miss: query DB to pre-calculate
-        from datetime import datetime, timezone, timedelta
         now_dt = datetime.now(timezone.utc)
         seven_days_ago = now_dt - timedelta(days=7)
         
