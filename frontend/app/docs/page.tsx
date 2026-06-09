@@ -23,7 +23,8 @@ import {
   FileText,
   Activity,
   Cpu,
-  Sparkles
+  Sparkles,
+  Zap
 } from 'lucide-react'
 
 export default function DocsPage() {
@@ -75,19 +76,52 @@ client = OpenAI(
     api_key="YOUR_AKAROUTER_API_KEY"
 )
 
+# 1. Text Completion Example
 response = client.chat.completions.create(
     model="akarouter-pro", # Options: akarouter-pro, akarouter-flash
     messages=[{"role": "user", "content": "Hello AkaRouter!"}]
 )
+print("Text response:", response.choices[0].message.content)
 
-print(response.choices[0].message.content)`
+# 2. Vision (Image Analysis) Example - Only supported on akarouter-pro
+vision_response = client.chat.completions.create(
+    model="akarouter-pro",
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Describe this image:"},
+                {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}}
+            ]
+        }
+    ]
+)
+print("Vision response:", vision_response.choices[0].message.content)`
 
-  const curlCode = `curl ${origin}/v1/chat/completions \\
+  const curlCode = `# 1. Text Completion Example
+curl ${origin}/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer YOUR_AKAROUTER_API_KEY" \\
   -d '{
     "model": "akarouter-pro",
     "messages": [{"role": "user", "content": "Hello via curl"}]
+  }'
+
+# 2. Vision (Image Analysis) Example - Only supported on akarouter-pro
+curl ${origin}/v1/chat/completions \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer YOUR_AKAROUTER_API_KEY" \\
+  -d '{
+    "model": "akarouter-pro",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {"type": "text", "text": "Describe this image:"},
+          {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}}
+        ]
+      }
+    ]
   }'`
 
   const nodeCode = `import OpenAI from 'openai';
@@ -99,12 +133,27 @@ const openai = new OpenAI({
 });
 
 async function main() {
-  const completion = await openai.chat.completions.create({
+  // 1. Text Completion Example
+  const textCompletion = await openai.chat.completions.create({
     model: 'akarouter-pro',
     messages: [{ role: 'user', content: 'Hello via Node.js!' }],
   });
+  console.log('Text:', textCompletion.choices[0].message.content);
 
-  console.log(completion.choices[0].message.content);
+  // 2. Vision (Image Analysis) Example - Only supported on akarouter-pro
+  const visionCompletion = await openai.chat.completions.create({
+    model: 'akarouter-pro',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Describe this image:' },
+          { type: 'image_url', image_url: { url: 'https://example.com/image.jpg' } }
+        ]
+      }
+    ]
+  });
+  console.log('Vision:', visionCompletion.choices[0].message.content);
 }
 
 main();`
@@ -365,6 +414,35 @@ claude`
                     DEVELOPER_SDK_INTEGRATIONS
                   </h2>
                   <p className="text-[10px] font-mono text-zinc-500 uppercase">Integrate AkaRouter directly into your app using standard libraries.</p>
+                </div>
+
+                {/* Model Capabilities Info Card */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-zinc-950 p-4 border border-zinc-900 text-xs font-mono">
+                  <div className="space-y-2">
+                    <div className="text-white font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
+                      <Cpu className="w-3.5 h-3.5 text-[#ef4444] red-glow" />
+                      akarouter-pro (Reasoning & Vision)
+                    </div>
+                    <p className="text-zinc-400 leading-relaxed text-[10px] uppercase">
+                      High-intelligence model supporting complex reasoning, coding, and **multimodal vision (text & images)**. Supports parsing diagrams, describing images, or visual Q&A.
+                    </p>
+                    <div className="flex gap-1.5 flex-wrap pt-1">
+                      <span className="px-1.5 py-0.5 border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-[9px] uppercase">✓ Text Inputs</span>
+                      <span className="px-1.5 py-0.5 border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-[9px] uppercase font-bold">✓ Vision Inputs</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2 border-t md:border-t-0 md:border-l border-zinc-900 pt-4 md:pt-0 md:pl-4">
+                    <div className="text-white font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
+                      <Zap className="w-3.5 h-3.5 text-zinc-500" />
+                      akarouter-flash (Low-Latency)
+                    </div>
+                    <p className="text-zinc-400 leading-relaxed text-[10px] uppercase">
+                      Ultra-fast completions built for high-concurrency workloads. Optimized for text summarization, conversational agents, and high-throughput text applications.
+                    </p>
+                    <div className="flex gap-1.5 flex-wrap pt-1">
+                      <span className="px-1.5 py-0.5 border border-zinc-800 bg-zinc-900 text-zinc-400 text-[9px] uppercase">✓ Text-Only</span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 border-b border-zinc-900 pb-2">
