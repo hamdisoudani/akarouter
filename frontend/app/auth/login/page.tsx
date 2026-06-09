@@ -1,12 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { KeyRound, Layers } from 'lucide-react'
 
 export default function LoginPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        router.replace('/dashboard')
+      }
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && event === 'SIGNED_IN') {
+        router.replace('/dashboard')
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [router])
 
   const handleGoogleSignIn = async () => {
     setLoading(true)
