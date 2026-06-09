@@ -42,7 +42,7 @@ async def list_models(request: Request) -> dict:
                 "owned_by": "akarouter",
                 "display_name": alias.replace("-", " ").title(),
                 "is_active": True,
-                "capabilities": ["text", "image", "video"] if alias == "akarouter-pro" else ["text"],
+                "capabilities": ["text"],
             }
             for alias in settings.model_mapping
         ],

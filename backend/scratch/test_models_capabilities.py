@@ -25,8 +25,7 @@ def run_test():
     pro_model = next((m for m in data if m["id"] == "akarouter-pro"), None)
     assert pro_model is not None, "akarouter-pro model missing"
     assert "capabilities" in pro_model, "capabilities field missing from model object"
-    assert "image" in pro_model["capabilities"], "image capability missing from akarouter-pro"
-    assert "video" in pro_model["capabilities"], "video capability missing from akarouter-pro"
+    assert pro_model["capabilities"] == ["text"], "akarouter-pro capabilities should be text-only"
     
     print("\n=== VERIFICATION SUCCESSFUL ===")
 
