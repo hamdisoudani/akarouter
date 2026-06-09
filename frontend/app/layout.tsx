@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Script from 'next/script'
 import './globals.css'
+import { AppProvider } from './providers'
 
 export const metadata: Metadata = {
   title: 'AkaRouter — AI Inference Gateway',
@@ -13,7 +14,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="dark">
       <body className="bg-[#09090b] text-[#e5e1e4] antialiased">
-        {children}
+        <AppProvider>
+          {children}
+        </AppProvider>
         <Script 
           src={`https://www.google.com/recaptcha/api.js?render=${siteKey}`} 
           strategy="afterInteractive" 

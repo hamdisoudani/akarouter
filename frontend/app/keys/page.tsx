@@ -1,18 +1,14 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useApp } from '@/app/providers'
 import {
-  getMe,
   getMyKeys,
   createKey,
   revokeKey,
-  getUsage,
   type ApiKey,
-  type UsageStats,
-  type UserInfo,
 } from '@/lib/api'
 import { 
   User, 
@@ -31,10 +27,8 @@ import {
 
 export default function ApiKeysPage() {
   const router = useRouter()
-  const [user, setUser] = useState<UserInfo | null>(null)
-  const [token, setToken] = useState<string>('')
+  const { user, token, usage, loading: authLoading, signOut } = useApp()
   const [keys, setKeys] = useState<ApiKey[]>([])
-  const [usage, setUsage] = useState<UsageStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
@@ -73,47 +67,28 @@ export default function ApiKeysPage() {
 
   const loadData = useCallback(async (accessToken: string) => {
     try {
-      const me = await getMe(accessToken)
-      setUser(me)
-      if (me.status === 'pending') {
+      if (user?.status === 'pending') {
         router.push('/dashboard')
         return
       }
-
-      const [keysData, usageData] = await Promise.all([
-        getMyKeys(accessToken),
-        getUsage(accessToken),
-      ])
+      const keysData = await getMyKeys(accessToken)
       setKeys(keysData.keys)
-      setUsage(usageData)
     } catch (err: any) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }, [router])
+  }, [user, router])
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) {
+    if (!authLoading) {
+      if (!token) {
         router.push('/auth/login')
         return
       }
-      setToken(session.access_token)
-      await loadData(session.access_token)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session) {
-        router.push('/auth/login')
-      } else {
-        setToken(session.access_token)
-        await loadData(session.access_token)
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [loadData, router])
+      loadData(token)
+    }
+  }, [authLoading, token, loadData, router])
 
   const handleCreateKey = async () => {
     if (!token) return
@@ -141,11 +116,6 @@ export default function ApiKeysPage() {
     } catch (err: any) {
       setError(err.message)
     }
-  }
-
-  const signOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/auth/login')
   }
 
   const copyToClipboard = (text: string, id: string, setCopiedState: (v: any) => void) => {

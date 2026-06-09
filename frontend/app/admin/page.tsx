@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useApp } from '@/app/providers'
 import { 
-  getMe,
   adminGetAccounts,
   adminUpdateAccount,
   adminGetPlans,
@@ -81,6 +81,7 @@ function StatusDot({ status }: { status: string }) {
 
 export default function AdminDashboard() {
   const router = useRouter()
+  const { user: contextUser, token: contextToken, loading: authLoading, signOut } = useApp()
   const [token, setToken] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
@@ -151,26 +152,25 @@ export default function AdminDashboard() {
   const authHeaders = useCallback(() => ({ Authorization: `Bearer ${token}` }), [token])
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) { router.push('/auth/login'); return }
-      setToken(session.access_token)
-      try {
-        const me = await getMe(session.access_token)
-        if (me.role !== 'admin') { router.push('/dashboard'); return }
+    if (!authLoading) {
+      if (contextUser && contextUser.role === 'admin') {
+        setToken(contextToken)
         setIsAdmin(true)
-        setUser(me)
-      } catch {
+        setUser(contextUser)
+        setAuthChecked(true)
+      } else {
         const adminKey = process.env.NEXT_PUBLIC_ADMIN_KEY
         if (adminKey) {
           setToken(adminKey)
           setIsAdmin(true)
           setUser({ email: 'ADMIN_BYPASS', role: 'admin' })
+          setAuthChecked(true)
+        } else {
+          router.push('/dashboard')
         }
-        else { router.push('/dashboard'); return }
       }
-      setAuthChecked(true)
-    })
-  }, [router])
+    }
+  }, [authLoading, contextUser, contextToken, router])
 
   const loadProviders = useCallback(async () => {
     if (!token) return
@@ -473,10 +473,7 @@ export default function AdminDashboard() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const signOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/auth/login')
-  }
+
 
   if (!authChecked) {
     return (

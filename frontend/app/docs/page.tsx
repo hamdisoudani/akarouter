@@ -1,13 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import {
-  type UsageStats,
-  type UserInfo,
-} from '@/lib/api'
+import { useApp } from '@/app/providers'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-bash'
@@ -32,11 +28,7 @@ import {
 
 export default function DocsPage() {
   const router = useRouter()
-  const [user, setUser] = useState<UserInfo | null>(null)
-  const [token, setToken] = useState<string>('')
-  const [usage, setUsage] = useState<UsageStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const { user, token, usage, loading: authLoading, signOut } = useApp()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
@@ -52,59 +44,22 @@ export default function DocsPage() {
     }
   }, [])
 
-  const loadData = useCallback(async (accessToken: string) => {
-    try {
-      const meRes = await fetch('/api/me', { headers: { Authorization: `Bearer ${accessToken}` } })
-      if (!meRes.ok) throw new Error(`Me fetch failed: ${meRes.status}`)
-      const me = await meRes.json()
-      setUser(me)
-      
-      if (me.status === 'pending') {
-        router.push('/dashboard')
-        return
-      }
-
-      const usageRes = await fetch('/api/usage', { headers: { Authorization: `Bearer ${accessToken}` } })
-      if (!usageRes.ok) throw new Error(`Usage fetch failed: ${usageRes.status}`)
-      const usageData = await usageRes.json()
-      setUsage(usageData)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [router])
-
   useEffect(() => {
     Prism.highlightAll()
   }, [activeCategory, activeSdk, activeAgent])
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) {
+    if (!authLoading) {
+      if (!token) {
         router.push('/auth/login')
         return
       }
-      setToken(session.access_token)
-      await loadData(session.access_token)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session) {
-        router.push('/auth/login')
-      } else {
-        setToken(session.access_token)
-        await loadData(session.access_token)
+      if (user?.status === 'pending') {
+        router.push('/dashboard')
+        return
       }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [loadData, router])
-
-  const signOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/auth/login')
-  }
+    }
+  }, [authLoading, token, user, router])
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text)

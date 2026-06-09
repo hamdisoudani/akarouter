@@ -1,18 +1,14 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useApp } from '@/app/providers'
 import {
-  getMe,
-  getUsage,
   getAnalytics,
   getModels,
   activateAccount,
-  type UsageStats,
   type ModelAnalytics,
-  type UserInfo,
 } from '@/lib/api'
 import { 
   Terminal,
@@ -29,9 +25,7 @@ import {
 
 export default function UserDashboard() {
   const router = useRouter()
-  const [user, setUser] = useState<UserInfo | null>(null)
-  const [token, setToken] = useState<string>('')
-  const [usage, setUsage] = useState<UsageStats | null>(null)
+  const { user, token, usage, loading: authLoading, signOut, refetchAll } = useApp()
   const [analytics, setAnalytics] = useState<ModelAnalytics[]>([])
   const [modelsList, setModelsList] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -77,7 +71,7 @@ export default function UserDashboard() {
       if (res.ok) {
         setActivationSuccess('Account activated successfully! Reloading...')
         setTimeout(async () => {
-          await loadData(token)
+          await refetchAll()
         }, 1500)
       } else {
         setActivationError('Failed to activate account')
@@ -101,147 +95,120 @@ export default function UserDashboard() {
 
   const loadData = useCallback(async (accessToken: string) => {
     try {
-      const me = await getMe(accessToken)
-      setUser(me)
-      
-      if (me.status === 'pending') {
-        const usageData = await getUsage(accessToken)
-        setUsage(usageData)
+      if (user?.status === 'pending') {
         setLoading(false)
         return
       }
 
-      const [usageData, analyticsData] = await Promise.all([
-        getUsage(accessToken),
+      const [analyticsData, modelsData] = await Promise.allSettled([
         getAnalytics(accessToken),
+        getModels()
       ])
-      setUsage(usageData)
-      const modelsAnalytics = analyticsData.models || []
-      setAnalytics(modelsAnalytics)
 
-      // Gracefully load models list
-      let modelsData: any = { data: [] }
-      try {
-        const data = await getModels()
-        modelsData = data
-      } catch (e) {
-        console.error("Failed to load models list:", e)
-      }
-      setModelsList(modelsData.data || [])
+      if (analyticsData.status === 'fulfilled') {
+        const modelsAnalytics = analyticsData.value.models || []
+        setAnalytics(modelsAnalytics)
 
-      // Process trace logs from actual request logs if available, otherwise generate mock logs
-      const logsList: typeof traceLogs = []
-      if (analyticsData.recent_logs && analyticsData.recent_logs.length > 0) {
-        analyticsData.recent_logs.forEach((log) => {
-          const timeStr = new Date(log.created_at).toLocaleTimeString()
-          const txHash = `TX_${Math.random().toString(36).substring(2, 12).toUpperCase()}`
-          const isError = log.status_code >= 400
+        // Process trace logs from actual request logs if available, otherwise generate mock logs
+        const logsList: typeof traceLogs = []
+        if (analyticsData.value.recent_logs && analyticsData.value.recent_logs.length > 0) {
+          analyticsData.value.recent_logs.forEach((log) => {
+            const timeStr = new Date(log.created_at).toLocaleTimeString()
+            const txHash = `TX_${Math.random().toString(36).substring(2, 12).toUpperCase()}`
+            const isError = log.status_code >= 400
 
-          // Add Request Log entry
-          logsList.push({
-            time: timeStr,
-            type: '[REQ]',
-            tx: txHash,
-            dest: log.model.toUpperCase(),
-            metric: `P: ${log.prompt_tokens || 0} TOKENS`,
-            isError: false
-          })
-
-          // Add Acknowledge/Error Log entry
-          if (isError) {
+            // Add Request Log entry
             logsList.push({
               time: timeStr,
-              type: '[ERR]',
+              type: '[REQ]',
               tx: txHash,
-              dest: `STATUS=0x${log.status_code.toString(16).toUpperCase()}_ERR`,
-              metric: `T: ${log.latency_ms}MS`,
-              isError: true
-            })
-          } else {
-            logsList.push({
-              time: timeStr,
-              type: '[ACK]',
-              tx: txHash,
-              dest: 'STATUS=0x00_OK',
-              metric: `T: ${log.latency_ms}MS`,
+              dest: log.model.toUpperCase(),
+              metric: `P: ${log.prompt_tokens || 0} TOKENS`,
               isError: false
             })
-          }
-        })
-      } else {
-        const now = new Date()
-        modelsAnalytics.forEach((modelData, index) => {
-          const timeStr = new Date(now.getTime() - index * 60000).toLocaleTimeString()
-          const txHash = `TX_${Math.random().toString(36).substring(2, 12).toUpperCase()}`
-          
-          logsList.push({
-            time: timeStr,
-            type: '[REQ]',
-            tx: txHash,
-            dest: modelData.model.toUpperCase(),
-            metric: `P: ${Math.floor(Math.random() * 5 + 1)}.4KB`,
-            isError: false
-          })
 
-          if (modelData.error_requests > 0 && Math.random() > 0.7) {
+            // Add Acknowledge/Error Log entry
+            if (isError) {
+              logsList.push({
+                time: timeStr,
+                type: '[ERR]',
+                tx: txHash,
+                dest: `STATUS=0x${log.status_code.toString(16).toUpperCase()}_ERR`,
+                metric: `T: ${log.latency_ms}MS`,
+                isError: true
+              })
+            } else {
+              logsList.push({
+                time: timeStr,
+                type: '[ACK]',
+                tx: txHash,
+                dest: 'STATUS=0x00_OK',
+                metric: `T: ${log.latency_ms}MS`,
+                isError: false
+              })
+            }
+          })
+        } else {
+          const now = new Date()
+          modelsAnalytics.forEach((modelData, index) => {
+            const timeStr = new Date(now.getTime() - index * 60000).toLocaleTimeString()
+            const txHash = `TX_${Math.random().toString(36).substring(2, 12).toUpperCase()}`
+            
             logsList.push({
               time: timeStr,
-              type: '[ERR]',
+              type: '[REQ]',
               tx: txHash,
-              dest: 'GATEWAY_TIMEOUT',
-              metric: 'RETRIEVING_FAILOVER...',
-              isError: true
-            })
-          } else {
-            logsList.push({
-              time: timeStr,
-              type: '[ACK]',
-              tx: txHash,
-              dest: 'STATUS=0x00_OK',
-              metric: `T: ${modelData.avg_latency_ms}MS`,
+              dest: modelData.model.toUpperCase(),
+              metric: `P: ${Math.floor(Math.random() * 5 + 1)}.4KB`,
               isError: false
             })
-          }
-        })
+
+            if (modelData.error_requests > 0 && Math.random() > 0.7) {
+              logsList.push({
+                time: timeStr,
+                type: '[ERR]',
+                tx: txHash,
+                dest: 'GATEWAY_TIMEOUT',
+                metric: 'RETRIEVING_FAILOVER...',
+                isError: true
+              })
+            } else {
+              logsList.push({
+                time: timeStr,
+                type: '[ACK]',
+                tx: txHash,
+                dest: 'STATUS=0x00_OK',
+                metric: `T: ${modelData.avg_latency_ms}MS`,
+                isError: false
+              })
+            }
+          })
+        }
+        setTraceLogs(logsList.slice(0, 24))
       }
-      setTraceLogs(logsList.slice(0, 24))
+
+      if (modelsData.status === 'fulfilled') {
+        setModelsList(modelsData.value.data || [])
+      }
+
     } catch (err: any) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [user])
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) {
+    if (!authLoading) {
+      if (!token) {
         router.push('/auth/login')
         return
       }
-      setToken(session.access_token)
-      await loadData(session.access_token)
-    })
+      loadData(token)
+    }
+  }, [authLoading, token, loadData, router])
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session) {
-        router.push('/auth/login')
-      } else {
-        setToken(session.access_token)
-        await loadData(session.access_token)
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [loadData, router])
-
-  const signOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/auth/login')
-  }
-
-
-
-  if (loading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-[#09090b] flex items-center justify-center font-mono text-xs text-zinc-500 uppercase tracking-widest">
         <div className="flex items-center gap-2">
