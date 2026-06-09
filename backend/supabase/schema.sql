@@ -196,20 +196,46 @@ CREATE POLICY "Service role can insert request logs" ON request_logs
 -- FUNCTIONS
 -- ============================================
 
--- Auto-create account on signup
+-- Auto-create account on signup, inheriting details from free plan preset
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+    free_monthly_limit DOUBLE PRECISION;
+    free_rpm_limit BIGINT;
+    free_tokens_5h_limit DOUBLE PRECISION;
+    free_tokens_7d_limit DOUBLE PRECISION;
 BEGIN
-    INSERT INTO public.accounts (auth_user_id, email, display_name, tier)
+    -- Query the current FREE plan preset details
+    SELECT monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit
+    INTO free_monthly_limit, free_rpm_limit, free_tokens_5h_limit, free_tokens_7d_limit
+    FROM public.plan_presets
+    WHERE tier = 'free';
+
+    -- Insert account inheriting the FREE plan details
+    INSERT INTO public.accounts (
+        auth_user_id, 
+        email, 
+        display_name, 
+        tier,
+        monthly_limit,
+        rpm_limit,
+        tokens_5h_limit,
+        tokens_7d_limit
+    )
     VALUES (
         NEW.id,
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1)),
-        'free'
+        'free',
+        COALESCE(free_monthly_limit, 10.0),
+        COALESCE(free_rpm_limit, 60),
+        COALESCE(free_tokens_5h_limit, 1.0),
+        COALESCE(free_tokens_7d_limit, 5.0)
     );
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
 
 -- Trigger: auto-create account when user signs up
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;

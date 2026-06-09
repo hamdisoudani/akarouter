@@ -334,21 +334,36 @@ class UpdateModelRequest(BaseModel):
     input_cost_per_million: Optional[float] = None
     output_cost_per_million: Optional[float] = None
 
-def get_user_consumptions() -> dict[str, dict]:
-    """Retrieve aggregate consumption stats grouped by account_id."""
+def get_user_consumptions(account_ids: Optional[list[str]] = None) -> dict[str, dict]:
+    """Retrieve aggregate consumption stats grouped by account_id, optionally filtered by account_ids."""
     import psycopg2
+    if account_ids is not None and not account_ids:
+        return {}
     try:
         conn = psycopg2.connect(settings.supabase_db_url)
         cur = conn.cursor()
-        cur.execute("""
-            SELECT account_id, 
-                   SUM(prompt_tokens) as total_prompt_tokens, 
-                   SUM(completion_tokens) as total_completion_tokens, 
-                   SUM(cost) as total_cost,
-                   COUNT(*) as request_count
-            FROM request_logs
-            GROUP BY account_id
-        """)
+        if account_ids:
+            placeholders = ", ".join(["%s"] * len(account_ids))
+            cur.execute(f"""
+                SELECT account_id, 
+                       SUM(prompt_tokens) as total_prompt_tokens, 
+                       SUM(completion_tokens) as total_completion_tokens, 
+                       SUM(cost) as total_cost,
+                       COUNT(*) as request_count
+                FROM request_logs
+                WHERE account_id IN ({placeholders})
+                GROUP BY account_id
+            """, account_ids)
+        else:
+            cur.execute("""
+                SELECT account_id, 
+                       SUM(prompt_tokens) as total_prompt_tokens, 
+                       SUM(completion_tokens) as total_completion_tokens, 
+                       SUM(cost) as total_cost,
+                       COUNT(*) as request_count
+                FROM request_logs
+                GROUP BY account_id
+            """)
         rows = cur.fetchall()
         cur.close()
         conn.close()
@@ -417,17 +432,33 @@ def get_global_telemetry() -> dict:
         }
 
 @router.get("/accounts")
-async def list_accounts(search: Optional[str] = None, authorization: Optional[str] = Header(None)):
+async def list_accounts(
+    search: Optional[str] = None, 
+    limit: int = 50, 
+    offset: int = 0, 
+    authorization: Optional[str] = Header(None)
+):
     if not _verify_admin(authorization):
         raise HTTPException(status_code=401, detail="Admin access required")
     supabase = get_supabase()
+    
+    # Get total count (for pagination)
+    count_query = supabase.table("accounts").select("id", count="exact")
+    if search:
+        count_query = count_query.or_(f"email.ilike.%{search}%,display_name.ilike.%{search}%")
+    count_res = count_query.execute()
+    total_count = count_res.count if count_res.count is not None else 0
+    
+    # Get paginated data
     query = supabase.table("accounts").select("*")
     if search:
         query = query.or_(f"email.ilike.%{search}%,display_name.ilike.%{search}%")
-    result = query.order("created_at", desc=True).execute()
+    result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
     
-    # Enrich with user consumption stats
-    consumptions = get_user_consumptions()
+    # Enrich with user consumption stats for only displayed accounts
+    account_ids = [acc["id"] for acc in result.data]
+    consumptions = get_user_consumptions(account_ids)
+    
     accounts = []
     for acc in result.data:
         acc_id = acc["id"]
@@ -442,7 +473,7 @@ async def list_accounts(search: Optional[str] = None, authorization: Optional[st
         acc["consumption"] = stats
         accounts.append(acc)
         
-    return {"accounts": accounts}
+    return {"accounts": accounts, "total": total_count}
 
 @router.patch("/accounts/{account_id}")
 async def update_account(account_id: str, body: UpdateAccountRequest, authorization: Optional[str] = Header(None)):
@@ -598,9 +629,11 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         raise HTTPException(status_code=401, detail="Admin access required")
     supabase = get_supabase()
     
-    check_res = supabase.table("plan_presets").select("id").eq("id", plan_id).execute()
+    check_res = supabase.table("plan_presets").select("id, tier").eq("id", plan_id).execute()
     if not check_res.data:
         raise HTTPException(status_code=404, detail="Plan preset not found")
+        
+    plan_tier = check_res.data[0]["tier"]
         
     updates = {}
     if body.tier is not None:
@@ -623,6 +656,30 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
     result = supabase.table("plan_presets").update(updates).eq("id", plan_id).execute()
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to update plan preset")
+        
+    # Propagate limits to all users within that plan tier
+    account_updates = {}
+    if body.monthly_limit is not None:
+        account_updates["monthly_limit"] = body.monthly_limit
+    if body.rpm_limit is not None:
+        account_updates["rpm_limit"] = body.rpm_limit
+    if body.tokens_5h_limit is not None:
+        account_updates["tokens_5h_limit"] = body.tokens_5h_limit
+    if body.tokens_7d_limit is not None:
+        account_updates["tokens_7d_limit"] = body.tokens_7d_limit
+        
+    if account_updates:
+        try:
+            supabase.table("accounts").update(account_updates).eq("tier", plan_tier).execute()
+            
+            # Evict caches immediately for all updated users
+            from app.core.cache import evict_account_caches
+            accounts_res = supabase.table("accounts").select("id").eq("tier", plan_tier).execute()
+            for acc in (accounts_res.data or []):
+                evict_account_caches(acc["id"])
+        except Exception as e:
+            logger.error(f"Failed to propagate plan preset limits to accounts of tier {plan_tier}: {e}")
+            
     return {"ok": True, "plan": result.data[0]}
 
 @router.delete("/plans/{plan_id}")

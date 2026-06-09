@@ -147,6 +147,9 @@ export default function AdminDashboard() {
   const [editingStatus, setEditingStatus] = useState('active')
   const [editingSuspendedReason, setEditingSuspendedReason] = useState('')
   const [updatingAccount, setUpdatingAccount] = useState(false)
+  const [accountsTotal, setAccountsTotal] = useState(0)
+  const [accountsPage, setAccountsPage] = useState(1)
+  const accountsLimit = 20
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://akarouter-production.up.railway.app'
   const authHeaders = useCallback(() => ({ Authorization: `Bearer ${token}` }), [token])
@@ -199,15 +202,26 @@ export default function AdminDashboard() {
     setLoadingPlans(false)
   }, [token])
 
-  const loadAccounts = useCallback(async (search?: string) => {
+  const loadAccounts = useCallback(async (search?: string, page: number = 1, limit: number = 20) => {
     if (!token) return
     setLoadingAccounts(true)
     try {
-      const data = await adminGetAccounts(token, search)
+      const offset = (page - 1) * limit
+      const data = await adminGetAccounts(token, search, limit, offset)
       setAccounts(data.accounts || [])
+      setAccountsTotal(data.total || 0)
     } catch {}
     setLoadingAccounts(false)
   }, [token])
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (accountsPage === 1) {
+      loadAccounts(searchQuery, 1, accountsLimit)
+    } else {
+      setAccountsPage(1)
+    }
+  }
 
   const loadSettings = useCallback(async () => {
     if (!token) return
@@ -282,7 +296,6 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!authChecked || !isAdmin) return
-    loadProviders(); loadStats(); loadPlans(); loadAccounts(); loadSettings(); loadAdminModels(); loadInvitations()
     const channel = supabase
       .channel('admin-providers')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'providers' }, (payload: any) => {
@@ -297,7 +310,28 @@ export default function AdminDashboard() {
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [authChecked, isAdmin, loadProviders, loadStats, loadPlans, loadAccounts, loadSettings, loadAdminModels])
+  }, [authChecked, isAdmin])
+
+  // Lazy load tab data conditionally
+  useEffect(() => {
+    if (!authChecked || !isAdmin || !token) return
+
+    loadStats()
+
+    if (activeTab === 'providers') {
+      loadProviders()
+    } else if (activeTab === 'users') {
+      loadAccounts(searchQuery, accountsPage, accountsLimit)
+      loadPlans()
+    } else if (activeTab === 'plans') {
+      loadPlans()
+    } else if (activeTab === 'settings') {
+      loadSettings()
+      loadAdminModels()
+    } else if (activeTab === 'invitations') {
+      loadInvitations()
+    }
+  }, [authChecked, isAdmin, token, activeTab, accountsPage])
 
   // Plan Preset Handlers
   const handleCreatePlan = async (e: React.FormEvent) => {
@@ -938,7 +972,7 @@ export default function AdminDashboard() {
                     <p className="text-[10px] font-mono text-zinc-500 uppercase">Search, filter, update details, adjust limitations, and ban/unban user accounts.</p>
                   </div>
 
-                  <form onSubmit={(e) => { e.preventDefault(); loadAccounts(searchQuery) }} className="flex gap-2 w-full md:max-w-md">
+                  <form onSubmit={handleSearchSubmit} className="flex gap-2 w-full md:max-w-md">
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-zinc-500" />
                       <input
@@ -963,89 +997,119 @@ export default function AdminDashboard() {
                 ) : accounts.length === 0 ? (
                   <div className="py-12 text-center font-mono text-xs text-zinc-600 uppercase">[NO_USER_ACCOUNTS_FOUND_MATCHING_FILTER]</div>
                 ) : (
-                  <div className="overflow-x-auto border border-zinc-900 bg-zinc-950/20">
-                    <table className="w-full text-left text-xs border-collapse font-mono">
-                      <thead>
-                        <tr className="border-b border-zinc-900 bg-zinc-950/60 text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">
-                          <th className="p-4">Email</th>
-                          <th className="p-4">Name</th>
-                          <th className="p-4">Plan / Tier</th>
-                          <th className="p-4">Monthly Budget</th>
-                          <th className="p-4">Role</th>
-                          <th className="p-4">Status</th>
-                          <th className="p-4">Tokens (M)</th>
-                          <th className="p-4">Cost (USD)</th>
-                          <th className="p-4 text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-zinc-900/40">
-                        {accounts.map(acc => (
-                          <tr key={acc.id} className="hover:bg-zinc-900/10 transition-colors">
-                            <td className="p-4 text-white font-semibold">{acc.email}</td>
-                            <td className="p-4 text-zinc-400">{acc.display_name || '—'}</td>
-                            <td className="p-4">
-                              <span className="px-2 py-0.5 border border-zinc-800 bg-zinc-900 text-zinc-300 text-[10px] uppercase font-bold">
-                                {acc.tier}
-                              </span>
-                            </td>
-                            <td className="p-4 text-zinc-400 font-mono">
-                              {acc.monthly_limit >= 999999999 ? 'UNLIMITED' : `$${acc.monthly_limit.toFixed(2)}`}
-                            </td>
-                            <td className="p-4 text-zinc-400 uppercase text-[10px]">
-                              {acc.role || 'user'}
-                            </td>
-                            <td className="p-4">
-                              <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-sm border ${
-                                acc.status === 'active' 
-                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
-                                  : acc.status === 'suspended'
-                                  ? 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444] red-glow-text'
-                                  : 'bg-zinc-800/40 border-zinc-800 text-zinc-500'
-                              }`}>
-                                {acc.status}
-                              </span>
-                              {acc.status === 'suspended' && acc.suspended_reason && (
-                                <p className="text-[9px] text-[#ef4444]/70 mt-1 uppercase max-w-xs truncate" title={acc.suspended_reason}>
-                                  Reason: {acc.suspended_reason}
-                                </p>
-                              )}
-                            </td>
-                            <td className="p-4 font-mono text-zinc-400">
-                              {acc.consumption?.million_tokens ? `${acc.consumption.million_tokens.toFixed(3)}M` : '0.000M'}
-                            </td>
-                            <td className="p-4 font-mono text-emerald-400 font-semibold">
-                              ${acc.consumption?.cost ? acc.consumption.cost.toFixed(4) : '0.0000'}
-                            </td>
-                            <td className="p-4 text-right space-x-2">
-                              <button 
-                                onClick={() => handleEditAccountClick(acc)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 border border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-white hover:border-zinc-550 transition-all text-[10px]"
-                              >
-                                <Edit className="w-3 h-3" />
-                                EDIT
-                              </button>
-
-                              {acc.status === 'suspended' ? (
-                                <button 
-                                  onClick={() => handleUnbanUser(acc)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all text-[10px]"
-                                >
-                                  UNBAN
-                                </button>
-                              ) : (
-                                <button 
-                                  onClick={() => handleBanUser(acc)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 border border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] hover:bg-[#ef4444]/20 hover:text-red-400 transition-all text-[10px]"
-                                >
-                                  <Ban className="w-3 h-3" />
-                                  BAN
-                                </button>
-                              )}
-                            </td>
+                  <div className="space-y-4">
+                    <div className="overflow-x-auto border border-zinc-900 bg-zinc-950/20">
+                      <table className="w-full text-left text-xs border-collapse font-mono">
+                        <thead>
+                          <tr className="border-b border-zinc-900 bg-zinc-950/60 text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">
+                            <th className="p-4">Email</th>
+                            <th className="p-4">Name</th>
+                            <th className="p-4">Plan / Tier</th>
+                            <th className="p-4">Monthly Budget</th>
+                            <th className="p-4">Role</th>
+                            <th className="p-4">Status</th>
+                            <th className="p-4">Tokens (M)</th>
+                            <th className="p-4">Cost (USD)</th>
+                            <th className="p-4 text-right">Action</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-900/40">
+                          {accounts.map(acc => (
+                            <tr key={acc.id} className="hover:bg-zinc-900/10 transition-colors">
+                              <td className="p-4 text-white font-semibold">{acc.email}</td>
+                              <td className="p-4 text-zinc-400">{acc.display_name || '—'}</td>
+                              <td className="p-4">
+                                <span className="px-2 py-0.5 border border-zinc-800 bg-zinc-900 text-zinc-300 text-[10px] uppercase font-bold">
+                                  {acc.tier}
+                                </span>
+                              </td>
+                              <td className="p-4 text-zinc-400 font-mono">
+                                {acc.monthly_limit >= 999999999 ? 'UNLIMITED' : `$${acc.monthly_limit.toFixed(2)}`}
+                              </td>
+                              <td className="p-4 text-zinc-400 uppercase text-[10px]">
+                                {acc.role || 'user'}
+                              </td>
+                              <td className="p-4">
+                                <span className={`px-2 py-0.5 text-[9px] font-bold uppercase rounded-sm border ${
+                                  acc.status === 'active' 
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                                    : acc.status === 'suspended'
+                                    ? 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444] red-glow-text'
+                                    : 'bg-zinc-800/40 border-zinc-800 text-zinc-500'
+                                }`}>
+                                  {acc.status}
+                                </span>
+                                {acc.status === 'suspended' && acc.suspended_reason && (
+                                  <p className="text-[9px] text-[#ef4444]/70 mt-1 uppercase max-w-xs truncate" title={acc.suspended_reason}>
+                                    Reason: {acc.suspended_reason}
+                                  </p>
+                                )}
+                              </td>
+                              <td className="p-4 font-mono text-zinc-400">
+                                {acc.consumption?.million_tokens ? `${acc.consumption.million_tokens.toFixed(3)}M` : '0.000M'}
+                              </td>
+                              <td className="p-4 font-mono text-emerald-400 font-semibold">
+                                ${acc.consumption?.cost ? acc.consumption.cost.toFixed(4) : '0.0000'}
+                              </td>
+                              <td className="p-4 text-right space-x-2">
+                                <button 
+                                  onClick={() => handleEditAccountClick(acc)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 border border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-white hover:border-zinc-550 transition-all text-[10px]"
+                                >
+                                  <Edit className="w-3 h-3" />
+                                  EDIT
+                                </button>
+
+                                {acc.status === 'suspended' ? (
+                                  <button 
+                                    onClick={() => handleUnbanUser(acc)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-all text-[10px]"
+                                  >
+                                    UNBAN
+                                  </button>
+                                ) : (
+                                  <button 
+                                    onClick={() => handleBanUser(acc)}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 border border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] hover:bg-[#ef4444]/20 hover:text-red-400 transition-all text-[10px]"
+                                  >
+                                    <Ban className="w-3 h-3" />
+                                    BAN
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination Controls */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-zinc-900 font-mono text-[11px] text-zinc-500">
+                      <div>
+                        SHOWING {Math.min(accountsTotal, (accountsPage - 1) * accountsLimit + 1)} - {Math.min(accountsTotal, accountsPage * accountsLimit)} OF {accountsTotal} USERS
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAccountsPage(prev => Math.max(1, prev - 1))}
+                          disabled={accountsPage <= 1}
+                          className="px-3 py-1.5 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-550 disabled:opacity-30 disabled:hover:text-zinc-400 disabled:hover:border-zinc-800 transition-all"
+                        >
+                          [PREV]
+                        </button>
+                        <span className="px-3 text-zinc-300">
+                          PAGE {accountsPage} OF {Math.max(1, Math.ceil(accountsTotal / accountsLimit))}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setAccountsPage(prev => Math.min(Math.ceil(accountsTotal / accountsLimit), prev + 1))}
+                          disabled={accountsPage * accountsLimit >= accountsTotal}
+                          className="px-3 py-1.5 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-550 disabled:opacity-30 disabled:hover:text-zinc-400 disabled:hover:border-zinc-800 transition-all"
+                        >
+                          [NEXT]
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </section>

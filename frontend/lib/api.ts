@@ -187,8 +187,18 @@ export async function getMe(token: string): Promise<UserInfo> {
   return res.json()
 }
 
-export async function adminGetAccounts(token: string, search?: string): Promise<{ accounts: UserInfo[] & any[] }> {
-  const url = search ? `${API_BASE}/admin/accounts?search=${encodeURIComponent(search)}` : `${API_BASE}/admin/accounts`
+export async function adminGetAccounts(
+  token: string, 
+  search?: string,
+  limit?: number,
+  offset?: number
+): Promise<{ accounts: UserInfo[] & any[]; total: number }> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  if (limit !== undefined) params.append('limit', limit.toString())
+  if (offset !== undefined) params.append('offset', offset.toString())
+
+  const url = `${API_BASE}/admin/accounts?${params.toString()}`
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   })
