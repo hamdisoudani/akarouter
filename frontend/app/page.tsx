@@ -158,49 +158,90 @@ response = client.chat.completions.create(
             <p className="text-xs text-zinc-500 font-mono uppercase tracking-widest">Standard endpoints mapped dynamically to their highest performing model configurations.</p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-0 border border-[#27272a]">
+          <div className="grid md:grid-cols-3 gap-0 border border-[#27272a]">
+            {/* Flash Card */}
             <div className="p-8 hover:bg-zinc-950/20 border-b md:border-b-0 md:border-r border-[#27272a] transition-all flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 border border-zinc-800 bg-zinc-900 flex items-center justify-center text-[#ef4444] font-mono text-xs font-bold">
-                      PRO
-                    </div>
-                    <div>
-                      <h4 className="font-semibold font-mono text-white text-xs uppercase tracking-wider">akarouter-pro</h4>
-                      <p className="text-[9px] text-zinc-500 font-mono">Tier: Intelligence & Vision (Multimodal)</p>
-                    </div>
-                  </div>
-                  <span className="px-2 py-0.5 border border-[#ef4444]/30 bg-[#ef4444]/10 text-[9px] font-mono text-[#ef4444] uppercase tracking-wider">Default</span>
-                </div>
-                <p className="text-xs text-zinc-400 font-mono leading-relaxed">High intelligence, versatile multimodal LLM optimized for detailed reasoning, vision analysis (images), complex coding, and structured Q&A.</p>
-              </div>
-              <div className="mt-4">
-                <span className="inline-flex items-center gap-1 text-[9px] text-emerald-400 font-mono uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1">
-                  ✓ Supports Vision Inputs (Images)
-                </span>
-              </div>
-            </div>
-
-            <div className="p-8 hover:bg-zinc-950/20 transition-all flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 border border-zinc-800 bg-zinc-900 flex items-center justify-center text-[#ef4444] font-mono text-xs font-bold">
+                    <div className="w-10 h-10 border border-zinc-800 bg-zinc-900 flex items-center justify-center text-zinc-400 font-mono text-xs font-bold">
                       FSH
                     </div>
                     <div>
                       <h4 className="font-semibold font-mono text-white text-xs uppercase tracking-wider">akarouter-flash</h4>
-                      <p className="text-[9px] text-zinc-500 font-mono">Tier: Low-latency Completion (Text-only)</p>
+                      <p className="text-[9px] text-zinc-500 font-mono">Tier: Low-latency Completion</p>
                     </div>
                   </div>
-                  <span className="px-2 py-0.5 border border-zinc-800 bg-zinc-900 text-[9px] font-mono text-zinc-400 uppercase tracking-wider">Fast</span>
+                  <span className="px-2 py-0.5 border border-zinc-850 bg-zinc-900 text-[9px] font-mono text-zinc-550 uppercase tracking-wider">Fast</span>
                 </div>
                 <p className="text-xs text-zinc-400 font-mono leading-relaxed">Low-latency, highly concurrent completions ideal for summarization, real-time agents, and high-throughput text workloads.</p>
+                <div className="mt-4 space-y-1 font-mono text-[9px] text-zinc-500">
+                  <div>[UPSTREAM]: nvidia/nemotron-3-ultra:free</div>
+                  <div>[CONTEXT]: 1,000,000 TOKENS (1M)</div>
+                  <div>[PRICING]: IN: $0.05/M | OUT: $0.15/M</div>
+                </div>
               </div>
-              <div className="mt-4">
+              <div className="mt-6">
                 <span className="inline-flex items-center gap-1 text-[9px] text-zinc-500 font-mono uppercase tracking-wider bg-zinc-950 border border-zinc-900 px-2.5 py-1">
                   Text-Only LLM
+                </span>
+              </div>
+            </div>
+
+            {/* Large Card */}
+            <div className="p-8 hover:bg-zinc-950/20 border-b md:border-b-0 md:border-r border-[#27272a] transition-all flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 border border-zinc-800 bg-zinc-900 flex items-center justify-center text-emerald-450 font-mono text-xs font-bold">
+                      LRG
+                    </div>
+                    <div>
+                      <h4 className="font-semibold font-mono text-white text-xs uppercase tracking-wider">akarouter-large</h4>
+                      <p className="text-[9px] text-zinc-500 font-mono">Tier: Long-Context Agentic</p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 border border-emerald-950 bg-emerald-500/5 text-[9px] font-mono text-emerald-450 uppercase tracking-wider">1M Context</span>
+                </div>
+                <p className="text-xs text-zinc-400 font-mono leading-relaxed">Massive context window optimized for agentic tool use, multi-file code editing, and executing complex workflows.</p>
+                <div className="mt-4 space-y-1 font-mono text-[9px] text-zinc-500">
+                  <div>[UPSTREAM]: openrouter/owl-alpha</div>
+                  <div>[CONTEXT]: 1,048,756 TOKENS (1M)</div>
+                  <div>[PRICING]: IN: $0.10/M | OUT: $0.40/M</div>
+                </div>
+              </div>
+              <div className="mt-6">
+                <span className="inline-flex items-center gap-1 text-[9px] text-emerald-450 font-mono uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1">
+                  Agentic-Optimized
+                </span>
+              </div>
+            </div>
+
+            {/* Pro Card */}
+            <div className="p-8 hover:bg-zinc-950/20 transition-all flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 border border-zinc-800 bg-zinc-900 flex items-center justify-center text-[#ef4444] font-mono text-xs font-bold red-glow">
+                      PRO
+                    </div>
+                    <div>
+                      <h4 className="font-semibold font-mono text-white text-xs uppercase tracking-wider">akarouter-pro</h4>
+                      <p className="text-[9px] text-zinc-500 font-mono">Tier: Intelligence & Vision</p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 border border-[#ef4444]/30 bg-[#ef4444]/10 text-[9px] font-mono text-[#ef4444] uppercase tracking-wider">Default</span>
+                </div>
+                <p className="text-xs text-zinc-400 font-mono leading-relaxed">High intelligence multimodal LLM optimized for deep reasoning, chain-of-thought analysis, visual understanding, and coding.</p>
+                <div className="mt-4 space-y-1 font-mono text-[9px] text-zinc-500">
+                  <div>[UPSTREAM]: stepfun/step-3.7-flash:free</div>
+                  <div>[CONTEXT]: 256,000 TOKENS (256K)</div>
+                  <div>[PRICING]: IN: $0.20/M | OUT: $0.80/M</div>
+                </div>
+              </div>
+              <div className="mt-6">
+                <span className="inline-flex items-center gap-1 text-[9px] text-[#ef4444] font-mono uppercase tracking-wider bg-[#ef4444]/10 border border-[#ef4444]/20 px-2.5 py-1 red-glow-text">
+                  ✓ Reasoning & Vision (Images)
                 </span>
               </div>
             </div>

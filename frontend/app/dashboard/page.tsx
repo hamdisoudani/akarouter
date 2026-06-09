@@ -648,6 +648,29 @@ export default function UserDashboard() {
                             <div className="flex flex-col">
                               <span className="font-mono text-[11px] text-zinc-400 uppercase">{m.display_name || m.id}</span>
                               <span className="font-mono text-[8px] text-zinc-600 uppercase tracking-tighter">{m.id}</span>
+                              
+                              {m.is_active && (
+                                <div className="flex flex-wrap items-center gap-1.5 mt-1.5 font-mono text-[8px]">
+                                  {m.context_length !== undefined && (
+                                    <span className="text-[#ef4444] bg-[#ef4444]/5 border border-[#ef4444]/15 px-1 py-0.2 uppercase font-semibold">
+                                      {m.context_length >= 1000000 
+                                        ? `${(m.context_length / 1000000).toFixed(0)}M` 
+                                        : `${(m.context_length / 1000).toFixed(0)}K`
+                                      } Context
+                                    </span>
+                                  )}
+                                  {m.input_cost_per_million !== undefined && m.output_cost_per_million !== undefined && (
+                                    <span className="text-emerald-400 bg-emerald-500/5 border border-emerald-500/10 px-1 py-0.2">
+                                      In: ${m.input_cost_per_million.toFixed(2)}/M | Out: ${m.output_cost_per_million.toFixed(2)}/M
+                                    </span>
+                                  )}
+                                  {m.capabilities && m.capabilities.length > 0 && (
+                                    <span className="text-zinc-500 bg-zinc-950 border border-zinc-900 px-1 py-0.2 uppercase">
+                                      {m.capabilities.join(' + ')}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                           <span className={`font-mono text-[9px] font-bold uppercase ${m.is_active ? 'text-emerald-450' : 'text-[#ef4444] red-glow-text'}`}>

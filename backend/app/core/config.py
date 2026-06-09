@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     # Model mapping: alias -> upstream
     model_mapping: dict[str, str] = {
         "akarouter-pro": "stepfun/step-3.7-flash:free",
+        "akarouter-large": "openrouter/owl-alpha",
         "akarouter-flash": "nvidia/nemotron-3-ultra:free",
     }
 
@@ -40,6 +41,10 @@ class Settings(BaseSettings):
         "akarouter-pro": {
             "input_cost_per_million": 0.20,
             "output_cost_per_million": 0.80,
+        },
+        "akarouter-large": {
+            "input_cost_per_million": 0.10,
+            "output_cost_per_million": 0.40,
         },
         "akarouter-flash": {
             "input_cost_per_million": 0.05,

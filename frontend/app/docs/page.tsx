@@ -78,7 +78,7 @@ client = OpenAI(
 
 # 1. Text Completion Example
 response = client.chat.completions.create(
-    model="akarouter-pro", # Options: akarouter-pro, akarouter-flash
+    model="akarouter-large", # Options: akarouter-pro, akarouter-large, akarouter-flash
     messages=[{"role": "user", "content": "Hello AkaRouter!"}]
 )
 print("Text response:", response.choices[0].message.content)
@@ -103,7 +103,7 @@ curl ${origin}/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer YOUR_AKAROUTER_API_KEY" \\
   -d '{
-    "model": "akarouter-pro",
+    "model": "akarouter-large",
     "messages": [{"role": "user", "content": "Hello via curl"}]
   }'
 
@@ -135,7 +135,7 @@ const openai = new OpenAI({
 async function main() {
   // 1. Text Completion Example
   const textCompletion = await openai.chat.completions.create({
-    model: 'akarouter-pro',
+    model: 'akarouter-large',
     messages: [{ role: 'user', content: 'Hello via Node.js!' }],
   });
   console.log('Text:', textCompletion.choices[0].message.content);
@@ -169,7 +169,7 @@ claude`
   "apiProvider": "openai",
   "openAiBaseUrl": "${origin}/v1",
   "openAiApiKey": "YOUR_AKAROUTER_API_KEY",
-  "openAiModelId": "akarouter-pro"
+  "openAiModelId": "akarouter-large"
 }`
 
   const cursorSettings = `1. Open Cursor Settings -> Models
@@ -178,6 +178,7 @@ claude`
 3. In 'API Key', enter your AkaRouter Key.
 4. Under 'Model Names', add:
    - akarouter-pro
+   - akarouter-large
    - akarouter-flash
 5. Toggle off other models and enjoy AkaRouter routing!`
 
@@ -417,28 +418,56 @@ claude`
                 </div>
 
                 {/* Model Capabilities Info Card */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-zinc-950 p-4 border border-zinc-900 text-xs font-mono">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-950 p-4 border border-zinc-900 text-xs font-mono">
+                  {/* Pro Model */}
                   <div className="space-y-2">
                     <div className="text-white font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
                       <Cpu className="w-3.5 h-3.5 text-[#ef4444] red-glow" />
                       akarouter-pro (Reasoning & Vision)
                     </div>
                     <p className="text-zinc-400 leading-relaxed text-[10px] uppercase">
-                      High-intelligence model supporting complex reasoning, coding, and **multimodal vision (text & images)**. Supports parsing diagrams, describing images, or visual Q&A.
+                      High-intelligence model supporting complex reasoning, coding, and **multimodal vision (text & images)**.
                     </p>
+                    <div className="space-y-1 text-zinc-500 text-[9px] pt-1">
+                      <div>[CONTEXT]: 256K TOKENS</div>
+                      <div>[PRICING]: IN: $0.20/M | OUT: $0.80/M</div>
+                    </div>
                     <div className="flex gap-1.5 flex-wrap pt-1">
-                      <span className="px-1.5 py-0.5 border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-[9px] uppercase">✓ Text Inputs</span>
-                      <span className="px-1.5 py-0.5 border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-[9px] uppercase font-bold">✓ Vision Inputs</span>
+                      <span className="px-1.5 py-0.5 border border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] text-[9px] uppercase font-bold">✓ Text + Vision</span>
                     </div>
                   </div>
+
+                  {/* Large Model */}
+                  <div className="space-y-2 border-t md:border-t-0 md:border-l border-zinc-900 pt-4 md:pt-0 md:pl-4">
+                    <div className="text-white font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                      akarouter-large (Long-Context)
+                    </div>
+                    <p className="text-zinc-400 leading-relaxed text-[10px] uppercase">
+                      Massive context window optimized for agentic tool use, multi-file editing, and complex workflows.
+                    </p>
+                    <div className="space-y-1 text-zinc-500 text-[9px] pt-1">
+                      <div>[CONTEXT]: 1M TOKENS</div>
+                      <div>[PRICING]: IN: $0.10/M | OUT: $0.40/M</div>
+                    </div>
+                    <div className="flex gap-1.5 flex-wrap pt-1">
+                      <span className="px-1.5 py-0.5 border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-[9px] uppercase">✓ 1M Context</span>
+                    </div>
+                  </div>
+
+                  {/* Flash Model */}
                   <div className="space-y-2 border-t md:border-t-0 md:border-l border-zinc-900 pt-4 md:pt-0 md:pl-4">
                     <div className="text-white font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
                       <Zap className="w-3.5 h-3.5 text-zinc-500" />
                       akarouter-flash (Low-Latency)
                     </div>
                     <p className="text-zinc-400 leading-relaxed text-[10px] uppercase">
-                      Ultra-fast completions built for high-concurrency workloads. Optimized for text summarization, conversational agents, and high-throughput text applications.
+                      Ultra-fast completions built for high-concurrency workloads, summarization, and real-time agent responses.
                     </p>
+                    <div className="space-y-1 text-zinc-500 text-[9px] pt-1">
+                      <div>[CONTEXT]: 1M TOKENS</div>
+                      <div>[PRICING]: IN: $0.05/M | OUT: $0.15/M</div>
+                    </div>
                     <div className="flex gap-1.5 flex-wrap pt-1">
                       <span className="px-1.5 py-0.5 border border-zinc-800 bg-zinc-900 text-zinc-400 text-[9px] uppercase">✓ Text-Only</span>
                     </div>

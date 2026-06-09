@@ -4,7 +4,18 @@ const API_BASE = typeof window !== 'undefined'
 
 export interface ModelsResponse {
   object: string
-  data: Array<{ id: string; object: string; owned_by: string; display_name?: string; description?: string }>
+  data: Array<{
+    id: string
+    object: string
+    owned_by: string
+    display_name?: string
+    description?: string
+    is_active?: boolean
+    capabilities?: string[]
+    input_cost_per_million?: number
+    output_cost_per_million?: number
+    context_length?: number
+  }>
 }
 
 export interface ChatCompletionRequest {
