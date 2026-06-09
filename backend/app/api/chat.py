@@ -18,6 +18,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def sanitize_error_msg(msg: str) -> str:
+    if not msg:
+        return ""
+    # Remove/replace references to raw upstream hostnames or provider names
+    cleaned = msg.replace(settings.nous_api_base, "AkaRouter Gateway")
+    cleaned = cleaned.replace("inference-api.nousresearch.com", "AkaRouter Gateway")
+    cleaned = cleaned.replace("nousresearch", "upstream provider")
+    return cleaned
+
+
 @router.post("/v1/chat/completions")
 async def proxy_chat(req: Request):
     try:
@@ -67,33 +77,95 @@ async def proxy_chat(req: Request):
     stream = body.get("stream", False)
 
     if stream:
+        started = time.time()
+        client = httpx.AsyncClient(timeout=120)
+        try:
+            req_obj = client.build_request(
+                "POST",
+                f"{settings.nous_api_base}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {provider['access_token']}",
+                    "Content-Type": "application/json",
+                },
+                json=body,
+            )
+            response = await client.send(req_obj, stream=True)
+            
+            if response.status_code >= 400:
+                await response.aread()
+                await client.aclose()
+                
+                upstream_error = ""
+                try:
+                    err_json = response.json()
+                    if isinstance(err_json, dict):
+                        if "detail" in err_json:
+                            upstream_error = str(err_json["detail"])
+                        elif "error" in err_json and isinstance(err_json["error"], dict) and "message" in err_json["error"]:
+                            upstream_error = str(err_json["error"]["message"])
+                        else:
+                            upstream_error = str(err_json)
+                except Exception:
+                    pass
+
+                if not upstream_error:
+                    upstream_error = f"Status {response.status_code}"
+
+                cleaned_msg = sanitize_error_msg(upstream_error)
+                latency = int((time.time() - started) * 1000)
+                await release_provider(provider["id"], False, f"Streaming status error: {cleaned_msg}")
+                await log_request(
+                    account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+                    model=model_alias, upstream_model=upstream_model,
+                    status_code=response.status_code, latency_ms=latency, error_message=f"StreamStatusError: {cleaned_msg}"
+                )
+                raise HTTPException(
+                    status_code=response.status_code, 
+                    detail=f"Upstream provider error: {cleaned_msg}"
+                )
+        except HTTPException:
+            raise
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            await client.aclose()
+            latency = int((time.time() - started) * 1000)
+            await release_provider(provider["id"], False, "Connection failed to upstream")
+            await log_request(
+                account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+                model=model_alias, upstream_model=upstream_model,
+                status_code=502, latency_ms=latency, error_message="ConnectError (Stream)"
+            )
+            raise HTTPException(status_code=502, detail="Upstream gateway timeout or connection failure")
+        except httpx.RequestError as exc:
+            await client.aclose()
+            latency = int((time.time() - started) * 1000)
+            await release_provider(provider["id"], False, str(exc))
+            await log_request(
+                account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+                model=model_alias, upstream_model=upstream_model,
+                status_code=502, latency_ms=latency, error_message=f"RequestError (Stream): {exc}"
+            )
+            raise HTTPException(status_code=502, detail="Upstream request failed")
+        except Exception as exc:
+            await client.aclose()
+            latency = int((time.time() - started) * 1000)
+            await release_provider(provider["id"], False, str(exc))
+            raise HTTPException(status_code=500, detail=f"Internal proxy error: {sanitize_error_msg(str(exc))}")
+
         async def stream_generator():
-            started = time.time()
             success = False
             try:
-                async with httpx.AsyncClient(timeout=120) as client:
-                    async with client.stream(
-                        "POST",
-                        f"{settings.nous_api_base}/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {provider['access_token']}",
-                            "Content-Type": "application/json",
-                        },
-                        json=body,
-                    ) as response:
-                        response.raise_for_status()
-                        async for chunk in response.aiter_bytes():
-                            yield chunk
+                async for chunk in response.aiter_bytes():
+                    yield chunk
                 success = True
             except Exception as exc:
-                logger.error(f"Streaming request failed: {exc}")
+                logger.error(f"Streaming failed mid-stream: {exc}")
                 await release_provider(provider["id"], False, str(exc))
-                # Re-raise so stream client gets disconnected
                 raise
             finally:
+                await response.aclose()
+                await client.aclose()
                 latency = int((time.time() - started) * 1000)
                 await release_provider(provider["id"], success)
-                # For streaming, we log request with 0 tokens (or simple estimate)
                 await log_request(
                     account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
                     model=model_alias, upstream_model=upstream_model,
@@ -107,15 +179,62 @@ async def proxy_chat(req: Request):
     started = time.time()
     try:
         response = await _upstream(provider, body)
+    except httpx.HTTPStatusError as exc:
+        latency = int((time.time() - started) * 1000)
+        upstream_error = ""
+        try:
+            err_json = exc.response.json()
+            if isinstance(err_json, dict):
+                if "detail" in err_json:
+                    upstream_error = str(err_json["detail"])
+                elif "error" in err_json and isinstance(err_json["error"], dict) and "message" in err_json["error"]:
+                    upstream_error = str(err_json["error"]["message"])
+                else:
+                    upstream_error = str(err_json)
+        except Exception:
+            pass
+
+        if not upstream_error:
+            upstream_error = f"Status {exc.response.status_code}"
+
+        cleaned_msg = sanitize_error_msg(upstream_error)
+        await release_provider(provider["id"], False, f"HTTP status error: {cleaned_msg}")
+        await log_request(
+            account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+            model=model_alias, upstream_model=upstream_model,
+            status_code=exc.response.status_code, latency_ms=latency, error_message=f"HTTPStatusError: {cleaned_msg}"
+        )
+        raise HTTPException(
+            status_code=exc.response.status_code, 
+            detail=f"Upstream provider error: {cleaned_msg}"
+        )
+    except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+        latency = int((time.time() - started) * 1000)
+        await release_provider(provider["id"], False, "Connection failed to upstream")
+        await log_request(
+            account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+            model=model_alias, upstream_model=upstream_model,
+            status_code=502, latency_ms=latency, error_message="ConnectError"
+        )
+        raise HTTPException(status_code=502, detail="Upstream gateway timeout or connection failure")
+    except httpx.RequestError as exc:
+        latency = int((time.time() - started) * 1000)
+        await release_provider(provider["id"], False, str(exc))
+        await log_request(
+            account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+            model=model_alias, upstream_model=upstream_model,
+            status_code=502, latency_ms=latency, error_message=f"RequestError: {exc}"
+        )
+        raise HTTPException(status_code=502, detail="Upstream request failed")
     except Exception as exc:
         latency = int((time.time() - started) * 1000)
         await release_provider(provider["id"], False, str(exc))
         await log_request(
             account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
             model=model_alias, upstream_model=upstream_model,
-            status_code=502, latency_ms=latency, error_message=str(exc)
+            status_code=500, latency_ms=latency, error_message=str(exc)
         )
-        raise HTTPException(status_code=502, detail=f"Upstream error: {exc}")
+        raise HTTPException(status_code=500, detail=f"Internal proxy error: {sanitize_error_msg(str(exc))}")
 
     latency = int((time.time() - started) * 1000)
     await release_provider(provider["id"], True)
