@@ -1,4 +1,4 @@
-"""AKAROUTER Chat Completions — OpenAI-compatible proxy with model mapping."""
+"""AKAROUTER Chat Completions — OpenAI-compatible proxy with model mapping and streaming support."""
 from __future__ import annotations
 
 import time
@@ -7,7 +7,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from fastapi.responses import StreamingResponse
 
 from app.core.config import settings
 from app.core.router import select_provider, release_provider, log_request
@@ -18,30 +18,32 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-class ChatRequest(BaseModel):
-    model: str
-    messages: list[dict[str, Any]] = Field(default_factory=list)
-    stream: bool = False
-    temperature: float | None = None
-    max_tokens: int | None = None
-
-
 @router.post("/v1/chat/completions")
-async def proxy_chat(request: ChatRequest, req: Request) -> dict:
-    if request.model not in settings.model_mapping:
-        raise HTTPException(status_code=400, detail=f"Unknown model '{request.model}'")
+async def proxy_chat(req: Request):
+    try:
+        body = await req.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    model_alias = body.get("model")
+    if not model_alias:
+        raise HTTPException(status_code=400, detail="Missing 'model' parameter")
+
+    if model_alias not in settings.model_mapping:
+        raise HTTPException(status_code=400, detail=f"Unknown model '{model_alias}'")
 
     from app.core.cache import is_model_active
-    if not is_model_active(request.model):
-        raise HTTPException(status_code=400, detail=f"Model '{request.model}' is disabled by administrator")
+    if not is_model_active(model_alias):
+        raise HTTPException(status_code=400, detail=f"Model '{model_alias}' is disabled by administrator")
 
     # Resolve model alias → upstream model
-    upstream_model = settings.resolve_model(request.model)
+    upstream_model = settings.resolve_model(model_alias)
+    body["model"] = upstream_model
 
     # Pick provider
     provider = await select_provider(upstream_model)
     if not provider:
-        raise HTTPException(status_code=400, detail=f"No provider available for model '{request.model}'")
+        raise HTTPException(status_code=400, detail=f"No provider available for model '{model_alias}'")
 
     # Check if token needs refresh
     if provider.get("token_expires_at"):
@@ -62,16 +64,55 @@ async def proxy_chat(request: ChatRequest, req: Request) -> dict:
     account_id = auth_info["account_id"] if auth_info else None
     api_key_id = auth_info.get("key_id") if auth_info else None
 
+    stream = body.get("stream", False)
+
+    if stream:
+        async def stream_generator():
+            started = time.time()
+            success = False
+            try:
+                async with httpx.AsyncClient(timeout=120) as client:
+                    async with client.stream(
+                        "POST",
+                        f"{settings.nous_api_base}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {provider['access_token']}",
+                            "Content-Type": "application/json",
+                        },
+                        json=body,
+                    ) as response:
+                        response.raise_for_status()
+                        async for chunk in response.aiter_bytes():
+                            yield chunk
+                success = True
+            except Exception as exc:
+                logger.error(f"Streaming request failed: {exc}")
+                await release_provider(provider["id"], False, str(exc))
+                # Re-raise so stream client gets disconnected
+                raise
+            finally:
+                latency = int((time.time() - started) * 1000)
+                await release_provider(provider["id"], success)
+                # For streaming, we log request with 0 tokens (or simple estimate)
+                await log_request(
+                    account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+                    model=model_alias, upstream_model=upstream_model,
+                    status_code=200 if success else 502, latency_ms=latency,
+                    prompt_tokens=0, completion_tokens=0, total_tokens=0
+                )
+
+        return StreamingResponse(stream_generator(), media_type="text/event-stream")
+
+    # Non-streaming request
     started = time.time()
     try:
-        response = await _upstream(provider, upstream_model, request.messages, request.stream,
-                                    temperature=request.temperature, max_tokens=request.max_tokens)
+        response = await _upstream(provider, body)
     except Exception as exc:
         latency = int((time.time() - started) * 1000)
         await release_provider(provider["id"], False, str(exc))
         await log_request(
             account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
-            model=request.model, upstream_model=upstream_model,
+            model=model_alias, upstream_model=upstream_model,
             status_code=502, latency_ms=latency, error_message=str(exc)
         )
         raise HTTPException(status_code=502, detail=f"Upstream error: {exc}")
@@ -87,7 +128,7 @@ async def proxy_chat(request: ChatRequest, req: Request) -> dict:
 
     await log_request(
         account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
-        model=request.model, upstream_model=upstream_model,
+        model=model_alias, upstream_model=upstream_model,
         status_code=200, latency_ms=latency,
         prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
         total_tokens=total_tokens
@@ -95,18 +136,11 @@ async def proxy_chat(request: ChatRequest, req: Request) -> dict:
 
     # Return response with user-facing model alias
     response.setdefault("id", f"chatcmpl-{id(provider):024d}")
-    response["model"] = request.model
+    response["model"] = model_alias
     return response
 
 
-async def _upstream(provider: dict, model: str, messages: list[dict[str, Any]], stream: bool,
-                     temperature: float | None = None, max_tokens: int | None = None) -> dict:
-    body: dict[str, Any] = {"model": model, "messages": messages, "stream": stream}
-    if temperature is not None:
-        body["temperature"] = temperature
-    if max_tokens is not None:
-        body["max_tokens"] = max_tokens
-
+async def _upstream(provider: dict, body: dict) -> dict:
     async with httpx.AsyncClient(timeout=120) as client:
         response = await client.post(
             f"{settings.nous_api_base}/chat/completions",
