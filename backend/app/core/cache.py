@@ -105,12 +105,13 @@ def get_account_budget(account_id: str) -> Optional[dict[str, Any]]:
     return None
 
 
-def set_account_budget(account_id: str, consumed_5h: float, consumed_7d: float) -> None:
+def set_account_budget(account_id: str, consumed_5h: float, consumed_7d: float, consumed_month: float) -> None:
     """Set the cached budget tracking for an account."""
     with _lock:
         _account_budgets[account_id] = {
             "consumed_5h": consumed_5h,
             "consumed_7d": consumed_7d,
+            "consumed_month": consumed_month,
             "last_fetched_at": time.time(),
         }
 
@@ -122,6 +123,7 @@ def increment_account_budget(account_id: str, cost: float) -> None:
             data = _account_budgets[account_id]
             data["consumed_5h"] += cost
             data["consumed_7d"] += cost
+            data["consumed_month"] += cost
 
 
 def evict_account_caches(account_id: str) -> None:

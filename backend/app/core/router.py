@@ -77,9 +77,10 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
             "tier": account["tier"],
             "scopes": key_row.get("scopes", []),
             "allowed_models": key_row.get("allowed_models", ["*"]),
-            "rpm_limit": account.get("rpm_limit") or 60,
-            "tokens_5h_limit": account.get("tokens_5h_limit") or 1.0,
-            "tokens_7d_limit": account.get("tokens_7d_limit") or 5.0,
+            "rpm_limit": account.get("rpm_limit") if account.get("rpm_limit") is not None else 60,
+            "tokens_5h_limit": float(account.get("tokens_5h_limit") if account.get("tokens_5h_limit") is not None else 1.0),
+            "tokens_7d_limit": float(account.get("tokens_7d_limit") if account.get("tokens_7d_limit") is not None else 5.0),
+            "monthly_limit": float(account.get("monthly_limit") if account.get("monthly_limit") is not None else 10.0),
             "budget_reset_at": account.get("budget_reset_at"),
             "status": account.get("status") or "active",
             "suspended_reason": account.get("suspended_reason") or "",
@@ -119,17 +120,20 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
     budget = get_account_budget(account_id)
     if budget is None:
         now_dt = datetime.now(timezone.utc)
+        five_hours_ago = now_dt - timedelta(hours=5)
         seven_days_ago = now_dt - timedelta(days=7)
         
         budget_reset_at = auth_metadata.get("budget_reset_at")
-        start_dt = seven_days_ago
         if budget_reset_at:
             try:
-                reset_dt = datetime.fromisoformat(budget_reset_at.replace("Z", "+00:00"))
-                start_dt = max(seven_days_ago, reset_dt)
+                month_start = datetime.fromisoformat(budget_reset_at.replace("Z", "+00:00"))
             except Exception:
-                pass
-                
+                month_start = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        else:
+            month_start = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            
+        start_dt = min(seven_days_ago, month_start)
+        
         try:
             supabase = get_supabase()
             logs_res = (
@@ -145,7 +149,7 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
             
         consumed_5h = 0.0
         consumed_7d = 0.0
-        five_hours_ago = now_dt - timedelta(hours=5)
+        consumed_month = 0.0
         
         if logs_res and logs_res.data:
             for log in logs_res.data:
@@ -159,18 +163,22 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
                         consumed_5h += cost
                     if log_dt >= seven_days_ago:
                         consumed_7d += cost
+                    if log_dt >= month_start:
+                        consumed_month += cost
                 except Exception:
                     pass
         
-        set_account_budget(account_id, consumed_5h, consumed_7d)
+        set_account_budget(account_id, consumed_5h, consumed_7d, consumed_month)
         budget = {
             "consumed_5h": consumed_5h,
-            "consumed_7d": consumed_7d
+            "consumed_7d": consumed_7d,
+            "consumed_month": consumed_month
         }
         
     if check_limits:
         tokens_5h_limit = auth_metadata.get("tokens_5h_limit", 1.0)
         tokens_7d_limit = auth_metadata.get("tokens_7d_limit", 5.0)
+        monthly_limit = auth_metadata.get("monthly_limit", 10.0)
         
         if budget["consumed_5h"] >= tokens_5h_limit:
             logger.warning(f"5-hour token budget exceeded for account: {account_id} ({budget['consumed_5h']} >= {tokens_5h_limit})")
@@ -179,6 +187,10 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
         if budget["consumed_7d"] >= tokens_7d_limit:
             logger.warning(f"7-day token budget exceeded for account: {account_id} ({budget['consumed_7d']} >= {tokens_7d_limit})")
             raise BudgetLimitException("7-day token budget exceeded")
+
+        if budget["consumed_month"] >= monthly_limit:
+            logger.warning(f"Monthly token budget exceeded for account: {account_id} ({budget['consumed_month']} >= {monthly_limit})")
+            raise BudgetLimitException("Monthly token budget exceeded")
 
     return auth_metadata
 
