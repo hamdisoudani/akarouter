@@ -99,7 +99,7 @@ def get_account_budget(account_id: str) -> Optional[dict[str, Any]]:
     with _lock:
         if account_id in _account_budgets:
             data = _account_budgets[account_id]
-            if time.time() - data["last_fetched_at"] < 30.0:
+            if time.time() - data["last_fetched_at"] < 300.0:
                 return data
             del _account_budgets[account_id]
     return None
@@ -150,7 +150,7 @@ def is_gateway_enabled() -> bool:
     with _lock:
         if "gateway_enabled" in _system_settings_cache:
             val, fetched_at = _system_settings_cache["gateway_enabled"]
-            if now - fetched_at < 10.0:
+            if now - fetched_at < 60.0:
                 return val == "true"
     
     # Cache miss, query DB
@@ -185,7 +185,7 @@ def is_model_active(model_alias: str) -> bool:
     with _lock:
         if model_alias in _model_active_cache:
             val, fetched_at = _model_active_cache[model_alias]
-            if now - fetched_at < 10.0:
+            if now - fetched_at < 60.0:
                 return val
     
     # Cache miss, query DB
@@ -241,7 +241,7 @@ def get_active_providers_cache() -> Optional[list[dict[str, Any]]]:
     return None
 
 
-def set_active_providers_cache(providers: list[dict[str, Any]], ttl: float = 5.0) -> None:
+def set_active_providers_cache(providers: list[dict[str, Any]], ttl: float = 60.0) -> None:
     """Cache active providers list with a short TTL."""
     global _provider_cache
     with _lock:

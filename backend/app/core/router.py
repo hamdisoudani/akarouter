@@ -90,13 +90,16 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
     # We have auth_metadata (either from cache or database).
     # Throttle last_used_at writes to DB (only write if > 60s since last update)
     if should_update_last_used_at(auth_metadata["key_id"]):
-        try:
-            supabase = get_supabase()
-            supabase.table("api_keys").update({
-                "last_used_at": datetime.now(timezone.utc).isoformat()
-            }).eq("id", auth_metadata["key_id"]).execute()
-        except Exception as e:
-            logger.error(f"Failed to update key last_used_at: {e}")
+        import asyncio
+        async def _update_key_db():
+            try:
+                supabase = get_supabase()
+                supabase.table("api_keys").update({
+                    "last_used_at": datetime.now(timezone.utc).isoformat()
+                }).eq("id", auth_metadata["key_id"]).execute()
+            except Exception as e:
+                logger.error(f"Failed to update key last_used_at in background: {e}")
+        asyncio.create_task(_update_key_db())
 
     # Enforce account suspension check (always run, even on key cache hit)
     if auth_metadata.get("status") != "active":
@@ -249,13 +252,16 @@ async def select_provider(model: str) -> Optional[dict]:
 
     # Throttle provider last_used_at DB updates
     if should_update_last_used_at(best["id"]):
-        try:
-            supabase = get_supabase()
-            supabase.table("providers").update({
-                "last_used_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("id", best["id"]).execute()
-        except Exception as e:
-            logger.error(f"Failed to update provider last_used_at: {e}")
+        import asyncio
+        async def _update_provider_db():
+            try:
+                supabase = get_supabase()
+                supabase.table("providers").update({
+                    "last_used_at": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", best["id"]).execute()
+            except Exception as e:
+                logger.error(f"Failed to update provider last_used_at in background: {e}")
+        asyncio.create_task(_update_provider_db())
 
     return best
 
