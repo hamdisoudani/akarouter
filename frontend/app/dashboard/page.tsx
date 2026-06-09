@@ -45,6 +45,7 @@ export default function UserDashboard() {
   const [activationSuccess, setActivationSuccess] = useState('')
 
   const executeRecaptcha = (action: string): Promise<string> => {
+    const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '6LcnqxUtAAAAAO9MYeFNsyL4JA-6PlAHKzoZoRCc'
     return new Promise((resolve, reject) => {
       if (typeof window === 'undefined' || !(window as any).grecaptcha) {
         reject(new Error('reCAPTCHA script not loaded yet. Please wait a moment.'))
@@ -53,7 +54,7 @@ export default function UserDashboard() {
       const grecaptcha = (window as any).grecaptcha
       grecaptcha.ready(() => {
         grecaptcha
-          .execute('6LcnqxUtAAAAAO9MYeFNsyL4JA-6PlAHKzoZoRCc', { action })
+          .execute(siteKey, { action })
           .then((token: string) => resolve(token))
           .catch((err: any) => reject(err))
       })

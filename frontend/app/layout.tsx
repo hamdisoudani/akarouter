@@ -8,12 +8,14 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '6LcnqxUtAAAAAO9MYeFNsyL4JA-6PlAHKzoZoRCc'
+
   return (
     <html lang="en" className="dark">
       <body className="bg-[#09090b] text-[#e5e1e4] antialiased">
         {children}
         <Script 
-          src="https://www.google.com/recaptcha/api.js?render=6LcnqxUtAAAAAO9MYeFNsyL4JA-6PlAHKzoZoRCc" 
+          src={`https://www.google.com/recaptcha/api.js?render=${siteKey}`} 
           strategy="afterInteractive" 
         />
       </body>

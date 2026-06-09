@@ -3,7 +3,9 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-RECAPTCHA_SECRET = "6LcnqxUtAAAAAJZ0XjDCmVLNrH8gVmrS_sR1u7U0"
+import os
+
+RECAPTCHA_SECRET = os.environ.get("RECAPTCHA_SECRET") or os.environ.get("AKAROUTER_RECAPTCHA_SECRET") or "6LcnqxUtAAAAAJZ0XjDCmVLNrH8gVmrS_sR1u7U0"
 
 async def verify_recaptcha(token: str) -> bool:
     """
