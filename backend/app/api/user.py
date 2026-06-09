@@ -59,11 +59,11 @@ async def list_my_keys(request: Request):
 
 class CreateKeyRequest(BaseModel):
     key_name: str = "default"
-    recaptcha_token: Optional[str] = None
+    recaptcha_token: str
 
 
 @router.post("/keys")
-async def create_my_key(request: Request, body: CreateKeyRequest | None = None):
+async def create_my_key(request: Request, body: CreateKeyRequest):
     """Create a new API key for the currently authenticated user."""
     account_id = _get_user_id(request)
     
@@ -72,14 +72,14 @@ async def create_my_key(request: Request, body: CreateKeyRequest | None = None):
     if supabase_auth and supabase_auth.get("status") == "pending":
         raise HTTPException(status_code=403, detail="Account activation required")
         
-    # Verify reCAPTCHA token if provided
-    if body and body.recaptcha_token:
-        from app.core.recaptcha import verify_recaptcha
-        is_valid = await verify_recaptcha(body.recaptcha_token)
-        if not is_valid:
-            raise HTTPException(status_code=400, detail="reCAPTCHA verification failed")
+    # Verify reCAPTCHA token
+    from app.core.recaptcha import verify_recaptcha
+    is_valid = await verify_recaptcha(body.recaptcha_token)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail="reCAPTCHA verification failed")
 
-    key_name = body.key_name if body else "default"
+    key_name = body.key_name
+
 
     raw_key, key_hash, key_prefix = generate_api_key()
     supabase = get_supabase()
