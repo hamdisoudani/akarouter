@@ -109,9 +109,15 @@ export default function AdminDashboard() {
   const [plans, setPlans] = useState<PlanPreset[]>([])
   const [loadingPlans, setLoadingPlans] = useState(false)
   const [newPlanTier, setNewPlanTier] = useState('')
-  const [newPlanLimit, setNewPlanLimit] = useState(1000)
+  const [newPlanLimit, setNewPlanLimit] = useState(10.0)
+  const [newPlanRpm, setNewPlanRpm] = useState(60)
+  const [newPlan5h, setNewPlan5h] = useState(1.0)
+  const [newPlan7d, setNewPlan7d] = useState(5.0)
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null)
-  const [editingPlanLimit, setEditingPlanLimit] = useState<number>(1000)
+  const [editingPlanLimit, setEditingPlanLimit] = useState<number>(10.0)
+  const [editingPlanRpm, setEditingPlanRpm] = useState<number>(60)
+  const [editingPlan5h, setEditingPlan5h] = useState<number>(1.0)
+  const [editingPlan7d, setEditingPlan7d] = useState<number>(5.0)
 
   // Users state
   const [accounts, setAccounts] = useState<any[]>([])
@@ -120,7 +126,10 @@ export default function AdminDashboard() {
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null)
   const [editingDisplayName, setEditingDisplayName] = useState('')
   const [editingTier, setEditingTier] = useState('')
-  const [editingLimit, setEditingLimit] = useState(1000)
+  const [editingLimit, setEditingLimit] = useState(10.0)
+  const [editingRpmLimit, setEditingRpmLimit] = useState<number>(60)
+  const [editingTokens5hLimit, setEditingTokens5hLimit] = useState<number>(1.0)
+  const [editingTokens7dLimit, setEditingTokens7dLimit] = useState<number>(5.0)
   const [editingRole, setEditingRole] = useState('user')
   const [editingStatus, setEditingStatus] = useState('active')
   const [editingSuspendedReason, setEditingSuspendedReason] = useState('')
@@ -230,9 +239,12 @@ export default function AdminDashboard() {
     e.preventDefault()
     if (!newPlanTier) return
     try {
-      await adminCreatePlan(token, newPlanTier.toLowerCase(), newPlanLimit)
+      await adminCreatePlan(token, newPlanTier.toLowerCase(), newPlanLimit, newPlanRpm, newPlan5h, newPlan7d)
       setNewPlanTier('')
-      setNewPlanLimit(1000)
+      setNewPlanLimit(10.0)
+      setNewPlanRpm(60)
+      setNewPlan5h(1.0)
+      setNewPlan7d(5.0)
       await loadPlans()
     } catch (err: any) {
       setError(err.message)
@@ -241,7 +253,12 @@ export default function AdminDashboard() {
 
   const handleUpdatePlan = async (planId: string) => {
     try {
-      await adminUpdatePlan(token, planId, { monthly_limit: editingPlanLimit })
+      await adminUpdatePlan(token, planId, {
+        monthly_limit: editingPlanLimit,
+        rpm_limit: editingPlanRpm,
+        tokens_5h_limit: editingPlan5h,
+        tokens_7d_limit: editingPlan7d,
+      })
       setEditingPlanId(null)
       await loadPlans()
     } catch (err: any) {
@@ -264,10 +281,13 @@ export default function AdminDashboard() {
     setEditingAccountId(acc.id)
     setEditingDisplayName(acc.display_name || '')
     setEditingTier(acc.tier || 'free')
-    setEditingLimit(acc.monthly_limit || 1000)
+    setEditingLimit(acc.monthly_limit || 10.0)
     setEditingRole(acc.role || 'user')
     setEditingStatus(acc.status || 'active')
     setEditingSuspendedReason(acc.suspended_reason || '')
+    setEditingRpmLimit(acc.rpm_limit ?? 60)
+    setEditingTokens5hLimit(acc.tokens_5h_limit ?? 1.0)
+    setEditingTokens7dLimit(acc.tokens_7d_limit ?? 5.0)
   }
 
   const handleUpdateAccount = async (e: React.FormEvent) => {
@@ -281,7 +301,10 @@ export default function AdminDashboard() {
         monthly_limit: Number(editingLimit),
         role: editingRole,
         status: editingStatus,
-        suspended_reason: editingStatus === 'suspended' ? editingSuspendedReason : null
+        suspended_reason: editingStatus === 'suspended' ? editingSuspendedReason : null,
+        rpm_limit: Number(editingRpmLimit),
+        tokens_5h_limit: Number(editingTokens5hLimit),
+        tokens_7d_limit: Number(editingTokens7dLimit),
       })
       setEditingAccountId(null)
       await loadAccounts(searchQuery)
@@ -298,6 +321,9 @@ export default function AdminDashboard() {
     const matchedPlan = plans.find(p => p.tier === tierName)
     if (matchedPlan) {
       setEditingLimit(matchedPlan.monthly_limit)
+      setEditingRpmLimit(matchedPlan.rpm_limit ?? 60)
+      setEditingTokens5hLimit(matchedPlan.tokens_5h_limit ?? 1.0)
+      setEditingTokens7dLimit(matchedPlan.tokens_7d_limit ?? 5.0)
     }
   }
 
@@ -872,7 +898,7 @@ export default function AdminDashboard() {
                           <th className="p-4">Email</th>
                           <th className="p-4">Name</th>
                           <th className="p-4">Plan / Tier</th>
-                          <th className="p-4">Monthly Limit</th>
+                          <th className="p-4">Monthly Budget</th>
                           <th className="p-4">Role</th>
                           <th className="p-4">Status</th>
                           <th className="p-4">Tokens (M)</th>
@@ -891,7 +917,7 @@ export default function AdminDashboard() {
                               </span>
                             </td>
                             <td className="p-4 text-zinc-400 font-mono">
-                              {acc.monthly_limit >= 999999999 ? 'UNLIMITED' : acc.monthly_limit.toLocaleString()}
+                              {acc.monthly_limit >= 999999999 ? 'UNLIMITED' : `$${acc.monthly_limit.toFixed(2)}`}
                             </td>
                             <td className="p-4 text-zinc-400 uppercase text-[10px]">
                               {acc.role || 'user'}
@@ -977,7 +1003,10 @@ export default function AdminDashboard() {
                         <thead>
                           <tr className="border-b border-zinc-900 bg-zinc-950/60 text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">
                             <th className="p-4">Plan Name</th>
-                            <th className="p-4">Default Monthly limit</th>
+                            <th className="p-4">Monthly Budget</th>
+                            <th className="p-4">RPM Limit</th>
+                            <th className="p-4">5H Budget</th>
+                            <th className="p-4">7D Budget</th>
                             <th className="p-4 text-right">Action</th>
                           </tr>
                         </thead>
@@ -985,26 +1014,69 @@ export default function AdminDashboard() {
                           {plans.map(p => (
                             <tr key={p.id} className="hover:bg-zinc-900/10 transition-colors">
                               <td className="p-4 font-bold text-white uppercase">{p.tier}</td>
-                              <td className="p-4 text-zinc-300">
-                                {editingPlanId === p.id ? (
-                                  <div className="flex items-center gap-2">
+                              {editingPlanId === p.id ? (
+                                <>
+                                  <td className="p-4 text-zinc-300">
                                     <input
                                       type="number"
+                                      step="0.01"
                                       value={editingPlanLimit}
                                       onChange={e => setEditingPlanLimit(Number(e.target.value))}
-                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-28 text-xs focus:outline-none focus:border-[#ef4444]"
+                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-20 text-xs focus:outline-none focus:border-[#ef4444]"
                                     />
+                                  </td>
+                                  <td className="p-4 text-zinc-300">
+                                    <input
+                                      type="number"
+                                      value={editingPlanRpm}
+                                      onChange={e => setEditingPlanRpm(Number(e.target.value))}
+                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-16 text-xs focus:outline-none focus:border-[#ef4444]"
+                                    />
+                                  </td>
+                                  <td className="p-4 text-zinc-300">
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={editingPlan5h}
+                                      onChange={e => setEditingPlan5h(Number(e.target.value))}
+                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-16 text-xs focus:outline-none focus:border-[#ef4444]"
+                                    />
+                                  </td>
+                                  <td className="p-4 text-zinc-300">
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={editingPlan7d}
+                                      onChange={e => setEditingPlan7d(Number(e.target.value))}
+                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-16 text-xs focus:outline-none focus:border-[#ef4444]"
+                                    />
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="p-4 text-zinc-300">
+                                    {p.monthly_limit >= 999999999 ? 'UNLIMITED' : `$${p.monthly_limit.toFixed(2)}`}
+                                  </td>
+                                  <td className="p-4 text-zinc-300">{p.rpm_limit ?? 60} RPM</td>
+                                  <td className="p-4 text-zinc-300">${(p.tokens_5h_limit ?? 1.0).toFixed(2)}</td>
+                                  <td className="p-4 text-zinc-300">${(p.tokens_7d_limit ?? 5.0).toFixed(2)}</td>
+                                </>
+                              )}
+                              <td className="p-4 text-right space-x-2">
+                                {editingPlanId === p.id ? (
+                                  <div className="inline-flex gap-2">
                                     <button onClick={() => handleUpdatePlan(p.id)} className="text-emerald-400 font-bold hover:underline">SAVE</button>
                                     <button onClick={() => setEditingPlanId(null)} className="text-zinc-500 font-bold hover:underline">CANCEL</button>
                                   </div>
                                 ) : (
-                                  <span>{p.monthly_limit >= 999999999 ? 'UNLIMITED' : p.monthly_limit.toLocaleString()} REQ</span>
-                                )}
-                              </td>
-                              <td className="p-4 text-right space-x-2">
-                                {editingPlanId !== p.id && (
                                   <button 
-                                    onClick={() => { setEditingPlanId(p.id); setEditingPlanLimit(p.monthly_limit) }}
+                                    onClick={() => {
+                                      setEditingPlanId(p.id);
+                                      setEditingPlanLimit(p.monthly_limit);
+                                      setEditingPlanRpm(p.rpm_limit ?? 60);
+                                      setEditingPlan5h(p.tokens_5h_limit ?? 1.0);
+                                      setEditingPlan7d(p.tokens_7d_limit ?? 5.0);
+                                    }}
                                     className="inline-flex items-center gap-1 px-2.5 py-1 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-550 transition-all text-[10px]"
                                   >
                                     EDIT
@@ -1054,15 +1126,50 @@ export default function AdminDashboard() {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Default Monthly Request Limit</label>
+                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Default Monthly USD Budget ($)</label>
                       <input
                         type="number"
+                        step="0.01"
                         value={newPlanLimit}
                         onChange={e => setNewPlanLimit(Number(e.target.value))}
                         className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
                         required
-                        min={1}
                       />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">RPM Limit</label>
+                        <input
+                          type="number"
+                          value={newPlanRpm}
+                          onChange={e => setNewPlanRpm(Number(e.target.value))}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">5h Budget ($)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={newPlan5h}
+                          onChange={e => setNewPlan5h(Number(e.target.value))}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">7d Budget ($)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={newPlan7d}
+                          onChange={e => setNewPlan7d(Number(e.target.value))}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                          required
+                        />
+                      </div>
                     </div>
 
                     <button
@@ -1147,42 +1254,92 @@ export default function AdminDashboard() {
                       <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center">[SYNCHRONIZING_MODELS_LIST_WITH_SETTINGS_FALLBACK...]</p>
                     ) : (
                       adminModels.map((m) => (
-                        <div key={m.alias} className="flex justify-between items-center p-4 bg-zinc-950 border border-zinc-900 hover:border-zinc-850 transition-all group">
-                          <div className="flex flex-col gap-1">
-                            <span className="font-mono text-xs font-bold text-white uppercase">{m.alias}</span>
-                            <span className="font-mono text-[9px] text-zinc-500 uppercase">{m.upstream_model}</span>
-                          </div>
-                          
-                          <div className="flex items-center gap-4">
-                            <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
-                              m.is_active
-                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                                : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444] red-glow-text'
-                            }`}>
-                              {m.is_active ? 'ACTIVE' : 'DISABLED'}
-                            </span>
-
-                            <button
-                              onClick={async () => {
-                                try {
-                                  await adminUpdateModel(token, m.alias, { is_active: !m.is_active });
-                                  setAdminModels(prev =>
-                                    prev.map(item =>
-                                      item.alias === m.alias ? { ...item, is_active: !m.is_active } : item
-                                    )
-                                  );
-                                } catch (err: any) {
-                                  setError(err.message);
-                                }
-                              }}
-                              className={`px-3 py-1 font-mono text-[10px] font-bold border transition-all ${
+                        <div key={m.alias} className="flex flex-col gap-4 p-4 bg-zinc-950 border border-zinc-900 hover:border-zinc-850 transition-all group">
+                          <div className="flex justify-between items-center">
+                            <div className="flex flex-col gap-1">
+                              <span className="font-mono text-xs font-bold text-white uppercase">{m.alias}</span>
+                              <span className="font-mono text-[9px] text-zinc-500 uppercase">{m.upstream_model}</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-4">
+                              <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
                                 m.is_active
-                                  ? 'border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] hover:bg-[#ef4444]/20 hover:text-red-350'
-                                  : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-350'
-                              }`}
-                            >
-                              {m.is_active ? 'DISABLE' : 'ENABLE'}
-                            </button>
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                  : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444] red-glow-text'
+                              }`}>
+                                {m.is_active ? 'ACTIVE' : 'DISABLED'}
+                              </span>
+
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await adminUpdateModel(token, m.alias, { is_active: !m.is_active });
+                                    setAdminModels(prev =>
+                                      prev.map(item =>
+                                        item.alias === m.alias ? { ...item, is_active: !m.is_active } : item
+                                      )
+                                    );
+                                  } catch (err: any) {
+                                    setError(err.message);
+                                  }
+                                }}
+                                className={`px-3 py-1 font-mono text-[10px] font-bold border transition-all ${
+                                  m.is_active
+                                    ? 'border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] hover:bg-[#ef4444]/20 hover:text-red-350'
+                                    : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-350'
+                                }`}
+                              >
+                                {m.is_active ? 'DISABLE' : 'ENABLE'}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="border-t border-zinc-900/60 pt-3 grid grid-cols-2 gap-4 font-mono text-[10px]">
+                            <div className="space-y-1">
+                              <label className="text-zinc-500 uppercase text-[8px] tracking-wider">Input Cost / 1M ($)</label>
+                              <input
+                                type="number"
+                                step="0.001"
+                                defaultValue={m.input_cost_per_million ?? 0.10}
+                                id={`input-cost-${m.alias}`}
+                                className="w-full bg-zinc-900 border border-zinc-850 px-2 py-1 text-white text-xs focus:outline-none focus:border-[#ef4444]"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-zinc-500 uppercase text-[8px] tracking-wider">Output Cost / 1M ($)</label>
+                              <div className="flex gap-2">
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  defaultValue={m.output_cost_per_million ?? 0.30}
+                                  id={`output-cost-${m.alias}`}
+                                  className="w-full bg-zinc-900 border border-zinc-850 px-2 py-1 text-white text-xs focus:outline-none focus:border-[#ef4444]"
+                                />
+                                <button
+                                  onClick={async () => {
+                                    const inputVal = Number((document.getElementById(`input-cost-${m.alias}`) as HTMLInputElement)?.value);
+                                    const outputVal = Number((document.getElementById(`output-cost-${m.alias}`) as HTMLInputElement)?.value);
+                                    try {
+                                      await adminUpdateModel(token, m.alias, {
+                                        input_cost_per_million: inputVal,
+                                        output_cost_per_million: outputVal,
+                                      });
+                                      setAdminModels(prev =>
+                                        prev.map(item =>
+                                          item.alias === m.alias ? { ...item, input_cost_per_million: inputVal, output_cost_per_million: outputVal } : item
+                                        )
+                                      );
+                                      alert(`Pricing updated for ${m.alias}!`);
+                                    } catch (err: any) {
+                                      setError(err.message);
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-zinc-900 border border-zinc-805 text-[#ef4444] font-bold text-[9px] hover:border-[#ef4444] transition-all"
+                                >
+                                  SAVE
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ))
@@ -1242,11 +1399,46 @@ export default function AdminDashboard() {
                       </div>
                       
                       <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Monthly Request Limit</label>
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Monthly USD Budget ($)</label>
                         <input
                           type="number"
+                          step="0.01"
                           value={editingLimit}
                           onChange={e => setEditingLimit(Number(e.target.value))}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">RPM Limit</label>
+                        <input
+                          type="number"
+                          value={editingRpmLimit}
+                          onChange={e => setEditingRpmLimit(Number(e.target.value))}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                        />
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">5h Budget ($)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editingTokens5hLimit}
+                          onChange={e => setEditingTokens5hLimit(Number(e.target.value))}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">7d Budget ($)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editingTokens7dLimit}
+                          onChange={e => setEditingTokens7dLimit(Number(e.target.value))}
                           className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
                         />
                       </div>

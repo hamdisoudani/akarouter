@@ -30,6 +30,9 @@ _system_settings_cache: dict[str, tuple[Any, float]] = {}
 # Cached model active status: model_alias -> (is_active, last_fetched_at)
 _model_active_cache: dict[str, tuple[bool, float]] = {}
 
+# Cached model metadata (active status, input and output cost rates): model_alias -> (meta_dict, last_fetched_at)
+_model_meta_cache: dict[str, tuple[dict[str, Any], float]] = {}
+
 # In-flight tracker (provider_id -> count) - persistent in memory
 _in_flight_tracker: dict[str, int] = {}
 
@@ -181,37 +184,63 @@ def evict_system_settings_cache() -> None:
         _system_settings_cache.clear()
 
 
-def is_model_active(model_alias: str) -> bool:
-    """Check if a model is active. Cached for 10s."""
+def get_model_metadata(model_alias: str) -> dict[str, Any]:
+    """Retrieve model metadata (is_active, input_cost, output_cost) from cache or DB (TTL 60s)."""
     now = time.time()
     with _lock:
-        if model_alias in _model_active_cache:
-            val, fetched_at = _model_active_cache[model_alias]
+        if model_alias in _model_meta_cache:
+            val, fetched_at = _model_meta_cache[model_alias]
             if now - fetched_at < 60.0:
                 return val
     
     # Cache miss, query DB
     try:
         supabase = get_supabase()
-        res = supabase.table("model_mapping").select("is_active").eq("alias", model_alias).execute()
-        val = True
+        res = (
+            supabase.table("model_mapping")
+            .select("is_active, input_cost_per_million, output_cost_per_million")
+            .eq("alias", model_alias)
+            .execute()
+        )
         if res.data:
-            val = res.data[0].get("is_active", True)
+            row = res.data[0]
+            val = {
+                "is_active": row.get("is_active") if row.get("is_active") is not None else True,
+                "input_cost_per_million": row.get("input_cost_per_million"),
+                "output_cost_per_million": row.get("output_cost_per_million"),
+            }
+        else:
+            val = {
+                "is_active": True,
+                "input_cost_per_million": None,
+                "output_cost_per_million": None,
+            }
         
         with _lock:
-            _model_active_cache[model_alias] = (val, now)
+            _model_meta_cache[model_alias] = (val, now)
         return val
     except Exception as e:
-        logger.error(f"Failed to check model active status for {model_alias}: {e}")
-        # Fallback to true on DB error to avoid false-positive blocking
-        return True
+        logger.error(f"Failed to fetch model metadata for {model_alias}: {e}")
+        return {
+            "is_active": True,
+            "input_cost_per_million": None,
+            "output_cost_per_million": None,
+        }
+
+
+def is_model_active(model_alias: str) -> bool:
+    """Check if a model is active. Cached for 60s via metadata cache."""
+    meta = get_model_metadata(model_alias)
+    return meta["is_active"]
 
 
 def evict_model_active_cache(model_alias: str) -> None:
-    """Evict a specific model's active status from cache."""
+    """Evict a specific model's active status and metadata from cache."""
     with _lock:
         if model_alias in _model_active_cache:
             del _model_active_cache[model_alias]
+        if model_alias in _model_meta_cache:
+            del _model_meta_cache[model_alias]
 
 
 def get_jwt_cache(token: str) -> Optional[dict[str, Any]]:

@@ -341,10 +341,24 @@ async def log_request(
     error_message=None, ip_address=None, user_agent=None
 ):
     """Log a request to memory buffer for deferred batch insertions."""
-    from app.core.cache import buffer_request_log, buffer_account_usage, increment_account_budget
+    from app.core.cache import buffer_request_log, buffer_account_usage, increment_account_budget, get_model_metadata
     
-    # Calculate request cost in USD
-    cost = settings.calculate_cost(model, prompt_tokens, completion_tokens)
+    # Calculate request cost in USD using dynamic cache/DB values
+    meta = get_model_metadata(model)
+    input_cost_rate = meta.get("input_cost_per_million")
+    output_cost_rate = meta.get("output_cost_per_million")
+    
+    # Fallback to settings.model_pricing if not configured in DB
+    if input_cost_rate is None or output_cost_rate is None:
+        pricing = settings.model_pricing.get(model, settings.model_pricing["default"])
+        if input_cost_rate is None:
+            input_cost_rate = pricing.get("input_cost_per_million", 0.10)
+        if output_cost_rate is None:
+            output_cost_rate = pricing.get("output_cost_per_million", 0.30)
+            
+    input_cost = (prompt_tokens / 1_000_000.0) * input_cost_rate
+    output_cost = (completion_tokens / 1_000_000.0) * output_cost_rate
+    cost = input_cost + output_cost
     
     log_data = {
         "account_id": account_id,

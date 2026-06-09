@@ -294,7 +294,7 @@ from pydantic import BaseModel
 
 class UpdateAccountRequest(BaseModel):
     tier: Optional[str] = None
-    monthly_limit: Optional[int] = None
+    monthly_limit: Optional[float] = None
     status: Optional[str] = None
     suspended_reason: Optional[str] = None
     role: Optional[str] = None
@@ -305,14 +305,14 @@ class UpdateAccountRequest(BaseModel):
 
 class CreatePlanRequest(BaseModel):
     tier: str
-    monthly_limit: int
+    monthly_limit: float
     rpm_limit: Optional[int] = 60
     tokens_5h_limit: Optional[float] = 1.0
     tokens_7d_limit: Optional[float] = 5.0
 
 class UpdatePlanRequest(BaseModel):
     tier: Optional[str] = None
-    monthly_limit: Optional[int] = None
+    monthly_limit: Optional[float] = None
     rpm_limit: Optional[int] = None
     tokens_5h_limit: Optional[float] = None
     tokens_7d_limit: Optional[float] = None
@@ -321,7 +321,9 @@ class UpdateSettingsRequest(BaseModel):
     gateway_enabled: bool
 
 class UpdateModelRequest(BaseModel):
-    is_active: bool
+    is_active: Optional[bool] = None
+    input_cost_per_million: Optional[float] = None
+    output_cost_per_million: Optional[float] = None
 
 def get_user_consumptions() -> dict[str, dict]:
     """Retrieve aggregate consumption stats grouped by account_id."""
@@ -683,21 +685,35 @@ async def admin_update_model(alias: str, body: UpdateModelRequest, authorization
         raise HTTPException(status_code=401, detail="Admin access required")
     supabase = get_supabase()
     
+    updates = {}
+    if body.is_active is not None:
+        updates["is_active"] = body.is_active
+    if body.input_cost_per_million is not None:
+        updates["input_cost_per_million"] = body.input_cost_per_million
+    if body.output_cost_per_million is not None:
+        updates["output_cost_per_million"] = body.output_cost_per_million
+        
     # Check if model mapping exists in DB
     check_res = supabase.table("model_mapping").select("alias").eq("alias", alias).execute()
     if not check_res.data:
         upstream = settings.model_mapping.get(alias, alias)
-        supabase.table("model_mapping").insert({
+        insert_data = {
             "alias": alias,
             "upstream_model": upstream,
             "display_name": alias.replace("-", " ").title(),
-            "is_active": body.is_active
-        }).execute()
+            "is_active": body.is_active if body.is_active is not None else True,
+        }
+        if body.input_cost_per_million is not None:
+            insert_data["input_cost_per_million"] = body.input_cost_per_million
+        if body.output_cost_per_million is not None:
+            insert_data["output_cost_per_million"] = body.output_cost_per_million
+        supabase.table("model_mapping").insert(insert_data).execute()
     else:
-        supabase.table("model_mapping").update({"is_active": body.is_active}).eq("alias", alias).execute()
+        if updates:
+            supabase.table("model_mapping").update(updates).eq("alias", alias).execute()
     
     # Evict local cache immediately
     from app.core.cache import evict_model_active_cache
     evict_model_active_cache(alias)
     
-    return {"ok": True, "alias": alias, "is_active": body.is_active}
+    return {"ok": True, "alias": alias, "updates": updates}

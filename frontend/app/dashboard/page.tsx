@@ -403,33 +403,35 @@ export default function UserDashboard() {
                 <div className="p-5 md:tech-border-r border-b md:border-b-0 border-zinc-900 flex flex-col justify-center relative overflow-hidden group">
                   <div className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[8px] text-zinc-600">CHN_02</div>
                   <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-zinc-700"></span> MONTHLY requests
+                    <span className="w-1.5 h-1.5 bg-zinc-700"></span> MONTHLY QUOTA
                   </span>
                   <div className="font-mono text-2xl text-white font-bold tracking-tight">
                     {usage ? (
-                      <>{usage.monthly_requests.toLocaleString()}<span className="text-zinc-700 text-xs ml-1">REQ</span></>
+                      <>{(usage.progress_percentage_month ?? 0).toFixed(1)}<span className="text-zinc-700 text-xs ml-1">%</span></>
                     ) : (
                       <span className="text-zinc-700 animate-pulse">[LOAD_TX...]</span>
                     )}
                   </div>
                   <span className="font-mono text-[9px] text-zinc-650 mt-1 uppercase tracking-tighter">
-                    {usage ? `LIMIT: ${usage.monthly_limit.toLocaleString()}` : '[READING_LIMIT]'}
+                    {usage ? `CONSUMED` : '[READING_LIMIT]'}
                   </span>
                 </div>
 
                 <div className="p-5 md:tech-border-r border-b md:border-b-0 border-zinc-900 flex flex-col justify-center relative overflow-hidden bg-[#ef4444]/5">
                   <div className="absolute right-0 top-0 p-1 bg-[#ef4444]/20 border-b border-l border-[#ef4444]/30 font-mono text-[8px] text-[#ef4444]">CHN_03</div>
                   <span className="font-mono text-[9px] text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-[#ef4444] status-pulse red-glow"></span> REMAINING QUOTA
+                    <span className="w-1.5 h-1.5 bg-[#ef4444] status-pulse red-glow"></span> CONSUMED TOKENS
                   </span>
                   <div className="font-mono text-2xl text-[#ef4444] font-bold tracking-tight red-glow-text">
                     {usage ? (
-                      <>{usage.remaining.toLocaleString()}<span className="text-[12px] ml-1">REQ</span></>
+                      <>{((usage.consumed_tokens_input ?? 0) + (usage.consumed_tokens_output ?? 0)).toLocaleString()}<span className="text-[12px] ml-1">TOKENS</span></>
                     ) : (
                       <span className="text-[#ef4444]/65 animate-pulse">[LOAD_SYS...]</span>
                     )}
                   </div>
-                  <span className="font-mono text-[9px] text-[#ef4444] mt-1 uppercase tracking-widest font-bold">SYSTEM BALANCE</span>
+                  <span className="font-mono text-[9px] text-[#ef4444] mt-1 uppercase tracking-wider font-bold">
+                    {usage ? `IN: ${(usage.consumed_tokens_input ?? 0).toLocaleString()} | OUT: ${(usage.consumed_tokens_output ?? 0).toLocaleString()}` : 'ACTIVE PERIOD'}
+                  </span>
                 </div>
 
                 <div className="p-5 flex flex-col justify-center relative overflow-hidden group">
@@ -477,7 +479,7 @@ export default function UserDashboard() {
                             <span className="font-mono text-[11px] text-zinc-400 group-hover:text-white uppercase transition-colors">{m.model}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-[11px] text-zinc-500">{m.total_requests} TX</span>
+                            <span className="font-mono text-[11px] text-zinc-500">{(m.total_tokens ?? 0).toLocaleString()} TOKENS ({m.total_requests} TX)</span>
                             <span className="font-mono text-[11px] text-[#10b981]">{m.avg_latency_ms}ms</span>
                           </div>
                         </div>

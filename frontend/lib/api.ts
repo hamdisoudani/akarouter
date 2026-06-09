@@ -57,6 +57,9 @@ export interface UsageStats {
   consumed_budget_7d?: number
   progress_percentage_5h?: number
   progress_percentage_7d?: number
+  consumed_budget_month?: number
+  progress_percentage_month?: number
+  remaining_percentage_month?: number
   gateway_enabled?: boolean
 }
 
@@ -169,6 +172,9 @@ export interface PlanPreset {
   id: string
   tier: string
   monthly_limit: number
+  rpm_limit: number
+  tokens_5h_limit: number
+  tokens_7d_limit: number
   created_at: string
   updated_at: string
 }
@@ -200,6 +206,9 @@ export async function adminUpdateAccount(
     suspended_reason?: string | null
     role?: string
     display_name?: string
+    rpm_limit?: number
+    tokens_5h_limit?: number
+    tokens_7d_limit?: number
   }
 ): Promise<{ ok: boolean; account: any }> {
   const res = await fetch(`${API_BASE}/admin/accounts/${accountId}`, {
@@ -225,14 +234,27 @@ export async function adminGetPlans(token: string): Promise<{ plans: PlanPreset[
   return res.json()
 }
 
-export async function adminCreatePlan(token: string, tier: string, monthlyLimit: number): Promise<{ ok: boolean; plan: PlanPreset }> {
+export async function adminCreatePlan(
+  token: string, 
+  tier: string, 
+  monthlyLimit: number,
+  rpmLimit?: number,
+  tokens5hLimit?: number,
+  tokens7dLimit?: number
+): Promise<{ ok: boolean; plan: PlanPreset }> {
   const res = await fetch(`${API_BASE}/admin/plans`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ tier, monthly_limit: monthlyLimit }),
+    body: JSON.stringify({ 
+      tier, 
+      monthly_limit: monthlyLimit,
+      rpm_limit: rpmLimit ?? 60,
+      tokens_5h_limit: tokens5hLimit ?? 1.0,
+      tokens_7d_limit: tokens7dLimit ?? 5.0
+    }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -241,7 +263,17 @@ export async function adminCreatePlan(token: string, tier: string, monthlyLimit:
   return res.json()
 }
 
-export async function adminUpdatePlan(token: string, planId: string, data: { tier?: string; monthly_limit?: number }): Promise<{ ok: boolean; plan: PlanPreset }> {
+export async function adminUpdatePlan(
+  token: string, 
+  planId: string, 
+  data: { 
+    tier?: string; 
+    monthly_limit?: number;
+    rpm_limit?: number;
+    tokens_5h_limit?: number;
+    tokens_7d_limit?: number;
+  }
+): Promise<{ ok: boolean; plan: PlanPreset }> {
   const res = await fetch(`${API_BASE}/admin/plans/${planId}`, {
     method: 'PATCH',
     headers: {
@@ -272,6 +304,8 @@ export interface AdminModelMapping {
   display_name: string
   description: string
   is_active: boolean
+  input_cost_per_million: number | null
+  output_cost_per_million: number | null
 }
 
 export async function adminGetSettings(token: string): Promise<{ settings: Record<string, string> }> {
@@ -306,7 +340,15 @@ export async function adminGetModels(token: string): Promise<{ models: AdminMode
   return res.json()
 }
 
-export async function adminUpdateModel(token: string, alias: string, data: { is_active: boolean }): Promise<{ ok: boolean; alias: string; is_active: boolean }> {
+export async function adminUpdateModel(
+  token: string, 
+  alias: string, 
+  data: { 
+    is_active?: boolean; 
+    input_cost_per_million?: number | null; 
+    output_cost_per_million?: number | null; 
+  }
+): Promise<{ ok: boolean; alias: string; updates: any }> {
   const res = await fetch(`${API_BASE}/admin/models/${alias}`, {
     method: 'PATCH',
     headers: {

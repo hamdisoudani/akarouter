@@ -127,16 +127,19 @@ async def get_my_usage(request: Request):
     # 1. Fetch request logs for sliding window budget calculation
     from datetime import datetime, timezone, timedelta
     now_dt = datetime.now(timezone.utc)
+    five_hours_ago = now_dt - timedelta(hours=5)
     seven_days_ago = now_dt - timedelta(days=7)
     
     budget_reset_at = account.get("budget_reset_at")
-    start_dt = seven_days_ago
     if budget_reset_at:
         try:
-            reset_dt = datetime.fromisoformat(budget_reset_at.replace("Z", "+00:00"))
-            start_dt = max(seven_days_ago, reset_dt)
+            month_start = datetime.fromisoformat(budget_reset_at.replace("Z", "+00:00"))
         except Exception:
-            pass
+            month_start = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        month_start = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+    start_dt = min(seven_days_ago, month_start)
 
     logs_res = (
         supabase.table("request_logs")
@@ -148,7 +151,7 @@ async def get_my_usage(request: Request):
     
     consumed_5h = 0.0
     consumed_7d = 0.0
-    five_hours_ago = now_dt - timedelta(hours=5)
+    consumed_month = 0.0
     
     if logs_res and logs_res.data:
         for log in logs_res.data:
@@ -161,6 +164,8 @@ async def get_my_usage(request: Request):
                         consumed_5h += cost
                     if log_dt >= seven_days_ago:
                         consumed_7d += cost
+                    if log_dt >= month_start:
+                        consumed_month += cost
                 except Exception:
                     pass
 
@@ -188,9 +193,12 @@ async def get_my_usage(request: Request):
     rpm_limit = account.get("rpm_limit") or 60
     tokens_5h_limit = account.get("tokens_5h_limit") or 1.0
     tokens_7d_limit = account.get("tokens_7d_limit") or 5.0
+    monthly_limit = account.get("monthly_limit") or 10.0
     
     progress_percentage_5h = min(100.0, round((consumed_5h / tokens_5h_limit) * 100.0, 2)) if tokens_5h_limit > 0 else 0.0
     progress_percentage_7d = min(100.0, round((consumed_7d / tokens_7d_limit) * 100.0, 2)) if tokens_7d_limit > 0 else 0.0
+    progress_percentage_month = min(100.0, round((consumed_month / monthly_limit) * 100.0, 2)) if monthly_limit > 0 else 0.0
+    remaining_percentage_month = max(0.0, 100.0 - progress_percentage_month)
 
     from app.core.cache import is_gateway_enabled
     gateway_enabled = is_gateway_enabled()
@@ -199,9 +207,9 @@ async def get_my_usage(request: Request):
         "tier": account["tier"],
         "role": account.get("role", "user"),
         "monthly_requests": account["monthly_requests"],
-        "monthly_limit": account["monthly_limit"],
+        "monthly_limit": monthly_limit,
         "total_requests": account["total_requests"],
-        "remaining": max(0, account["monthly_limit"] - account["monthly_requests"]),
+        "remaining": max(0.0, monthly_limit - consumed_month),
         "rpm_limit": rpm_limit,
         "tokens_5h_limit": tokens_5h_limit,
         "tokens_7d_limit": tokens_7d_limit,
@@ -209,8 +217,11 @@ async def get_my_usage(request: Request):
         "consumed_tokens_output": consumed_tokens_output,
         "consumed_budget_5h": round(consumed_5h, 6),
         "consumed_budget_7d": round(consumed_7d, 6),
+        "consumed_budget_month": round(consumed_month, 6),
         "progress_percentage_5h": progress_percentage_5h,
         "progress_percentage_7d": progress_percentage_7d,
+        "progress_percentage_month": progress_percentage_month,
+        "remaining_percentage_month": remaining_percentage_month,
         "gateway_enabled": gateway_enabled,
     }
 

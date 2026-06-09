@@ -144,7 +144,7 @@ response = client.chat.completions.create(
                 <Shield className="w-5 h-5" />
               </div>
               <h4 className="text-xs font-bold font-mono tracking-wider uppercase text-white">QUOTA MANAGEMENT</h4>
-              <p className="text-xs text-zinc-400 font-mono leading-relaxed">Granular subscription tier rate limits, monthly request counts, and token analytics logged per API key.</p>
+              <p className="text-xs text-zinc-400 font-mono leading-relaxed">Granular subscription tier rate limits, sliding token budgets, and cost analytics logged per API key.</p>
             </div>
           </div>
         </div>
