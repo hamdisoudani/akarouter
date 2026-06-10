@@ -176,7 +176,6 @@ response = client.chat.completions.create(
                 </div>
                 <p className="text-xs text-zinc-400 font-mono leading-relaxed">Low-latency, highly concurrent completions ideal for summarization, real-time agents, and high-throughput text workloads.</p>
                 <div className="mt-4 space-y-1 font-mono text-[9px] text-zinc-500">
-                  <div>[UPSTREAM]: nvidia/nemotron-3-ultra:free</div>
                   <div>[CONTEXT]: 1,000,000 TOKENS (1M)</div>
                   <div>[PRICING]: IN: $0.05/M | OUT: $0.15/M</div>
                 </div>
@@ -205,7 +204,6 @@ response = client.chat.completions.create(
                 </div>
                 <p className="text-xs text-zinc-400 font-mono leading-relaxed">Massive context window optimized for agentic tool use, multi-file code editing, and executing complex workflows.</p>
                 <div className="mt-4 space-y-1 font-mono text-[9px] text-zinc-500">
-                  <div>[UPSTREAM]: openrouter/owl-alpha</div>
                   <div>[CONTEXT]: 1,048,756 TOKENS (1M)</div>
                   <div>[PRICING]: IN: $0.10/M | OUT: $0.40/M</div>
                 </div>
@@ -234,7 +232,6 @@ response = client.chat.completions.create(
                 </div>
                 <p className="text-xs text-zinc-400 font-mono leading-relaxed">High intelligence multimodal LLM optimized for deep reasoning, chain-of-thought analysis, visual understanding, and coding.</p>
                 <div className="mt-4 space-y-1 font-mono text-[9px] text-zinc-500">
-                  <div>[UPSTREAM]: stepfun/step-3.7-flash:free</div>
                   <div>[CONTEXT]: 256,000 TOKENS (256K)</div>
                   <div>[PRICING]: IN: $0.20/M | OUT: $0.80/M</div>
                 </div>

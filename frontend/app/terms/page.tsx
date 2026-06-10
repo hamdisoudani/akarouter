@@ -86,7 +86,7 @@ export default function TermsOfService() {
                   5. Disclaimer of Warranties
                 </h2>
                 <p>
-                  AkaRouter services are provided "as is" and "as available". We offer no warranties concerning gateway uptime, models output correctness, or prompt latency times. Upstream connection states (e.g. OpenRouter, Hermes channels) are beyond local latency guarantees.
+                  AkaRouter services are provided "as is" and "as available". We offer no warranties concerning gateway uptime, models output correctness, or prompt latency times. Upstream connection states are beyond local latency guarantees.
                 </p>
               </section>
             </div>
