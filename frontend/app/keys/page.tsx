@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/app/providers'
+import { getGatewayUrl } from '@/lib/utils'
 import {
   getMyKeys,
   createKey,
@@ -43,9 +44,7 @@ export default function ApiKeysPage() {
   const [origin, setOrigin] = useState('http://localhost:8000')
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setOrigin(window.location.origin)
-    }
+    setOrigin(getGatewayUrl())
   }, [])
 
   const executeRecaptcha = (action: string): Promise<string> => {

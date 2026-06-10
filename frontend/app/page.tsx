@@ -1,15 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Layers, Terminal, Sparkles, Copy, Check, Cpu, RefreshCw, Zap, Shield, ArrowRight } from 'lucide-react'
+import { getGatewayUrl } from '@/lib/utils'
 
 export default function Home() {
   const [copied, setCopied] = useState(false)
+  const [origin, setOrigin] = useState('http://localhost:8000')
+
+  useEffect(() => {
+    setOrigin(getGatewayUrl())
+  }, [])
+
   const codeSnippet = `from openai import OpenAI
 
 client = OpenAI(
-  base_url="http://localhost:8000/v1", # Local or production URL
+  base_url="${origin}/v1",
   api_key="akar_your_key_here"
 )
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/app/providers'
+import { getGatewayUrl } from '@/lib/utils'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-bash'
@@ -40,9 +41,7 @@ export default function DocsPage() {
   const [origin, setOrigin] = useState('http://localhost:8000')
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setOrigin(window.location.origin)
-    }
+    setOrigin(getGatewayUrl())
   }, [])
 
   useEffect(() => {
