@@ -124,15 +124,22 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
         seven_days_ago = now_dt - timedelta(days=7)
         
         budget_reset_at = auth_metadata.get("budget_reset_at")
+        reset_dt = None
         if budget_reset_at:
             try:
-                month_start = datetime.fromisoformat(budget_reset_at.replace("Z", "+00:00"))
+                reset_dt = datetime.fromisoformat(budget_reset_at.replace("Z", "+00:00"))
             except Exception:
-                month_start = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                pass
+
+        if reset_dt:
+            month_start = reset_dt
         else:
             month_start = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             
-        start_dt = min(seven_days_ago, month_start)
+        if reset_dt:
+            query_start = reset_dt
+        else:
+            query_start = min(seven_days_ago, month_start)
         
         try:
             supabase = get_supabase()
@@ -140,7 +147,7 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
                 supabase.table("request_logs")
                 .select("cost, created_at")
                 .eq("account_id", account_id)
-                .gte("created_at", start_dt.isoformat())
+                .gte("created_at", query_start.isoformat())
                 .execute()
             )
         except Exception as e:
@@ -159,6 +166,8 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
                     continue
                 try:
                     log_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                    if reset_dt and log_dt < reset_dt:
+                        continue
                     if log_dt >= five_hours_ago:
                         consumed_5h += cost
                     if log_dt >= seven_days_ago:

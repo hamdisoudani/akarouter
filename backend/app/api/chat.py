@@ -17,6 +17,59 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+import json
+
+class SSEUsageExtractor:
+    def __init__(self):
+        self.buffer = ""
+        self.completion_text = ""
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.has_usage = False
+
+    def feed(self, chunk_bytes: bytes) -> None:
+        self.buffer += chunk_bytes.decode("utf-8", errors="ignore")
+        while "\n" in self.buffer:
+            line, self.buffer = self.buffer.split("\n", 1)
+            line = line.strip()
+            if line.startswith("data:"):
+                data_content = line[5:].strip()
+                if data_content == "[DONE]":
+                    continue
+                try:
+                    data_json = json.loads(data_content)
+                    
+                    # 1. Check if there is usage info in this chunk (OpenAI style)
+                    usage = data_json.get("usage")
+                    if usage:
+                        self.prompt_tokens = usage.get("prompt_tokens", 0)
+                        self.completion_tokens = usage.get("completion_tokens", 0)
+                        self.has_usage = True
+                        
+                    # 2. Accumulate delta content for fallback estimation
+                    choices = data_json.get("choices", [])
+                    if choices:
+                        delta = choices[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            self.completion_text += content
+                except Exception:
+                    pass
+
+
+def estimate_prompt_tokens(messages: list) -> int:
+    total_tokens = 0
+    for msg in messages:
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            total_tokens += max(1, len(content) // 4)
+        elif isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    total_tokens += max(1, len(part.get("text", "")) // 4)
+        total_tokens += 4
+    return total_tokens + 2
+
 
 def sanitize_error_msg(msg: str) -> str:
     if not msg:
@@ -75,6 +128,9 @@ async def proxy_chat(req: Request):
     api_key_id = auth_info.get("key_id") if auth_info else None
 
     stream = body.get("stream", False)
+    if stream:
+        # Request upstream provider to include usage chunk at the end of the stream
+        body["stream_options"] = {"include_usage": True}
 
     if stream:
         started = time.time()
@@ -153,8 +209,10 @@ async def proxy_chat(req: Request):
 
         async def stream_generator():
             success = False
+            extractor = SSEUsageExtractor()
             try:
                 async for chunk in response.aiter_bytes():
+                    extractor.feed(chunk)
                     yield chunk
                 success = True
             except Exception as exc:
@@ -166,11 +224,23 @@ async def proxy_chat(req: Request):
                 await client.aclose()
                 latency = int((time.time() - started) * 1000)
                 await release_provider(provider["id"], success)
+                
+                # Determine tokens
+                if extractor.has_usage and extractor.prompt_tokens > 0:
+                    prompt_tokens = extractor.prompt_tokens
+                    completion_tokens = extractor.completion_tokens
+                else:
+                    prompt_tokens = estimate_prompt_tokens(body.get("messages", []))
+                    completion_tokens = max(1, len(extractor.completion_text) // 4)
+                
+                total_tokens = prompt_tokens + completion_tokens
+                
                 await log_request(
                     account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
                     model=model_alias, upstream_model=upstream_model,
                     status_code=200 if success else 502, latency_ms=latency,
-                    prompt_tokens=0, completion_tokens=0, total_tokens=0
+                    prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
+                    total_tokens=total_tokens
                 )
 
         return StreamingResponse(stream_generator(), media_type="text/event-stream")
