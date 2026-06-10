@@ -32,22 +32,22 @@ response = client.chat.completions.create(
 
       {/* Navigation */}
       <nav className="sticky top-0 w-full z-50 border-b border-[#27272a] bg-[#09090b]/80 backdrop-blur-xl micro-grid">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-24 h-12 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
+            <div className="w-20 h-10 sm:w-24 sm:h-12 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
               <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 sm:gap-6">
             <a href="#features" className="hidden sm:block text-xs font-mono uppercase tracking-wider text-zinc-400 hover:text-white transition-colors">Features</a>
             <a href="#models" className="hidden sm:block text-xs font-mono uppercase tracking-wider text-zinc-400 hover:text-white transition-colors">Models</a>
-            <Link href="/auth/login" className="text-xs font-mono uppercase tracking-wider text-zinc-300 hover:text-white transition-colors">
+            <Link href="/auth/login" className="text-[10px] sm:text-xs font-mono uppercase tracking-wider text-zinc-300 hover:text-white transition-colors">
               Sign in
             </Link>
             <Link 
               href="/auth/login" 
-              className="relative inline-flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 text-white font-mono text-xs py-2 px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all crosshair-corners"
+              className="relative inline-flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 text-white font-mono text-[10px] sm:text-xs py-1.5 px-3 sm:py-2 sm:px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all crosshair-corners"
             >
               Get Started
               <ArrowRight className="w-3.5 h-3.5" />
@@ -57,8 +57,8 @@ response = client.chat.completions.create(
       </nav>
 
       {/* Hero Section */}
-      <main className="flex-1 flex flex-col items-center justify-center px-6 pt-20 pb-16 z-10">
-        <div className="max-w-4xl text-center space-y-6">
+      <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 pt-20 pb-16 z-10">
+        <div className="w-full max-w-4xl text-center space-y-6 flex flex-col items-center">
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-zinc-950 border border-zinc-800 font-mono text-[9px] tracking-widest text-[#ef4444] uppercase">
             <span className="w-1.5 h-1.5 bg-[#ef4444] status-pulse red-glow" />
@@ -66,13 +66,13 @@ response = client.chat.completions.create(
           </div>
 
           {/* Heading */}
-          <h2 className="text-4xl md:text-6xl font-black font-mono tracking-tighter leading-none uppercase text-white">
+          <h2 className="text-2xl sm:text-4xl md:text-6xl font-black font-mono tracking-tighter leading-none uppercase text-white break-words w-full px-2">
             AI INFERENCE ROUTING
             <br />
             <span className="text-gradient-primary">ONE KEY, EVERY MODEL</span>
           </h2>
 
-          <p className="mt-4 text-xs md:text-sm text-zinc-400 max-w-2xl mx-auto font-mono uppercase tracking-wide leading-relaxed">
+          <p className="mt-4 text-xs md:text-sm text-zinc-400 max-w-2xl mx-auto font-mono uppercase tracking-wide leading-relaxed px-2">
             Access high-performance LLMs through a unified, high-availability API gateway. Features low-latency routing, smart load-balancing, and robust error failover.
           </p>
 
@@ -93,7 +93,7 @@ response = client.chat.completions.create(
           </div>
 
           {/* Code IDE Container */}
-          <div className="mt-16 w-full max-w-2xl text-left bg-[#0e0e10] border border-[#27272a] crosshair-corners">
+          <div className="mt-16 w-full max-w-2xl text-left bg-[#0e0e10] border border-[#27272a] crosshair-corners overflow-hidden">
             <div className="bg-[#0e0e10] border-b border-[#27272a] px-4 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-[#ef4444] red-glow" />
@@ -107,8 +107,8 @@ response = client.chat.completions.create(
                 {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
               </button>
             </div>
-            <div className="p-5 font-mono text-[11px] text-zinc-300 overflow-x-auto bg-[#050507] leading-relaxed">
-              <pre>{codeSnippet}</pre>
+            <div className="p-5 font-mono text-[11px] text-zinc-300 overflow-x-auto bg-[#050507] leading-relaxed max-w-full">
+              <pre className="whitespace-pre sm:whitespace-pre-wrap">{codeSnippet}</pre>
             </div>
           </div>
         </div>

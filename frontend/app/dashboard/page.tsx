@@ -686,8 +686,8 @@ export default function UserDashboard() {
               {/* Live request logs buffer */}
               <div className="col-span-12 border-t border-[#27272a] bg-[#09090b]">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 px-5 py-3 border-b border-[#27272a] bg-[#0e0e10]">
-                  <h2 className="font-mono text-[11px] text-zinc-300 flex items-center gap-3 tracking-[0.2em] uppercase font-bold">
-                    <span className="material-symbols-outlined text-[16px] text-[#ef4444]">developer_board</span>
+                  <h2 className="font-mono text-[11px] text-zinc-300 flex items-center gap-2.5 tracking-[0.2em] uppercase font-bold">
+                    <Terminal className="w-3.5 h-3.5 text-[#ef4444]" />
                     LIVE_TX_TRACE_BUFFER
                   </h2>
                   <div className="flex items-center gap-3 border border-[#10b981]/20 bg-[#10b981]/5 px-3 py-1 self-start sm:self-auto">
