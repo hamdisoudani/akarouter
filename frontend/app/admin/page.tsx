@@ -20,8 +20,14 @@ import {
   adminCreateInvitation,
   adminUpdateInvitation,
   adminDeleteInvitation,
+  adminGetDaytonaKeys,
+  adminCreateDaytonaKey,
+  adminUpdateDaytonaKey,
+  adminDeleteDaytonaKey,
+  adminTestDaytonaKey,
   type PlanPreset,
-  type AdminModelMapping
+  type AdminModelMapping,
+  type DaytonaKey
 } from '@/lib/api'
 import { 
   Shield, 
@@ -103,7 +109,16 @@ export default function AdminDashboard() {
   const [copiedUserCode, setCopiedUserCode] = useState(false)
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<'providers' | 'users' | 'plans' | 'settings' | 'invitations'>('providers')
+  const [activeTab, setActiveTab] = useState<'providers' | 'users' | 'plans' | 'settings' | 'invitations' | 'daytona_keys'>('providers')
+
+  // Daytona keys state
+  const [daytonaKeys, setDaytonaKeys] = useState<any[]>([])
+  const [loadingDaytonaKeys, setLoadingDaytonaKeys] = useState(false)
+  const [newKeyLabel, setNewKeyLabel] = useState('')
+  const [newKeyApiKey, setNewKeyApiKey] = useState('')
+  const [newKeyApiUrl, setNewKeyApiUrl] = useState('https://app.daytona.io/api')
+  const [testingKeyId, setTestingKeyId] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<{ id: string; ok: boolean; message: string } | null>(null)
 
   // Invitation management state
   const [invitations, setInvitations] = useState<any[]>([])
@@ -114,7 +129,7 @@ export default function AdminDashboard() {
   const [editingInvMaxUses, setEditingInvMaxUses] = useState<number>(1)
 
   // Settings & Models state
-  const [systemSettings, setSystemSettings] = useState<any>({ gateway_enabled: 'true' })
+  const [systemSettings, setSystemSettings] = useState<any>({ gateway_enabled: 'true', max_agents_per_user: '1' })
   const [adminModels, setAdminModels] = useState<AdminModelMapping[]>([])
   const [loadingSettings, setLoadingSettings] = useState(false)
 
@@ -294,6 +309,63 @@ export default function AdminDashboard() {
     }
   }
 
+  const loadDaytonaKeys = useCallback(async () => {
+    if (!token) return
+    setLoadingDaytonaKeys(true)
+    try {
+      const data = await adminGetDaytonaKeys(token)
+      setDaytonaKeys(data.keys || [])
+    } catch (err: any) {
+      setError(err.message)
+    }
+    setLoadingDaytonaKeys(false)
+  }, [token])
+
+  const handleCreateDaytonaKey = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newKeyLabel || !newKeyApiKey) return
+    try {
+      await adminCreateDaytonaKey(token, newKeyLabel, newKeyApiKey, newKeyApiUrl)
+      setNewKeyLabel('')
+      setNewKeyApiKey('')
+      setNewKeyApiUrl('https://app.daytona.io/api')
+      await loadDaytonaKeys()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleToggleDaytonaKeyActive = async (id: string, currentActive: boolean) => {
+    try {
+      await adminUpdateDaytonaKey(token, id, { is_active: !currentActive })
+      await loadDaytonaKeys()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleDeleteDaytonaKey = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this Daytona API key?')) return
+    try {
+      await adminDeleteDaytonaKey(token, id)
+      await loadDaytonaKeys()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleTestDaytonaKey = async (id: string) => {
+    setTestingKeyId(id)
+    setTestResult(null)
+    try {
+      const res = await adminTestDaytonaKey(token, id)
+      setTestResult({ id, ok: res.ok, message: res.message })
+    } catch (err: any) {
+      setTestResult({ id, ok: false, message: err.message })
+    }
+    setTestingKeyId(null)
+  }
+
   useEffect(() => {
     if (!authChecked || !isAdmin) return
     const channel = supabase
@@ -330,6 +402,8 @@ export default function AdminDashboard() {
       loadAdminModels()
     } else if (activeTab === 'invitations') {
       loadInvitations()
+    } else if (activeTab === 'daytona_keys') {
+      loadDaytonaKeys()
     }
   }, [authChecked, isAdmin, token, activeTab, accountsPage])
 
@@ -571,12 +645,20 @@ export default function AdminDashboard() {
             <span className="tracking-widest font-mono uppercase text-[11px]">Usage</span>
           </Link>
 
+          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/agents">
+            <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
+              <Cpu className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
+            </span>
+            <span className="tracking-widest font-mono uppercase text-[11px]">Hosted Agents</span>
+          </Link>
+
           <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/docs">
             <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
               <FileText className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
             </span>
             <span className="tracking-widest font-mono uppercase text-[11px]">Docs</span>
           </Link>
+
 
           <Link className="flex items-center gap-3 px-3 py-2 w-full text-white nav-item-active" href="/admin">
             <span className="border border-[#ef4444] p-1 bg-[#ef4444]/10 text-[#ef4444] flex items-center justify-center red-glow">
@@ -651,6 +733,17 @@ export default function AdminDashboard() {
             <Link 
               onClick={() => setMobileOpen(false)}
               className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+              href="/agents"
+            >
+              <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                <Cpu className="w-3.5 h-3.5 text-zinc-450" />
+              </span>
+              <span className="tracking-widest font-mono uppercase text-xs">Hosted Agents</span>
+            </Link>
+
+            <Link 
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
               href="/docs"
             >
               <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
@@ -658,6 +751,7 @@ export default function AdminDashboard() {
               </span>
               <span className="tracking-widest font-mono uppercase text-xs">Docs</span>
             </Link>
+
 
             {user?.role === 'admin' && (
               <Link 
@@ -829,6 +923,16 @@ export default function AdminDashboard() {
                 }`}
               >
                 [05_INVITATION_CODES]
+              </button>
+              <button
+                onClick={() => setActiveTab('daytona_keys')}
+                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 ${
+                  activeTab === 'daytona_keys'
+                    ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
+                    : 'text-zinc-500 hover:text-white'
+                }`}
+              >
+                [06_DAYTONA_KEYS]
               </button>
             </div>
 
@@ -1422,6 +1526,57 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
+                {/* Hosted Agent Creation Limit Card */}
+                <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <Cpu className="w-4 h-4 text-[#ef4444]" />
+                      HOSTED_AGENTS_LIMIT_CONTROL
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                      Configure the maximum number of hosted agents a user is allowed to create.
+                    </p>
+                  </div>
+
+                  <div className="p-5 bg-zinc-950 border border-zinc-900 flex flex-col gap-4">
+                    <div className="flex flex-col gap-2">
+                      <label className="font-mono text-xs text-zinc-400 uppercase tracking-wider font-bold">
+                        MAX AGENTS PER USER:
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          min="1"
+                          value={systemSettings.max_agents_per_user || '1'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSystemSettings((prev: any) => ({ ...prev, max_agents_per_user: val }));
+                          }}
+                          className="bg-black border border-zinc-900 font-mono text-xs text-white p-2 w-24 focus:outline-none focus:border-[#ef4444] transition-colors"
+                        />
+                        <button
+                          onClick={async () => {
+                            const val = parseInt(systemSettings.max_agents_per_user || '1', 10);
+                            if (isNaN(val) || val < 1) {
+                              alert('Limit must be a number greater than or equal to 1');
+                              return;
+                            }
+                            try {
+                              await adminUpdateSettings(token, { max_agents_per_user: val });
+                              alert('Hosted agents limit updated successfully!');
+                            } catch (err: any) {
+                              setError(err.message);
+                            }
+                          }}
+                          className="bg-[#ef4444] text-black font-mono text-xs font-bold px-4 py-2 hover:bg-[#ff5451] transition-all crosshair-corners"
+                        >
+                          SAVE LIMIT
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Model active switches Card */}
                 <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
                   <div className="space-y-1">
@@ -1668,6 +1823,147 @@ export default function AdminDashboard() {
                                 </button>
                               </>
                             )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {activeTab === 'daytona_keys' && (
+              <section className="grid grid-cols-12 gap-6 animate-slide-in relative">
+                {/* Create Daytona Key Card */}
+                <div className="col-span-12 lg:col-span-4 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <Plus className="w-4 h-4 text-[#ef4444]" />
+                      REGISTER_DAYTONA_KEY
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                      Register a new Daytona API credential. Keys are stored encrypted using Fernet (AES-128).
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleCreateDaytonaKey} className="space-y-4 font-mono text-xs text-zinc-300">
+                    <div className="space-y-1">
+                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider font-bold">Key Label</label>
+                      <input
+                        type="text"
+                        required
+                        value={newKeyLabel}
+                        onChange={e => setNewKeyLabel(e.target.value)}
+                        placeholder="e.g. DAYTONA-WORKER-01"
+                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white placeholder-zinc-800 uppercase focus:outline-none focus:border-[#ef4444] rounded-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider font-bold">API Base URL</label>
+                      <input
+                        type="url"
+                        required
+                        value={newKeyApiUrl}
+                        onChange={e => setNewKeyApiUrl(e.target.value)}
+                        placeholder="https://app.daytona.io/api"
+                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] rounded-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider font-bold">Daytona API Key (dtn_...)</label>
+                      <input
+                        type="password"
+                        required
+                        value={newKeyApiKey}
+                        onChange={e => setNewKeyApiKey(e.target.value)}
+                        placeholder="dtn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] rounded-none"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-[#ef4444] text-black font-bold py-3 hover:bg-[#ff5451] transition-all crosshair-corners uppercase tracking-wider rounded-none"
+                    >
+                      [+] Register Key
+                    </button>
+                  </form>
+                </div>
+
+                {/* List & Manage Daytona Keys Card */}
+                <div className="col-span-12 lg:col-span-8 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <Cpu className="w-4 h-4 text-[#ef4444]" />
+                      ACTIVE_DAYTONA_CREDENTIALS
+                    </h2>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                      Load-balances OpenClaw provisioning tasks across active credentials. Decrypted previews are shown below.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                    {loadingDaytonaKeys ? (
+                      <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center animate-pulse">[LOADING_DAYTONA_KEYS...]</p>
+                    ) : daytonaKeys.length === 0 ? (
+                      <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center">[NO_DAYTONA_KEYS_REGISTERED]</p>
+                    ) : (
+                      daytonaKeys.map((key) => (
+                        <div key={key.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-zinc-950 border border-zinc-900 hover:border-zinc-850 transition-all group">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-3">
+                              <span className="font-mono text-sm font-bold text-white uppercase tracking-wider">{key.key_label}</span>
+                              <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
+                                key.is_active
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                  : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444] red-glow-text'
+                              }`}>
+                                {key.is_active ? 'ACTIVE' : 'INACTIVE'}
+                              </span>
+                            </div>
+                            <div className="font-mono text-[10px] text-zinc-550 uppercase">
+                              Preview: <span className="text-zinc-300 font-mono font-semibold">{key.api_key_preview}</span> • Base URL: <span className="text-zinc-350 font-semibold lowercase">{key.api_url}</span>
+                            </div>
+                            <div className="font-mono text-[10px] text-zinc-550 uppercase">
+                              Active Sandboxes: <span className="text-[#ef4444] font-bold">{key.active_vms}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {testResult && testResult.id === key.id && (
+                              <span className={`font-mono text-[10px] mr-2 uppercase ${testResult.ok ? 'text-emerald-400' : 'text-[#ef4444]'}`}>
+                                {testResult.ok ? '✓ Connected' : `✗ Failed: ${testResult.message}`}
+                              </span>
+                            )}
+                            
+                            <button
+                              onClick={() => handleTestDaytonaKey(key.id)}
+                              disabled={testingKeyId === key.id}
+                              className="px-2.5 py-1.5 border border-zinc-850 hover:border-zinc-500 hover:bg-zinc-900 font-mono text-[9px] font-bold text-zinc-350 hover:text-white transition-all uppercase disabled:opacity-50"
+                            >
+                              {testingKeyId === key.id ? 'Testing...' : 'Test Connection'}
+                            </button>
+                            
+                            <button
+                              onClick={() => handleToggleDaytonaKeyActive(key.id, key.is_active)}
+                              className={`px-2.5 py-1.5 border font-mono text-[9px] font-bold transition-all uppercase ${
+                                key.is_active
+                                  ? 'border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] hover:bg-[#ef4444]/15'
+                                  : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/15'
+                              }`}
+                            >
+                              {key.is_active ? 'Deactivate' : 'Activate'}
+                            </button>
+                            
+                            <button
+                              onClick={() => handleDeleteDaytonaKey(key.id)}
+                              className="p-1.5 border border-zinc-900 bg-zinc-950 text-zinc-650 hover:text-[#ef4444] hover:border-[#ef4444]/30 hover:bg-[#ef4444]/5 transition-all"
+                              title="Delete Key"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
                       ))

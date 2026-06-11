@@ -1,0 +1,11 @@
+{
+  "name": "Hermes Agent Workspace",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.11-bookworm",
+  "features": {},
+  "containerEnv": {
+    "AKAROUTER_URL": "${localEnv:AKAROUTER_URL:https://api.akarouter.com/v1}",
+    "AKAROUTER_API_KEY": "${localEnv:AKAROUTER_API_KEY}",
+    "MODEL_NAME": "${localEnv:MODEL_NAME:akarouter-pro}"
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh"
+}

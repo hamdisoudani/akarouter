@@ -10,6 +10,8 @@ from app.core.supabase import get_supabase, _verify_supabase_jwt
 from app.api import health, models, chat
 from app.api.admin.routes import router as admin_router
 from app.api.user import router as user_router
+from app.api.hosted_agents import router as hosted_agents_router
+
 
 # Configure logging BEFORE anything else
 logging.basicConfig(
@@ -157,6 +159,8 @@ app.include_router(models.router, tags=["Models"])
 app.include_router(chat.router, tags=["Chat"])
 app.include_router(admin_router, tags=["Admin"])
 app.include_router(user_router, tags=["User"])
+app.include_router(hosted_agents_router, tags=["Hosted Agents"])
+
 
 
 @app.get("/")

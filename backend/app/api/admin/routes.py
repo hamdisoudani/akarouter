@@ -320,6 +320,7 @@ class UpdatePlanRequest(BaseModel):
 class UpdateSettingsRequest(BaseModel):
     gateway_enabled: Optional[bool] = None
     require_activation: Optional[bool] = None
+    max_agents_per_user: Optional[int] = None
 
 class CreateInvitationRequest(BaseModel):
     code: Optional[str] = None
@@ -720,6 +721,8 @@ async def get_admin_settings(authorization: Optional[str] = Header(None)):
         settings_dict["gateway_enabled"] = "true"
     if "require_activation" not in settings_dict:
         settings_dict["require_activation"] = "false"
+    if "max_agents_per_user" not in settings_dict:
+        settings_dict["max_agents_per_user"] = "1"
     return {"settings": settings_dict}
 
 
@@ -739,6 +742,13 @@ async def update_admin_settings(body: UpdateSettingsRequest, authorization: Opti
         val_str = "true" if body.require_activation else "false"
         supabase.table("system_settings").upsert({"key": "require_activation", "value": val_str}).execute()
         response["require_activation"] = body.require_activation
+        
+    if body.max_agents_per_user is not None:
+        if body.max_agents_per_user < 1:
+            raise HTTPException(status_code=400, detail="Max agents limit must be at least 1")
+        val_str = str(body.max_agents_per_user)
+        supabase.table("system_settings").upsert({"key": "max_agents_per_user", "value": val_str}).execute()
+        response["max_agents_per_user"] = body.max_agents_per_user
     
     # Evict cache immediately
     from app.core.cache import evict_system_settings_cache
@@ -885,3 +895,174 @@ async def admin_update_model(alias: str, body: UpdateModelRequest, authorization
     evict_model_active_cache(alias)
     
     return {"ok": True, "alias": alias, "updates": updates}
+
+
+# ---------------------------------------------------------------------------
+# Daytona API Keys Management
+# ---------------------------------------------------------------------------
+
+class CreateDaytonaKeyRequest(BaseModel):
+    key_label: str
+    api_key: str
+    api_url: str = "https://app.daytona.io/api"
+
+class UpdateDaytonaKeyRequest(BaseModel):
+    key_label: Optional[str] = None
+    is_active: Optional[bool] = None
+    api_url: Optional[str] = None
+
+def _encrypt_daytona_key(raw_key: str) -> str:
+    from cryptography.fernet import Fernet
+    secret = settings.agent_key_encryption_secret
+    f = Fernet(secret.encode())
+    return f.encrypt(raw_key.encode()).decode()
+
+def _decrypt_daytona_key(encrypted_key: str) -> str:
+    from cryptography.fernet import Fernet
+    secret = settings.agent_key_encryption_secret
+    f = Fernet(secret.encode())
+    return f.decrypt(encrypted_key.encode()).decode()
+
+@router.get("/daytona-keys")
+async def admin_list_daytona_keys(authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    # 1. Fetch keys
+    keys_res = supabase.table("daytona_keys").select("*").order("created_at", desc=True).execute()
+    keys = keys_res.data or []
+    
+    # 2. Count active sandboxes per key
+    try:
+        agents_res = supabase.table("hosted_agents").select("daytona_key_id, status").execute()
+        agents = agents_res.data or []
+    except Exception as e:
+        logger.error(f"Failed to query hosted_agents for load count: {e}")
+        agents = []
+        
+    counts = {}
+    for agent in agents:
+        kid = agent.get("daytona_key_id")
+        status = agent.get("status")
+        if kid and status in ("running", "provisioning", "installing"):
+            counts[kid] = counts.get(kid, 0) + 1
+            
+    # Mask the API key, but decrypt first to construct a preview
+    enriched_keys = []
+    for key in keys:
+        try:
+            decrypted = _decrypt_daytona_key(key["api_key_encrypted"])
+            preview = decrypted[:12] + "..." if len(decrypted) > 12 else decrypted
+        except Exception:
+            preview = "Error Decrypting"
+            
+        enriched_keys.append({
+            "id": key["id"],
+            "key_label": key["key_label"],
+            "api_url": key["api_url"],
+            "is_active": key["is_active"],
+            "created_at": key["created_at"],
+            "updated_at": key["updated_at"],
+            "api_key_preview": preview,
+            "active_vms": counts.get(key["id"], 0)
+        })
+        
+    return {"keys": enriched_keys}
+
+@router.post("/daytona-keys")
+async def admin_create_daytona_key(body: CreateDaytonaKeyRequest, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    # Check duplicate label
+    chk = supabase.table("daytona_keys").select("id").eq("key_label", body.key_label).execute()
+    if chk.data:
+        raise HTTPException(status_code=400, detail=f"Daytona key with label '{body.key_label}' already exists")
+        
+    encrypted_key = _encrypt_daytona_key(body.api_key.strip())
+    
+    res = supabase.table("daytona_keys").insert({
+        "key_label": body.key_label.strip(),
+        "api_key_encrypted": encrypted_key,
+        "api_url": body.api_url.strip(),
+        "is_active": True
+    }).execute()
+    
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create Daytona key")
+        
+    return {"ok": True, "key": res.data[0]}
+
+@router.patch("/daytona-keys/{key_id}")
+async def admin_update_daytona_key(key_id: str, body: UpdateDaytonaKeyRequest, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    # Check exists
+    chk = supabase.table("daytona_keys").select("id").eq("id", key_id).execute()
+    if not chk.data:
+        raise HTTPException(status_code=404, detail="Daytona key not found")
+        
+    updates = {}
+    if body.key_label is not None:
+        updates["key_label"] = body.key_label.strip()
+    if body.is_active is not None:
+        updates["is_active"] = body.is_active
+    if body.api_url is not None:
+        updates["api_url"] = body.api_url.strip()
+        
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+        
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    res = supabase.table("daytona_keys").update(updates).eq("id", key_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to update Daytona key")
+        
+    return {"ok": True, "key": res.data[0]}
+
+@router.delete("/daytona-keys/{key_id}")
+async def admin_delete_daytona_key(key_id: str, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    # Check exists
+    chk = supabase.table("daytona_keys").select("id").eq("id", key_id).execute()
+    if not chk.data:
+        raise HTTPException(status_code=404, detail="Daytona key not found")
+        
+    supabase.table("daytona_keys").delete().eq("id", key_id).execute()
+    return {"ok": True}
+
+@router.post("/daytona-keys/{key_id}/test")
+async def admin_test_daytona_key(key_id: str, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    
+    # Fetch key details
+    key_res = supabase.table("daytona_keys").select("*").eq("id", key_id).execute()
+    if not key_res.data:
+        raise HTTPException(status_code=404, detail="Daytona key not found")
+        
+    key = key_res.data[0]
+    
+    try:
+        # Decrypt raw API key
+        decrypted_key = _decrypt_daytona_key(key["api_key_encrypted"])
+        
+        # Test connection using daytona core client
+        from app.core.daytona import get_daytona_client
+        client = get_daytona_client(decrypted_key, key["api_url"])
+        
+        # List sandboxes to check connection
+        client.list()
+            
+        return {"ok": True, "status": "connected", "message": "Successfully connected to Daytona API."}
+    except Exception as e:
+        logger.error(f"Daytona test connection failed for key {key_id}: {e}", exc_info=True)
+        return {"ok": False, "status": "failed", "message": str(e)}

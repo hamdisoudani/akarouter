@@ -337,7 +337,7 @@ export async function adminGetSettings(token: string): Promise<{ settings: Recor
   return res.json()
 }
 
-export async function adminUpdateSettings(token: string, data: { gateway_enabled?: boolean; require_activation?: boolean }): Promise<{ ok: boolean; gateway_enabled?: boolean; require_activation?: boolean }> {
+export async function adminUpdateSettings(token: string, data: { gateway_enabled?: boolean; require_activation?: boolean; max_agents_per_user?: number }): Promise<{ ok: boolean; gateway_enabled?: boolean; require_activation?: boolean; max_agents_per_user?: number }> {
   const res = await fetch(`${API_BASE}/admin/settings`, {
     method: 'PATCH',
     headers: {
@@ -471,3 +471,188 @@ export async function adminDeleteInvitation(token: string, id: string): Promise<
   if (!res.ok) throw new Error('Failed to delete invitation')
   return res.json()
 }
+
+// ---------------------------------------------------------------------------
+// Hosted Agents Lifecycle
+// ---------------------------------------------------------------------------
+
+export interface HostedAgent {
+  id: string
+  agent_name: string
+  sandbox_id: string | null
+  status: 'provisioning' | 'installing' | 'running' | 'stopped' | 'failed' | 'destroying'
+  model_name: string
+  telegram_enabled: boolean
+  telegram_allow_from: string | null
+  discord_enabled: boolean
+  error_message: string | null
+  created_at: string
+  updated_at: string
+  daytona_key_id?: string | null
+  progress_step?: number
+  progress_message?: string
+}
+
+export async function getHostedAgents(token: string): Promise<{ agents: HostedAgent[] }> {
+  const res = await fetch(`${API_BASE}/user/hosted-agents`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch hosted agents')
+  return res.json()
+}
+
+export async function deployHostedAgent(
+  token: string,
+  agentName: string,
+  modelName: string = 'akarouter-pro'
+): Promise<{ ok: boolean; agent_id: string; status: string; message: string }> {
+  const res = await fetch(`${API_BASE}/user/hosted-agents`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ agent_name: agentName, model_name: modelName }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to deploy hosted agent')
+  }
+  return res.json()
+}
+
+export async function configureAgentChannels(
+  token: string,
+  agentId: string,
+  channels: {
+    telegram_enabled?: boolean
+    telegram_bot_token?: string
+    telegram_allow_from?: string
+    discord_enabled?: boolean
+    discord_bot_token?: string
+    discord_guilds?: Record<string, any>
+  }
+): Promise<{ ok: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/user/hosted-agents/${agentId}/channels`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(channels),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to configure agent channels')
+  }
+  return res.json()
+}
+
+export async function destroyHostedAgent(token: string, agentId: string): Promise<{ ok: boolean; message: string }> {
+  const res = await fetch(`${API_BASE}/user/hosted-agents/${agentId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to destroy hosted agent')
+  }
+  return res.json()
+}
+
+export async function getAgentLogs(token: string, agentId: string, lines: number = 100): Promise<{ logs: string }> {
+  const res = await fetch(`${API_BASE}/user/hosted-agents/${agentId}/logs?lines=${lines}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch agent logs')
+  return res.json()
+}
+
+// ---------------------------------------------------------------------------
+// Daytona API Keys Management (Admin Only)
+// ---------------------------------------------------------------------------
+
+export interface DaytonaKey {
+  id: string
+  key_label: string
+  api_url: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  api_key_preview: string
+  active_vms: number
+}
+
+export async function adminGetDaytonaKeys(token: string): Promise<{ keys: DaytonaKey[] }> {
+  const res = await fetch(`${API_BASE}/admin/daytona-keys`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch Daytona keys')
+  return res.json()
+}
+
+export async function adminCreateDaytonaKey(
+  token: string,
+  keyLabel: string,
+  apiKey: string,
+  apiUrl: string = 'https://app.daytona.io/api'
+): Promise<{ ok: boolean; key: DaytonaKey }> {
+  const res = await fetch(`${API_BASE}/admin/daytona-keys`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ key_label: keyLabel, api_key: apiKey, api_url: apiUrl }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to create Daytona key')
+  }
+  return res.json()
+}
+
+export async function adminUpdateDaytonaKey(
+  token: string,
+  keyId: string,
+  updates: { key_label?: string; api_url?: string; is_active?: boolean }
+): Promise<{ ok: boolean; key: DaytonaKey }> {
+  const res = await fetch(`${API_BASE}/admin/daytona-keys/${keyId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(updates),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to update Daytona key')
+  }
+  return res.json()
+}
+
+export async function adminDeleteDaytonaKey(token: string, keyId: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API_BASE}/admin/daytona-keys/${keyId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to delete Daytona key')
+  }
+  return res.json()
+}
+
+export async function adminTestDaytonaKey(token: string, keyId: string): Promise<{ ok: boolean; status: string; message: string }> {
+  const res = await fetch(`${API_BASE}/admin/daytona-keys/${keyId}/test`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to test Daytona key')
+  }
+  return res.json()
+}
+

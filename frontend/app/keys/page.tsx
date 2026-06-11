@@ -23,8 +23,10 @@ import {
   Layers,
   Menu,
   X,
-  FileText
+  FileText,
+  Cpu
 } from 'lucide-react'
+
 
 export default function ApiKeysPage() {
   const router = useRouter()
@@ -174,12 +176,20 @@ response = client.chat.completions.create(
             <span className="tracking-widest font-mono uppercase text-[11px]">Usage</span>
           </Link>
 
+          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/agents">
+            <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
+              <Cpu className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
+            </span>
+            <span className="tracking-widest font-mono uppercase text-[11px]">Hosted Agents</span>
+          </Link>
+
           <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/docs">
             <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
               <FileText className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
             </span>
             <span className="tracking-widest font-mono uppercase text-[11px]">Docs</span>
           </Link>
+
 
           {user?.role === 'admin' && (
             <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/admin">
@@ -251,6 +261,17 @@ response = client.chat.completions.create(
                 <Layers className="w-3.5 h-3.5 text-zinc-450" />
               </span>
               <span className="tracking-widest font-mono uppercase text-xs">Usage</span>
+            </Link>
+
+            <Link 
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+              href="/agents"
+            >
+              <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                <Cpu className="w-3.5 h-3.5 text-zinc-450" />
+              </span>
+              <span className="tracking-widest font-mono uppercase text-xs">Hosted Agents</span>
             </Link>
 
             <Link 
