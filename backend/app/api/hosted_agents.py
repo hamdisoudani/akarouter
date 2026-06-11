@@ -86,22 +86,27 @@ def deploy_agent_background(
     gateway_url: str,
     daytona_key_id: Optional[str] = None,
     daytona_api_key: Optional[str] = None,
-    daytona_api_url: Optional[str] = None
+    daytona_api_url: Optional[str] = None,
+    cpu: Optional[int] = None,
+    memory: Optional[int] = None
 ):
     """Background task to provision Daytona VM, install OpenClaw, write config, and start gateway with step telemetry."""
     supabase = get_supabase()
     
     try:
+        target_cpu = cpu or settings.daytona_sandbox_cpu
+        target_ram = memory or settings.daytona_sandbox_memory
+        
         # 1. Update status to 'provisioning', Step 1: Provisioning VM
         supabase.table("hosted_agents").update({
             "status": "provisioning",
             "progress_step": 1,
-            "progress_message": "Provisioning VM sandbox on Daytona (1 CPU, 1GB RAM)...",
+            "progress_message": f"Provisioning VM sandbox on Daytona ({target_cpu} CPU, {target_ram}GB RAM)...",
             "updated_at": datetime.now(timezone.utc).isoformat()
         }).eq("id", agent_id).execute()
         
         # 2. Provision sandbox in Daytona
-        sandbox_id = create_sandbox(agent_name, api_key=daytona_api_key, api_url=daytona_api_url)
+        sandbox_id = create_sandbox(agent_name, cpu=cpu, memory=memory, api_key=daytona_api_key, api_url=daytona_api_url)
         
         # 3. Update status to 'installing', Step 2: Installing OpenClaw
         supabase.table("hosted_agents").update({
@@ -216,11 +221,11 @@ async def list_agents(request: Request):
     supabase = get_supabase()
     
     result = supabase.table("hosted_agents").select(
-        "id, agent_name, sandbox_id, status, model_name, telegram_enabled, telegram_allow_from, discord_enabled, error_message, created_at, updated_at"
+        "id, agent_name, sandbox_id, status, model_name, telegram_enabled, telegram_allow_from, discord_enabled, error_message, created_at, updated_at, agent_cpu, agent_ram"
     ).eq("account_id", account_id).execute()
     
     return {"agents": result.data or []}
-
+ 
 @router.post("")
 async def deploy_agent(
     request: Request,
@@ -232,12 +237,21 @@ async def deploy_agent(
     supabase = get_supabase()
     
     # 1. Fetch user account to ensure validity
-    acc_res = supabase.table("accounts").select("tier").eq("id", account_id).execute()
+    acc_res = supabase.table("accounts").select("tier, openclaw_enabled, max_agents, agent_cpu, agent_ram").eq("id", account_id).execute()
     if not acc_res.data:
         raise HTTPException(status_code=404, detail="User account not found")
     
-    # Retrieve max agents limit from system settings configuration
-    limit = get_max_agents_limit()
+    account_data = acc_res.data[0]
+    
+    # Check if Hosted Agents feature is enabled for the plan
+    if not account_data.get("openclaw_enabled", False):
+        raise HTTPException(
+            status_code=403,
+            detail="Hosted agents are not enabled on your plan. Please upgrade to a higher tier."
+        )
+    
+    # Retrieve max agents limit from plan/account settings
+    limit = account_data.get("max_agents", 0)
         
     # Check current active/provisioning agents count
     agents_res = supabase.table("hosted_agents").select("id").eq("account_id", account_id).execute()
@@ -246,7 +260,7 @@ async def deploy_agent(
     if existing_count >= limit:
         raise HTTPException(
             status_code=403,
-            detail=f"Hosted agent limit reached. The current configuration allows up to {limit} agent(s) per user."
+            detail=f"Hosted agent limit reached. Your subscription allows up to {limit} agent(s) per user."
         )
         
     # 2. Resolve or generate API key for this agent
@@ -338,7 +352,9 @@ async def deploy_agent(
         "api_key_id": api_key_id,
         "api_key_raw_encrypted": encrypted_raw_key,
         "model_name": body.model_name,
-        "daytona_key_id": daytona_key_id
+        "daytona_key_id": daytona_key_id,
+        "agent_cpu": account_data.get("agent_cpu", 1),
+        "agent_ram": account_data.get("agent_ram", 1)
     }).execute()
     
     if not agent_res.data:
@@ -367,7 +383,9 @@ async def deploy_agent(
         gateway_url=gateway_url,
         daytona_key_id=daytona_key_id,
         daytona_api_key=selected_api_key,
-        daytona_api_url=selected_api_url
+        daytona_api_url=selected_api_url,
+        cpu=account_data.get("agent_cpu", 1),
+        memory=account_data.get("agent_ram", 1)
     )
     
     return {

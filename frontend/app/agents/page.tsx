@@ -619,6 +619,48 @@ export default function HostedAgentsPage() {
           {/* SKELETON SUSPENSE LOADER (Initial fetch loader) */}
           {loading ? (
             <HostedAgentsSkeleton />
+          ) : user && !user.openclaw_enabled ? (
+            <div className="col-span-12 max-w-2xl mx-auto my-12 tech-border bg-[#0e0e10]/90 p-8 border-t-2 border-t-[#ef4444] crosshair-corners space-y-6 text-center animate-fade-in red-glow">
+              <div className="w-16 h-16 border border-[#ef4444]/40 bg-[#ef4444]/5 flex items-center justify-center red-glow mx-auto mb-6 rounded-sm">
+                <Shield className="w-8 h-8 text-[#ef4444]" />
+              </div>
+              
+              <div className="space-y-2">
+                <h2 className="font-mono text-base text-white tracking-[0.2em] uppercase font-bold">
+                  Hosted Agents Feature Locked
+                </h2>
+                <p className="text-[10px] font-mono text-zinc-550 uppercase">
+                  Subscription Tier: <span className="text-[#ef4444] font-bold">{user.tier || 'FREE'}</span>
+                </p>
+              </div>
+
+              <p className="text-xs font-mono text-zinc-400 max-w-md mx-auto leading-relaxed uppercase">
+                Daytona VM sandbox provisioning, autonomous agent hosting, and platform channel integrations are restricted to upgraded subscribers. Upgrading unlocks dedicated virtualization resources, custom VM specs, and multiple agent instances.
+              </p>
+
+              <div className="pt-4 border-t border-zinc-900 max-w-md mx-auto space-y-4">
+                <div className="grid grid-cols-2 gap-4 font-mono text-[10px]">
+                  <div className="border border-zinc-900 bg-[#050507] p-3 rounded-sm text-left">
+                    <span className="text-zinc-550 block mb-1">PRO FEATURES</span>
+                    <span className="text-white font-bold block">1 ACTIVE VM AGENT</span>
+                    <span className="text-zinc-400">1 CPU · 2GB RAM</span>
+                  </div>
+                  <div className="border border-zinc-900 bg-[#050507] p-3 rounded-sm text-left">
+                    <span className="text-zinc-550 block mb-1">ENTERPRISE FEATURES</span>
+                    <span className="text-white font-bold block">5 ACTIVE VM AGENTS</span>
+                    <span className="text-zinc-400">2 CPU · 4GB RAM</span>
+                  </div>
+                </div>
+
+                <Link
+                  href="/usage"
+                  className="w-full bg-[#ef4444] text-white font-mono text-xs font-bold py-3 hover:bg-[#d83f3f] transition-all flex items-center justify-center gap-2 red-glow rounded-sm border border-[#ef4444]/40 flex items-center justify-center"
+                >
+                  <Sparkles className="w-4 h-4 text-white" />
+                  <span>UPGRADE ACCOUNT SUBSCRIPTION</span>
+                </Link>
+              </div>
+            </div>
           ) : (
             <div className="grid grid-cols-12 gap-6">
               
@@ -661,7 +703,7 @@ export default function HostedAgentsPage() {
                         Deploy Hosted OpenClaw Agent
                       </h2>
                       <p className="text-[10px] font-mono text-zinc-550 uppercase">
-                        Provision a dedicated Daytona sandbox (1 CPU, 1GB RAM, 3GB Disk) to host your autonomous model gateway.
+                        Provision a dedicated Daytona sandbox ({user?.agent_cpu || 1} CPU, {user?.agent_ram || 1}GB RAM, 3GB Disk) to host your autonomous model gateway.
                       </p>
                     </div>
 
@@ -1020,7 +1062,7 @@ export default function HostedAgentsPage() {
 
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-mono border border-zinc-900 bg-[#050507] px-3 py-1.5 text-zinc-500 rounded-sm">
-                              1 CPU · 1GB RAM · 3GB Disk
+                              {agent.agent_cpu || 1} CPU · {agent.agent_ram || 1}GB RAM · 3GB Disk
                             </span>
                             <span className="text-[10px] font-mono border border-zinc-900 bg-[#050507] px-3 py-1.5 text-zinc-400 uppercase font-bold rounded-sm">
                               {agent.model_name}

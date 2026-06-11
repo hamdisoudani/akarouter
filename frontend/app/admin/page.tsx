@@ -212,11 +212,19 @@ export default function AdminDashboard() {
   const [newPlanRpm, setNewPlanRpm] = useState(60)
   const [newPlan5h, setNewPlan5h] = useState(1.0)
   const [newPlan7d, setNewPlan7d] = useState(5.0)
+  const [newPlanOpenclawEnabled, setNewPlanOpenclawEnabled] = useState(false)
+  const [newPlanMaxAgents, setNewPlanMaxAgents] = useState(0)
+  const [newPlanAgentCpu, setNewPlanAgentCpu] = useState(1)
+  const [newPlanAgentRam, setNewPlanAgentRam] = useState(1)
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null)
   const [editingPlanLimit, setEditingPlanLimit] = useState<number>(10.0)
   const [editingPlanRpm, setEditingPlanRpm] = useState<number>(60)
   const [editingPlan5h, setEditingPlan5h] = useState<number>(1.0)
   const [editingPlan7d, setEditingPlan7d] = useState<number>(5.0)
+  const [editingPlanOpenclawEnabled, setEditingPlanOpenclawEnabled] = useState(false)
+  const [editingPlanMaxAgents, setEditingPlanMaxAgents] = useState(0)
+  const [editingPlanAgentCpu, setEditingPlanAgentCpu] = useState(1)
+  const [editingPlanAgentRam, setEditingPlanAgentRam] = useState(1)
 
   // Users state
   const [accounts, setAccounts] = useState<any[]>([])
@@ -229,6 +237,10 @@ export default function AdminDashboard() {
   const [editingRpmLimit, setEditingRpmLimit] = useState<number>(60)
   const [editingTokens5hLimit, setEditingTokens5hLimit] = useState<number>(1.0)
   const [editingTokens7dLimit, setEditingTokens7dLimit] = useState<number>(5.0)
+  const [editingAccountOpenclawEnabled, setEditingAccountOpenclawEnabled] = useState(false)
+  const [editingAccountMaxAgents, setEditingAccountMaxAgents] = useState(0)
+  const [editingAccountAgentCpu, setEditingAccountAgentCpu] = useState(1)
+  const [editingAccountAgentRam, setEditingAccountAgentRam] = useState(1)
   const [editingRole, setEditingRole] = useState('user')
   const [editingStatus, setEditingStatus] = useState('active')
   const [editingSuspendedReason, setEditingSuspendedReason] = useState('')
@@ -487,12 +499,27 @@ export default function AdminDashboard() {
     e.preventDefault()
     if (!newPlanTier) return
     try {
-      await adminCreatePlan(token, newPlanTier.toLowerCase(), newPlanLimit, newPlanRpm, newPlan5h, newPlan7d)
+      await adminCreatePlan(
+        token, 
+        newPlanTier.toLowerCase(), 
+        newPlanLimit, 
+        newPlanRpm, 
+        newPlan5h, 
+        newPlan7d,
+        newPlanOpenclawEnabled,
+        newPlanMaxAgents,
+        newPlanAgentCpu,
+        newPlanAgentRam
+      )
       setNewPlanTier('')
       setNewPlanLimit(10.0)
       setNewPlanRpm(60)
       setNewPlan5h(1.0)
       setNewPlan7d(5.0)
+      setNewPlanOpenclawEnabled(false)
+      setNewPlanMaxAgents(0)
+      setNewPlanAgentCpu(1)
+      setNewPlanAgentRam(1)
       await loadPlans()
     } catch (err: any) {
       setError(err.message)
@@ -506,6 +533,10 @@ export default function AdminDashboard() {
         rpm_limit: editingPlanRpm,
         tokens_5h_limit: editingPlan5h,
         tokens_7d_limit: editingPlan7d,
+        openclaw_enabled: editingPlanOpenclawEnabled,
+        max_agents: editingPlanMaxAgents,
+        agent_cpu: editingPlanAgentCpu,
+        agent_ram: editingPlanAgentRam,
       })
       setEditingPlanId(null)
       await loadPlans()
@@ -536,6 +567,10 @@ export default function AdminDashboard() {
     setEditingRpmLimit(acc.rpm_limit ?? 60)
     setEditingTokens5hLimit(acc.tokens_5h_limit ?? 1.0)
     setEditingTokens7dLimit(acc.tokens_7d_limit ?? 5.0)
+    setEditingAccountOpenclawEnabled(acc.openclaw_enabled ?? false)
+    setEditingAccountMaxAgents(acc.max_agents ?? 0)
+    setEditingAccountAgentCpu(acc.agent_cpu ?? 1)
+    setEditingAccountAgentRam(acc.agent_ram ?? 1)
   }
 
   const handleUpdateAccount = async (e: React.FormEvent) => {
@@ -553,6 +588,10 @@ export default function AdminDashboard() {
         rpm_limit: Number(editingRpmLimit),
         tokens_5h_limit: Number(editingTokens5hLimit),
         tokens_7d_limit: Number(editingTokens7dLimit),
+        openclaw_enabled: editingAccountOpenclawEnabled,
+        max_agents: Number(editingAccountMaxAgents),
+        agent_cpu: Number(editingAccountAgentCpu),
+        agent_ram: Number(editingAccountAgentRam),
       })
       setEditingAccountId(null)
       await loadAccounts(searchQuery)
@@ -572,6 +611,10 @@ export default function AdminDashboard() {
       setEditingRpmLimit(matchedPlan.rpm_limit ?? 60)
       setEditingTokens5hLimit(matchedPlan.tokens_5h_limit ?? 1.0)
       setEditingTokens7dLimit(matchedPlan.tokens_7d_limit ?? 5.0)
+      setEditingAccountOpenclawEnabled(matchedPlan.openclaw_enabled ?? false)
+      setEditingAccountMaxAgents(matchedPlan.max_agents ?? 0)
+      setEditingAccountAgentCpu(matchedPlan.agent_cpu ?? 1)
+      setEditingAccountAgentRam(matchedPlan.agent_ram ?? 1)
     }
   }
 
@@ -1322,6 +1365,10 @@ export default function AdminDashboard() {
                             <th className="p-4">RPM Limit</th>
                             <th className="p-4">5H Budget</th>
                             <th className="p-4">7D Budget</th>
+                            <th className="p-4">OpenClaw</th>
+                            <th className="p-4">Max Agents</th>
+                            <th className="p-4">CPU</th>
+                            <th className="p-4">RAM</th>
                             <th className="p-4 text-right">Action</th>
                           </tr>
                         </thead>
@@ -1366,6 +1413,38 @@ export default function AdminDashboard() {
                                       className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-16 text-xs focus:outline-none focus:border-[#ef4444]"
                                     />
                                   </td>
+                                  <td className="p-4 text-zinc-300">
+                                    <input
+                                      type="checkbox"
+                                      checked={editingPlanOpenclawEnabled}
+                                      onChange={e => setEditingPlanOpenclawEnabled(e.target.checked)}
+                                      className="w-4 h-4 rounded border-zinc-800 bg-[#050507] text-[#ef4444] accent-[#ef4444]"
+                                    />
+                                  </td>
+                                  <td className="p-4 text-zinc-300">
+                                    <input
+                                      type="number"
+                                      value={editingPlanMaxAgents}
+                                      onChange={e => setEditingPlanMaxAgents(Number(e.target.value))}
+                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-14 text-xs focus:outline-none focus:border-[#ef4444]"
+                                    />
+                                  </td>
+                                  <td className="p-4 text-zinc-300">
+                                    <input
+                                      type="number"
+                                      value={editingPlanAgentCpu}
+                                      onChange={e => setEditingPlanAgentCpu(Number(e.target.value))}
+                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-12 text-xs focus:outline-none focus:border-[#ef4444]"
+                                    />
+                                  </td>
+                                  <td className="p-4 text-zinc-300">
+                                    <input
+                                      type="number"
+                                      value={editingPlanAgentRam}
+                                      onChange={e => setEditingPlanAgentRam(Number(e.target.value))}
+                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-12 text-xs focus:outline-none focus:border-[#ef4444]"
+                                    />
+                                  </td>
                                 </>
                               ) : (
                                 <>
@@ -1375,6 +1454,18 @@ export default function AdminDashboard() {
                                   <td className="p-4 text-zinc-300">{p.rpm_limit ?? 60} RPM</td>
                                   <td className="p-4 text-zinc-300">${(p.tokens_5h_limit ?? 1.0).toFixed(2)}</td>
                                   <td className="p-4 text-zinc-300">${(p.tokens_7d_limit ?? 5.0).toFixed(2)}</td>
+                                  <td className="p-4 text-zinc-300">
+                                    <span className={`px-2 py-0.5 text-[9px] font-mono border rounded-sm font-bold ${
+                                      p.openclaw_enabled 
+                                        ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400' 
+                                        : 'border-zinc-850 bg-zinc-900/40 text-zinc-500'
+                                    }`}>
+                                      {p.openclaw_enabled ? 'ENABLED' : 'DISABLED'}
+                                    </span>
+                                  </td>
+                                  <td className="p-4 text-zinc-300 font-bold">{p.max_agents ?? 0}</td>
+                                  <td className="p-4 text-zinc-300">{p.agent_cpu ?? 1} CPU</td>
+                                  <td className="p-4 text-zinc-300">{p.agent_ram ?? 1} GB</td>
                                 </>
                               )}
                               <td className="p-4 text-right space-x-2">
@@ -1391,6 +1482,10 @@ export default function AdminDashboard() {
                                       setEditingPlanRpm(p.rpm_limit ?? 60);
                                       setEditingPlan5h(p.tokens_5h_limit ?? 1.0);
                                       setEditingPlan7d(p.tokens_7d_limit ?? 5.0);
+                                      setEditingPlanOpenclawEnabled(p.openclaw_enabled ?? false);
+                                      setEditingPlanMaxAgents(p.max_agents ?? 0);
+                                      setEditingPlanAgentCpu(p.agent_cpu ?? 1);
+                                      setEditingPlanAgentRam(p.agent_ram ?? 1);
                                     }}
                                     className="inline-flex items-center gap-1 px-2.5 py-1 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-550 transition-all text-[10px]"
                                   >
@@ -1485,6 +1580,59 @@ export default function AdminDashboard() {
                           required
                         />
                       </div>
+                    </div>
+
+                    {/* OpenClaw Feature Settings */}
+                    <div className="border border-zinc-900 bg-[#050507]/40 p-4 rounded-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Enable Hosted OpenClaw</label>
+                        <input 
+                          type="checkbox" 
+                          checked={newPlanOpenclawEnabled}
+                          onChange={(e) => setNewPlanOpenclawEnabled(e.target.checked)}
+                          className="w-4 h-4 rounded border-zinc-800 bg-[#050507] text-[#ef4444] accent-[#ef4444] cursor-pointer"
+                        />
+                      </div>
+                      
+                      {newPlanOpenclawEnabled && (
+                        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-zinc-900/60 animate-fade-in">
+                          <div className="space-y-1">
+                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Max Agents</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={newPlanMaxAgents}
+                              onChange={e => setNewPlanMaxAgents(Math.max(1, Number(e.target.value)))}
+                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              required
+                            />
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">CPU Cores</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={newPlanAgentCpu}
+                              onChange={e => setNewPlanAgentCpu(Math.max(1, Number(e.target.value)))}
+                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              required
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">RAM (GB)</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={newPlanAgentRam}
+                              onChange={e => setNewPlanAgentRam(Math.max(1, Number(e.target.value)))}
+                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              required
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <button
@@ -2145,6 +2293,59 @@ export default function AdminDashboard() {
                           className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
                         />
                       </div>
+                    </div>
+
+                    {/* OpenClaw User Settings Override */}
+                    <div className="border border-zinc-900 bg-[#050507]/40 p-4 rounded-sm space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Enable Hosted OpenClaw</label>
+                        <input 
+                          type="checkbox" 
+                          checked={editingAccountOpenclawEnabled}
+                          onChange={(e) => setEditingAccountOpenclawEnabled(e.target.checked)}
+                          className="w-4 h-4 rounded border-zinc-800 bg-[#050507] text-[#ef4444] accent-[#ef4444] cursor-pointer"
+                        />
+                      </div>
+                      
+                      {editingAccountOpenclawEnabled && (
+                        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-zinc-900/60 animate-fade-in">
+                          <div className="space-y-1">
+                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Max Agents</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={editingAccountMaxAgents}
+                              onChange={e => setEditingAccountMaxAgents(Number(e.target.value))}
+                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              required
+                            />
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">CPU Cores</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={editingAccountAgentCpu}
+                              onChange={e => setEditingAccountAgentCpu(Number(e.target.value))}
+                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              required
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">RAM (GB)</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={editingAccountAgentRam}
+                              onChange={e => setEditingAccountAgentRam(Number(e.target.value))}
+                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              required
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

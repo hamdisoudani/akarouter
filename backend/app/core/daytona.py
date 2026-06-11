@@ -19,12 +19,20 @@ def get_daytona_client(api_key: Optional[str] = None, api_url: Optional[str] = N
     )
     return Daytona(config)
 
-def create_sandbox(agent_name: str, api_key: Optional[str] = None, api_url: Optional[str] = None) -> str:
+def create_sandbox(
+    agent_name: str,
+    cpu: Optional[int] = None,
+    memory: Optional[int] = None,
+    api_key: Optional[str] = None,
+    api_url: Optional[str] = None
+) -> str:
     """
     Create a new Daytona sandbox for OpenClaw.
     Returns the sandbox ID.
     """
-    logger.info(f"Creating Daytona sandbox for agent: {agent_name}")
+    target_cpu = cpu or settings.daytona_sandbox_cpu
+    target_ram = memory or settings.daytona_sandbox_memory
+    logger.info(f"Creating Daytona sandbox for agent: {agent_name} ({target_cpu} CPU, {target_ram}GB RAM)")
     client = get_daytona_client(api_key, api_url)
     
     # We use a standard javascript/node image as base
@@ -32,8 +40,8 @@ def create_sandbox(agent_name: str, api_key: Optional[str] = None, api_url: Opti
     
     # Define resource limits
     resources = Resources(
-        cpu=settings.daytona_sandbox_cpu,
-        memory=settings.daytona_sandbox_memory,
+        cpu=target_cpu,
+        memory=target_ram,
         disk=settings.daytona_sandbox_disk
     )
     

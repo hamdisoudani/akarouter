@@ -302,6 +302,10 @@ class UpdateAccountRequest(BaseModel):
     rpm_limit: Optional[int] = None
     tokens_5h_limit: Optional[float] = None
     tokens_7d_limit: Optional[float] = None
+    openclaw_enabled: Optional[bool] = None
+    max_agents: Optional[int] = None
+    agent_cpu: Optional[int] = None
+    agent_ram: Optional[int] = None
 
 class CreatePlanRequest(BaseModel):
     tier: str
@@ -309,6 +313,10 @@ class CreatePlanRequest(BaseModel):
     rpm_limit: Optional[int] = 60
     tokens_5h_limit: Optional[float] = 1.0
     tokens_7d_limit: Optional[float] = 5.0
+    openclaw_enabled: Optional[bool] = False
+    max_agents: Optional[int] = 0
+    agent_cpu: Optional[int] = 1
+    agent_ram: Optional[int] = 1
 
 class UpdatePlanRequest(BaseModel):
     tier: Optional[str] = None
@@ -316,6 +324,10 @@ class UpdatePlanRequest(BaseModel):
     rpm_limit: Optional[int] = None
     tokens_5h_limit: Optional[float] = None
     tokens_7d_limit: Optional[float] = None
+    openclaw_enabled: Optional[bool] = None
+    max_agents: Optional[int] = None
+    agent_cpu: Optional[int] = None
+    agent_ram: Optional[int] = None
 
 class UpdateSettingsRequest(BaseModel):
     gateway_enabled: Optional[bool] = None
@@ -511,6 +523,14 @@ async def update_account(account_id: str, body: UpdateAccountRequest, authorizat
         updates["tokens_5h_limit"] = body.tokens_5h_limit
     if body.tokens_7d_limit is not None:
         updates["tokens_7d_limit"] = body.tokens_7d_limit
+    if body.openclaw_enabled is not None:
+        updates["openclaw_enabled"] = body.openclaw_enabled
+    if body.max_agents is not None:
+        updates["max_agents"] = body.max_agents
+    if body.agent_cpu is not None:
+        updates["agent_cpu"] = body.agent_cpu
+    if body.agent_ram is not None:
+        updates["agent_ram"] = body.agent_ram
         
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -531,11 +551,15 @@ async def update_account_tier(account_id: str, tier: str, authorization: Optiona
         raise HTTPException(status_code=401, detail="Admin access required")
     supabase = get_supabase()
     
-    plan_res = supabase.table("plan_presets").select("monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit").eq("tier", tier).execute()
+    plan_res = supabase.table("plan_presets").select("monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, openclaw_enabled, max_agents, agent_cpu, agent_ram").eq("tier", tier).execute()
     limit = 1000
     rpm_limit = 60
     tokens_5h_limit = 1.0
     tokens_7d_limit = 5.0
+    openclaw_enabled = False
+    max_agents = 0
+    agent_cpu = 1
+    agent_ram = 1
     
     if plan_res.data:
         plan = plan_res.data[0]
@@ -543,6 +567,10 @@ async def update_account_tier(account_id: str, tier: str, authorization: Optiona
         rpm_limit = plan.get("rpm_limit", 60)
         tokens_5h_limit = plan.get("tokens_5h_limit", 1.0)
         tokens_7d_limit = plan.get("tokens_7d_limit", 5.0)
+        openclaw_enabled = plan.get("openclaw_enabled", False)
+        max_agents = plan.get("max_agents", 0)
+        agent_cpu = plan.get("agent_cpu", 1)
+        agent_ram = plan.get("agent_ram", 1)
     else:
         limits = {"free": 1000, "pro": 10000, "enterprise": 999999999}
         limit = limits.get(tier, 1000)
@@ -550,17 +578,29 @@ async def update_account_tier(account_id: str, tier: str, authorization: Optiona
             rpm_limit = 300
             tokens_5h_limit = 10.0
             tokens_7d_limit = 50.0
+            openclaw_enabled = True
+            max_agents = 1
+            agent_cpu = 1
+            agent_ram = 2
         elif tier == "enterprise":
             rpm_limit = 3000
             tokens_5h_limit = 100.0
             tokens_7d_limit = 500.0
+            openclaw_enabled = True
+            max_agents = 5
+            agent_cpu = 2
+            agent_ram = 4
         
     supabase.table("accounts").update({
         "tier": tier, 
         "monthly_limit": limit,
         "rpm_limit": rpm_limit,
         "tokens_5h_limit": tokens_5h_limit,
-        "tokens_7d_limit": tokens_7d_limit
+        "tokens_7d_limit": tokens_7d_limit,
+        "openclaw_enabled": openclaw_enabled,
+        "max_agents": max_agents,
+        "agent_cpu": agent_cpu,
+        "agent_ram": agent_ram
     }).eq("id", account_id).execute()
     
     # Evict local cache immediately
@@ -619,6 +659,10 @@ async def create_plan(body: CreatePlanRequest, authorization: Optional[str] = He
         "rpm_limit": body.rpm_limit,
         "tokens_5h_limit": body.tokens_5h_limit,
         "tokens_7d_limit": body.tokens_7d_limit,
+        "openclaw_enabled": body.openclaw_enabled,
+        "max_agents": body.max_agents,
+        "agent_cpu": body.agent_cpu,
+        "agent_ram": body.agent_ram,
     }).execute()
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create plan preset")
@@ -650,6 +694,14 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         updates["tokens_5h_limit"] = body.tokens_5h_limit
     if body.tokens_7d_limit is not None:
         updates["tokens_7d_limit"] = body.tokens_7d_limit
+    if body.openclaw_enabled is not None:
+        updates["openclaw_enabled"] = body.openclaw_enabled
+    if body.max_agents is not None:
+        updates["max_agents"] = body.max_agents
+    if body.agent_cpu is not None:
+        updates["agent_cpu"] = body.agent_cpu
+    if body.agent_ram is not None:
+        updates["agent_ram"] = body.agent_ram
         
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -668,6 +720,14 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         account_updates["tokens_5h_limit"] = body.tokens_5h_limit
     if body.tokens_7d_limit is not None:
         account_updates["tokens_7d_limit"] = body.tokens_7d_limit
+    if body.openclaw_enabled is not None:
+        account_updates["openclaw_enabled"] = body.openclaw_enabled
+    if body.max_agents is not None:
+        account_updates["max_agents"] = body.max_agents
+    if body.agent_cpu is not None:
+        account_updates["agent_cpu"] = body.agent_cpu
+    if body.agent_ram is not None:
+        account_updates["agent_ram"] = body.agent_ram
         
     if account_updates:
         try:

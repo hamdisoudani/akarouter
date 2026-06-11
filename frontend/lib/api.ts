@@ -109,6 +109,10 @@ export interface UserInfo {
   role: string
   tier: string
   status: string
+  openclaw_enabled?: boolean
+  max_agents?: number
+  agent_cpu?: number
+  agent_ram?: number
 }
 
 // Helper to get auth token from Supabase
@@ -186,6 +190,10 @@ export interface PlanPreset {
   rpm_limit: number
   tokens_5h_limit: number
   tokens_7d_limit: number
+  openclaw_enabled?: boolean
+  max_agents?: number
+  agent_cpu?: number
+  agent_ram?: number
   created_at: string
   updated_at: string
 }
@@ -230,6 +238,10 @@ export async function adminUpdateAccount(
     rpm_limit?: number
     tokens_5h_limit?: number
     tokens_7d_limit?: number
+    openclaw_enabled?: boolean
+    max_agents?: number
+    agent_cpu?: number
+    agent_ram?: number
   }
 ): Promise<{ ok: boolean; account: any }> {
   const res = await fetch(`${API_BASE}/admin/accounts/${accountId}`, {
@@ -261,7 +273,11 @@ export async function adminCreatePlan(
   monthlyLimit: number,
   rpmLimit?: number,
   tokens5hLimit?: number,
-  tokens7dLimit?: number
+  tokens7dLimit?: number,
+  openclawEnabled?: boolean,
+  maxAgents?: number,
+  agentCpu?: number,
+  agentRam?: number
 ): Promise<{ ok: boolean; plan: PlanPreset }> {
   const res = await fetch(`${API_BASE}/admin/plans`, {
     method: 'POST',
@@ -274,7 +290,11 @@ export async function adminCreatePlan(
       monthly_limit: monthlyLimit,
       rpm_limit: rpmLimit ?? 60,
       tokens_5h_limit: tokens5hLimit ?? 1.0,
-      tokens_7d_limit: tokens7dLimit ?? 5.0
+      tokens_7d_limit: tokens7dLimit ?? 5.0,
+      openclaw_enabled: openclawEnabled ?? false,
+      max_agents: maxAgents ?? 0,
+      agent_cpu: agentCpu ?? 1,
+      agent_ram: agentRam ?? 1
     }),
   })
   if (!res.ok) {
@@ -293,6 +313,10 @@ export async function adminUpdatePlan(
     rpm_limit?: number;
     tokens_5h_limit?: number;
     tokens_7d_limit?: number;
+    openclaw_enabled?: boolean;
+    max_agents?: number;
+    agent_cpu?: number;
+    agent_ram?: number;
   }
 ): Promise<{ ok: boolean; plan: PlanPreset }> {
   const res = await fetch(`${API_BASE}/admin/plans/${planId}`, {
@@ -491,6 +515,8 @@ export interface HostedAgent {
   daytona_key_id?: string | null
   progress_step?: number
   progress_message?: string
+  agent_cpu?: number
+  agent_ram?: number
 }
 
 export async function getHostedAgents(token: string): Promise<{ agents: HostedAgent[] }> {
