@@ -72,6 +72,10 @@ export interface UsageStats {
   progress_percentage_month?: number
   remaining_percentage_month?: number
   gateway_enabled?: boolean
+  next_reset_5h?: number
+  full_reset_5h?: number
+  next_reset_7d?: number
+  full_reset_7d?: number
 }
 
 export interface ModelAnalytics {

@@ -248,6 +248,9 @@ async def get_my_usage(request: Request):
     consumed_7d = 0.0
     consumed_month = 0.0
     
+    logs_5h_dates = []
+    logs_7d_dates = []
+    
     if logs_res and logs_res.data:
         for log in logs_res.data:
             cost = log.get("cost") or 0.0
@@ -259,12 +262,30 @@ async def get_my_usage(request: Request):
                         continue
                     if log_dt >= five_hours_ago:
                         consumed_5h += cost
+                        logs_5h_dates.append(log_dt)
                     if log_dt >= seven_days_ago:
                         consumed_7d += cost
+                        logs_7d_dates.append(log_dt)
                     if log_dt >= month_start:
                         consumed_month += cost
                 except Exception:
                     pass
+
+    next_reset_5h = 0
+    full_reset_5h = 0
+    if logs_5h_dates:
+        oldest_5h = min(logs_5h_dates)
+        newest_5h = max(logs_5h_dates)
+        next_reset_5h = max(0, int((oldest_5h + timedelta(hours=5) - now_dt).total_seconds()))
+        full_reset_5h = max(0, int((newest_5h + timedelta(hours=5) - now_dt).total_seconds()))
+
+    next_reset_7d = 0
+    full_reset_7d = 0
+    if logs_7d_dates:
+        oldest_7d = min(logs_7d_dates)
+        newest_7d = max(logs_7d_dates)
+        next_reset_7d = max(0, int((oldest_7d + timedelta(days=7) - now_dt).total_seconds()))
+        full_reset_7d = max(0, int((newest_7d + timedelta(days=7) - now_dt).total_seconds()))
 
     # 2. Fetch input/output token counts since last reset
     start_dt_tokens = None
@@ -320,6 +341,10 @@ async def get_my_usage(request: Request):
         "progress_percentage_month": progress_percentage_month,
         "remaining_percentage_month": remaining_percentage_month,
         "gateway_enabled": gateway_enabled,
+        "next_reset_5h": next_reset_5h,
+        "full_reset_5h": full_reset_5h,
+        "next_reset_7d": next_reset_7d,
+        "full_reset_7d": full_reset_7d,
     }
 
 

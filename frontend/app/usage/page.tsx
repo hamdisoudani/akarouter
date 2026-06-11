@@ -23,6 +23,48 @@ export default function UsagePage() {
   const { user, token, usage, loading: authLoading, signOut, refetchUsage } = useApp()
   const [mobileOpen, setMobileOpen] = useState(false)
 
+  const [secondsLeft5h, setSecondsLeft5h] = useState<number | null>(null)
+  const [fullSecondsLeft5h, setFullSecondsLeft5h] = useState<number | null>(null)
+  const [secondsLeft7d, setSecondsLeft7d] = useState<number | null>(null)
+  const [fullSecondsLeft7d, setFullSecondsLeft7d] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (usage) {
+      setSecondsLeft5h(usage.next_reset_5h ?? null)
+      setFullSecondsLeft5h(usage.full_reset_5h ?? null)
+      setSecondsLeft7d(usage.next_reset_7d ?? null)
+      setFullSecondsLeft7d(usage.full_reset_7d ?? null)
+    }
+  }, [usage])
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecondsLeft5h(prev => (prev !== null && prev > 0 ? prev - 1 : prev))
+      setFullSecondsLeft5h(prev => (prev !== null && prev > 0 ? prev - 1 : prev))
+      setSecondsLeft7d(prev => (prev !== null && prev > 0 ? prev - 1 : prev))
+      setFullSecondsLeft7d(prev => (prev !== null && prev > 0 ? prev - 1 : prev))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const formatRemainingTime = (seconds: number | null | undefined): string => {
+    if (seconds === null || seconds === undefined || seconds <= 0) return '0s'
+    if (seconds < 60) return `${seconds}s`
+    const minutes = Math.floor(seconds / 60)
+    if (minutes < 60) {
+      const remainingSecs = seconds % 60
+      return `${minutes}m ${remainingSecs}s`
+    }
+    const hours = Math.floor(minutes / 60)
+    const remainingMins = minutes % 60
+    if (hours < 24) {
+      return `${hours}h ${remainingMins}m`
+    }
+    const days = Math.floor(hours / 24)
+    const remainingHours = hours % 24
+    return `${days}d ${remainingHours}h`
+  }
+
   useEffect(() => {
     if (!authLoading) {
       if (!token) {
@@ -359,6 +401,26 @@ export default function UsagePage() {
                     <span>QUOTA CONSUMED</span>
                     <span>LIMIT: 100%</span>
                   </div>
+
+                  {usage && (secondsLeft5h !== null && secondsLeft5h > 0) ? (
+                    <div className="border-t border-zinc-900 pt-3 flex flex-col gap-1.5 text-[9px] font-mono">
+                      <div className="flex justify-between items-center">
+                        <span className="text-zinc-500 uppercase tracking-wide">[NEXT_RELEASE]</span>
+                        <span className="text-[#ef4444] font-bold tracking-wider">{formatRemainingTime(secondsLeft5h)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-zinc-500 uppercase tracking-wide">[FULL_RESET]</span>
+                        <span className="text-zinc-350 tracking-wider">{formatRemainingTime(fullSecondsLeft5h)}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    usage && (
+                      <div className="border-t border-zinc-900 pt-3 flex justify-between items-center text-[9px] font-mono">
+                        <span className="text-zinc-650 uppercase tracking-wide">[STATUS]</span>
+                        <span className="text-emerald-500 font-bold uppercase tracking-widest">[WINDOW_IDLE_CLEAN]</span>
+                      </div>
+                    )
+                  )}
                 </div>
 
                 {/* 7-Day budget progress */}
@@ -382,6 +444,26 @@ export default function UsagePage() {
                     <span>QUOTA CONSUMED</span>
                     <span>LIMIT: 100%</span>
                   </div>
+
+                  {usage && (secondsLeft7d !== null && secondsLeft7d > 0) ? (
+                    <div className="border-t border-zinc-900 pt-3 flex flex-col gap-1.5 text-[9px] font-mono">
+                      <div className="flex justify-between items-center">
+                        <span className="text-zinc-500 uppercase tracking-wide">[NEXT_RELEASE]</span>
+                        <span className="text-[#ef4444] font-bold tracking-wider">{formatRemainingTime(secondsLeft7d)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-zinc-500 uppercase tracking-wide">[FULL_RESET]</span>
+                        <span className="text-zinc-350 tracking-wider">{formatRemainingTime(fullSecondsLeft7d)}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    usage && (
+                      <div className="border-t border-zinc-900 pt-3 flex justify-between items-center text-[9px] font-mono">
+                        <span className="text-zinc-650 uppercase tracking-wide">[STATUS]</span>
+                        <span className="text-emerald-500 font-bold uppercase tracking-widest">[WINDOW_IDLE_CLEAN]</span>
+                      </div>
+                    )
+                  )}
                 </div>
 
               </div>
