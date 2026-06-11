@@ -8,7 +8,7 @@ from cryptography.fernet import Fernet
 
 from app.core.supabase import get_supabase
 from app.core.config import settings
-from app.core.router import generate_api_key
+from app.core.router import generate_api_key, hash_api_key
 from app.core.cache import get_max_agents_limit
 from app.core.daytona import (
     create_sandbox,
@@ -62,6 +62,7 @@ def _resolve_daytona_credentials(daytona_key_id: Optional[str]) -> tuple[Optiona
 class DeployAgentRequest(BaseModel):
     agent_name: str
     model_name: str = "akarouter-pro"  # Default model
+    api_key_raw: Optional[str] = None
 
 class ConfigureChannelsRequest(BaseModel):
     telegram_enabled: bool = False
@@ -248,25 +249,38 @@ async def deploy_agent(
             detail=f"Hosted agent limit reached. The current configuration allows up to {limit} agent(s) per user."
         )
         
-    # 2. Auto-generate dedicated API key for this agent
-    raw_api_key, key_hash, key_prefix = generate_api_key()
-    
-    # Insert new API key in DB
-    key_name = f"hosted-agent-{body.agent_name.lower().replace(' ', '-')}"
-    api_key_res = supabase.table("api_keys").insert({
-        "account_id": account_id,
-        "key_hash": key_hash,
-        "key_prefix": key_prefix,
-        "key_name": key_name,
-        "scopes": ["chat:completion", "models:list"],
-        "allowed_models": ["*"]
-    }).execute()
-    
-    if not api_key_res.data:
-        raise HTTPException(status_code=500, detail="Failed to generate dedicated API key")
+    # 2. Resolve or generate API key for this agent
+    created_new_key = False
+    if body.api_key_raw:
+        # Validate existing API key
+        raw_api_key = body.api_key_raw.strip()
+        key_hash = hash_api_key(raw_api_key)
+        key_res = supabase.table("api_keys").select("id").eq("key_hash", key_hash).eq("account_id", account_id).eq("is_active", True).execute()
+        if not key_res.data:
+            raise HTTPException(status_code=400, detail="Invalid or inactive API key provided")
+        api_key_id = key_res.data[0]["id"]
+        encrypted_raw_key = encrypt_key(raw_api_key)
+    else:
+        # Auto-generate dedicated API key for this agent
+        raw_api_key, key_hash, key_prefix = generate_api_key()
+        created_new_key = True
         
-    api_key_id = api_key_res.data[0]["id"]
-    encrypted_raw_key = encrypt_key(raw_api_key)
+        # Insert new API key in DB
+        key_name = f"hosted-agent-{body.agent_name.lower().replace(' ', '-')}"
+        api_key_res = supabase.table("api_keys").insert({
+            "account_id": account_id,
+            "key_hash": key_hash,
+            "key_prefix": key_prefix,
+            "key_name": key_name,
+            "scopes": ["chat:completion", "models:list"],
+            "allowed_models": ["*"]
+        }).execute()
+        
+        if not api_key_res.data:
+            raise HTTPException(status_code=500, detail="Failed to generate dedicated API key")
+            
+        api_key_id = api_key_res.data[0]["id"]
+        encrypted_raw_key = encrypt_key(raw_api_key)
     
     # Load Balancing Selection Strategy
     import random
@@ -328,8 +342,9 @@ async def deploy_agent(
     }).execute()
     
     if not agent_res.data:
-        # Revoke the API key if inserting hosted agent fails
-        supabase.table("api_keys").update({"is_active": False}).eq("id", api_key_id).execute()
+        # Revoke the API key if inserting hosted agent fails and it was a newly created one
+        if created_new_key:
+            supabase.table("api_keys").update({"is_active": False}).eq("id", api_key_id).execute()
         raise HTTPException(status_code=500, detail="Failed to create hosted agent record")
         
     agent_id = agent_res.data[0]["id"]

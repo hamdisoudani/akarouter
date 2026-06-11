@@ -504,7 +504,8 @@ export async function getHostedAgents(token: string): Promise<{ agents: HostedAg
 export async function deployHostedAgent(
   token: string,
   agentName: string,
-  modelName: string = 'akarouter-pro'
+  modelName: string = 'akarouter-pro',
+  apiKeyRaw?: string
 ): Promise<{ ok: boolean; agent_id: string; status: string; message: string }> {
   const res = await fetch(`${API_BASE}/user/hosted-agents`, {
     method: 'POST',
@@ -512,7 +513,11 @@ export async function deployHostedAgent(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ agent_name: agentName, model_name: modelName }),
+    body: JSON.stringify({
+      agent_name: agentName,
+      model_name: modelName,
+      api_key_raw: apiKeyRaw || undefined
+    }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
