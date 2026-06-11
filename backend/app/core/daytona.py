@@ -40,7 +40,8 @@ def create_sandbox(agent_name: str, api_key: Optional[str] = None, api_url: Opti
     params = CreateSandboxFromImageParams(
         name=f"openclaw-{agent_name.lower().replace(' ', '-')}",
         image=image_name,
-        resources=resources
+        resources=resources,
+        auto_stop_interval=0
     )
     
     # Create the sandbox (this waits for it to provision and start)
