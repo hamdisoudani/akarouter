@@ -138,7 +138,11 @@ def get_account_budget(account_id: str) -> Optional[dict[str, Any]]:
         if account_id in _account_budgets:
             data = _account_budgets[account_id]
             if time.time() - data["last_fetched_at"] < 300.0:
-                return data
+                reset_5h_at = data.get("reset_5h_at")
+                reset_7d_at = data.get("reset_7d_at")
+                now_ts = time.time()
+                if (reset_5h_at is None or now_ts < reset_5h_at) and (reset_7d_at is None or now_ts < reset_7d_at):
+                    return data
             del _account_budgets[account_id]
     return None
 

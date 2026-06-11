@@ -373,9 +373,9 @@ export default function UsagePage() {
               <div className="space-y-1">
                 <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                   <div className="w-[3px] h-3 bg-[#ef4444] red-glow"></div>
-                  SLIDING_WINDOW_TELEMETRY
+                  FIXED_CYCLE_WINDOW_TELEMETRY
                 </h2>
-                <p className="text-[10px] font-mono text-zinc-500 uppercase">Real-time sliding token budgets based on USD weighted rates.</p>
+                <p className="text-[10px] font-mono text-zinc-500 uppercase">Real-time fixed cycle token budgets reset automatically on system grids.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -383,7 +383,7 @@ export default function UsagePage() {
                 {/* 5-Hour budget progress */}
                 <div className="bg-[#050507] border border-zinc-900 p-5 space-y-4">
                   <div className="flex justify-between items-center text-xs font-mono">
-                    <span className="text-zinc-400 font-bold uppercase tracking-wider">5-Hour Sliding Window</span>
+                    <span className="text-zinc-400 font-bold uppercase tracking-wider">5-Hour Strict Fixed Cycle</span>
                     <span className="text-[#ef4444] font-bold">
                       {usage ? `${(usage.progress_percentage_5h ?? 0).toFixed(1)}%` : <span className="animate-pulse">0.0%</span>}
                     </span>
@@ -403,15 +403,9 @@ export default function UsagePage() {
                   </div>
 
                   {usage && (secondsLeft5h !== null && secondsLeft5h > 0) ? (
-                    <div className="border-t border-zinc-900 pt-3 flex flex-col gap-1.5 text-[9px] font-mono">
-                      <div className="flex justify-between items-center">
-                        <span className="text-zinc-500 uppercase tracking-wide">[NEXT_RELEASE]</span>
-                        <span className="text-[#ef4444] font-bold tracking-wider">{formatRemainingTime(secondsLeft5h)}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-zinc-500 uppercase tracking-wide">[FULL_RESET]</span>
-                        <span className="text-zinc-350 tracking-wider">{formatRemainingTime(fullSecondsLeft5h)}</span>
-                      </div>
+                    <div className="border-t border-zinc-900 pt-3 flex justify-between items-center text-[9px] font-mono">
+                      <span className="text-zinc-500 uppercase tracking-wide">[TIME_UNTIL_RESET]</span>
+                      <span className="text-[#ef4444] font-bold tracking-wider">{formatRemainingTime(secondsLeft5h)}</span>
                     </div>
                   ) : (
                     usage && (
@@ -426,7 +420,7 @@ export default function UsagePage() {
                 {/* 7-Day budget progress */}
                 <div className="bg-[#050507] border border-zinc-900 p-5 space-y-4">
                   <div className="flex justify-between items-center text-xs font-mono">
-                    <span className="text-zinc-400 font-bold uppercase tracking-wider">7-Day Sliding Window</span>
+                    <span className="text-zinc-400 font-bold uppercase tracking-wider">7-Day Strict Fixed Cycle</span>
                     <span className="text-[#ef4444] font-bold">
                       {usage ? `${(usage.progress_percentage_7d ?? 0).toFixed(1)}%` : <span className="animate-pulse">0.0%</span>}
                     </span>
@@ -446,15 +440,9 @@ export default function UsagePage() {
                   </div>
 
                   {usage && (secondsLeft7d !== null && secondsLeft7d > 0) ? (
-                    <div className="border-t border-zinc-900 pt-3 flex flex-col gap-1.5 text-[9px] font-mono">
-                      <div className="flex justify-between items-center">
-                        <span className="text-zinc-500 uppercase tracking-wide">[NEXT_RELEASE]</span>
-                        <span className="text-[#ef4444] font-bold tracking-wider">{formatRemainingTime(secondsLeft7d)}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-zinc-500 uppercase tracking-wide">[FULL_RESET]</span>
-                        <span className="text-zinc-350 tracking-wider">{formatRemainingTime(fullSecondsLeft7d)}</span>
-                      </div>
+                    <div className="border-t border-zinc-900 pt-3 flex justify-between items-center text-[9px] font-mono">
+                      <span className="text-zinc-500 uppercase tracking-wide">[TIME_UNTIL_RESET]</span>
+                      <span className="text-[#ef4444] font-bold tracking-wider">{formatRemainingTime(secondsLeft7d)}</span>
                     </div>
                   ) : (
                     usage && (

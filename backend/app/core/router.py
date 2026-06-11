@@ -120,8 +120,6 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
     budget = get_account_budget(account_id)
     if budget is None:
         now_dt = datetime.now(timezone.utc)
-        five_hours_ago = now_dt - timedelta(hours=5)
-        seven_days_ago = now_dt - timedelta(days=7)
         
         budget_reset_at = auth_metadata.get("budget_reset_at")
         reset_dt = None
@@ -136,10 +134,22 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
         else:
             month_start = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             
-        if reset_dt:
-            query_start = reset_dt
-        else:
-            query_start = min(seven_days_ago, month_start)
+        # Compute fixed cycle bounds relative to month_start
+        elapsed = (now_dt - month_start).total_seconds()
+        
+        # 5h Cycle
+        cycle_5h_length = 5 * 3600
+        completed_5h_cycles = int(max(0.0, elapsed) // cycle_5h_length)
+        cycle_5h_start = month_start + timedelta(seconds=completed_5h_cycles * cycle_5h_length)
+        cycle_5h_reset = cycle_5h_start + timedelta(seconds=cycle_5h_length)
+        
+        # 7d Cycle
+        cycle_7d_length = 7 * 24 * 3600
+        completed_7d_cycles = int(max(0.0, elapsed) // cycle_7d_length)
+        cycle_7d_start = month_start + timedelta(seconds=completed_7d_cycles * cycle_7d_length)
+        cycle_7d_reset = cycle_7d_start + timedelta(seconds=cycle_7d_length)
+        
+        query_start = month_start
         
         try:
             supabase = get_supabase()
@@ -168,9 +178,9 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
                     log_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
                     if reset_dt and log_dt < reset_dt:
                         continue
-                    if log_dt >= five_hours_ago:
+                    if log_dt >= cycle_5h_start and log_dt < cycle_5h_reset:
                         consumed_5h += cost
-                    if log_dt >= seven_days_ago:
+                    if log_dt >= cycle_7d_start and log_dt < cycle_7d_reset:
                         consumed_7d += cost
                     if log_dt >= month_start:
                         consumed_month += cost
@@ -178,6 +188,11 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
                     pass
         
         set_account_budget(account_id, consumed_5h, consumed_7d, consumed_month)
+        with _lock:
+            if account_id in _account_budgets:
+                _account_budgets[account_id]["reset_5h_at"] = cycle_5h_reset.timestamp()
+                _account_budgets[account_id]["reset_7d_at"] = cycle_7d_reset.timestamp()
+                
         budget = {
             "consumed_5h": consumed_5h,
             "consumed_7d": consumed_7d,

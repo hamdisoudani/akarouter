@@ -212,11 +212,9 @@ async def get_my_usage(request: Request):
 
     account = result.data[0]
     
-    # 1. Fetch request logs for sliding window budget calculation
+    # 1. Fetch request logs for fixed cycle budget calculation
     from datetime import datetime, timezone, timedelta
     now_dt = datetime.now(timezone.utc)
-    five_hours_ago = now_dt - timedelta(hours=5)
-    seven_days_ago = now_dt - timedelta(days=7)
     
     budget_reset_at = account.get("budget_reset_at")
     reset_dt = None
@@ -231,10 +229,22 @@ async def get_my_usage(request: Request):
     else:
         month_start = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         
-    if reset_dt:
-        query_start = reset_dt
-    else:
-        query_start = min(seven_days_ago, month_start)
+    # Compute cycle bounds relative to month_start
+    elapsed = (now_dt - month_start).total_seconds()
+    
+    # 5h Cycle
+    cycle_5h_length = 5 * 3600
+    completed_5h_cycles = int(max(0.0, elapsed) // cycle_5h_length)
+    cycle_5h_start = month_start + timedelta(seconds=completed_5h_cycles * cycle_5h_length)
+    cycle_5h_reset = cycle_5h_start + timedelta(seconds=cycle_5h_length)
+    
+    # 7d Cycle
+    cycle_7d_length = 7 * 24 * 3600
+    completed_7d_cycles = int(max(0.0, elapsed) // cycle_7d_length)
+    cycle_7d_start = month_start + timedelta(seconds=completed_7d_cycles * cycle_7d_length)
+    cycle_7d_reset = cycle_7d_start + timedelta(seconds=cycle_7d_length)
+
+    query_start = month_start
 
     logs_res = (
         supabase.table("request_logs")
@@ -248,9 +258,6 @@ async def get_my_usage(request: Request):
     consumed_7d = 0.0
     consumed_month = 0.0
     
-    logs_5h_dates = []
-    logs_7d_dates = []
-    
     if logs_res and logs_res.data:
         for log in logs_res.data:
             cost = log.get("cost") or 0.0
@@ -260,32 +267,20 @@ async def get_my_usage(request: Request):
                     log_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
                     if reset_dt and log_dt < reset_dt:
                         continue
-                    if log_dt >= five_hours_ago:
+                    if log_dt >= cycle_5h_start and log_dt < cycle_5h_reset:
                         consumed_5h += cost
-                        logs_5h_dates.append(log_dt)
-                    if log_dt >= seven_days_ago:
+                    if log_dt >= cycle_7d_start and log_dt < cycle_7d_reset:
                         consumed_7d += cost
-                        logs_7d_dates.append(log_dt)
                     if log_dt >= month_start:
                         consumed_month += cost
                 except Exception:
                     pass
 
-    next_reset_5h = 0
-    full_reset_5h = 0
-    if logs_5h_dates:
-        oldest_5h = min(logs_5h_dates)
-        newest_5h = max(logs_5h_dates)
-        next_reset_5h = max(0, int((oldest_5h + timedelta(hours=5) - now_dt).total_seconds()))
-        full_reset_5h = max(0, int((newest_5h + timedelta(hours=5) - now_dt).total_seconds()))
+    next_reset_5h = max(0, int((cycle_5h_reset - now_dt).total_seconds()))
+    full_reset_5h = next_reset_5h
 
-    next_reset_7d = 0
-    full_reset_7d = 0
-    if logs_7d_dates:
-        oldest_7d = min(logs_7d_dates)
-        newest_7d = max(logs_7d_dates)
-        next_reset_7d = max(0, int((oldest_7d + timedelta(days=7) - now_dt).total_seconds()))
-        full_reset_7d = max(0, int((newest_7d + timedelta(days=7) - now_dt).total_seconds()))
+    next_reset_7d = max(0, int((cycle_7d_reset - now_dt).total_seconds()))
+    full_reset_7d = next_reset_7d
 
     # 2. Fetch input/output token counts since last reset
     start_dt_tokens = None
