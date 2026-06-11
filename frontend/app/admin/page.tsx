@@ -85,6 +85,77 @@ function StatusDot({ status }: { status: string }) {
   )
 }
 
+function AdminTableSkeleton({ rows = 4, cols = 5 }: { rows?: number; cols?: number }) {
+  return (
+    <div className="w-full space-y-3 animate-pulse font-mono">
+      <div className="h-10 bg-zinc-900 border border-zinc-800 rounded-sm w-full" />
+      <div className="space-y-2">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="flex gap-4">
+            {Array.from({ length: cols }).map((_, j) => (
+              <div key={j} className="h-9 bg-zinc-900/50 rounded-sm flex-1" />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function AdminCardsSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse font-mono">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="h-44 bg-[#0e0e10] border border-zinc-900 rounded-sm p-6 space-y-4">
+          <div className="h-4 bg-zinc-850 rounded-sm w-24" />
+          <div className="h-6 bg-zinc-900 rounded-sm w-36" />
+          <div className="space-y-2">
+            <div className="h-3 bg-zinc-900/50 rounded-sm w-full" />
+            <div className="h-3 bg-zinc-900/50 rounded-sm w-3/4" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function AdminListSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div className="space-y-3 animate-pulse font-mono">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="p-4 bg-zinc-950 border border-zinc-900 rounded-sm flex justify-between items-center">
+          <div className="space-y-2 flex-1">
+            <div className="h-4 bg-zinc-850 rounded-sm w-1/3" />
+            <div className="h-3 bg-zinc-900 rounded-sm w-1/2" />
+          </div>
+          <div className="h-6 bg-zinc-900 rounded-sm w-16" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function AdminSettingsSkeleton() {
+  return (
+    <div className="grid grid-cols-12 gap-6 animate-pulse w-full font-mono">
+      <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 rounded-sm space-y-6">
+        <div className="space-y-2">
+          <div className="h-4 bg-zinc-850 rounded-sm w-1/3" />
+          <div className="h-3 bg-zinc-900 rounded-sm w-2/3" />
+        </div>
+        <div className="h-24 bg-zinc-950 border border-zinc-900 rounded-sm" />
+      </div>
+      <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 rounded-sm space-y-6">
+        <div className="space-y-2">
+          <div className="h-4 bg-zinc-850 rounded-sm w-1/3" />
+          <div className="h-3 bg-zinc-900 rounded-sm w-2/3" />
+        </div>
+        <div className="h-24 bg-zinc-950 border border-zinc-900 rounded-sm" />
+      </div>
+    </div>
+  )
+}
+
 export default function AdminDashboard() {
   const router = useRouter()
   const { user: contextUser, token: contextToken, loading: authLoading, signOut } = useApp()
@@ -384,11 +455,15 @@ export default function AdminDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [authChecked, isAdmin])
 
+  // Fetch stats once on mount
+  useEffect(() => {
+    if (!authChecked || !isAdmin || !token) return
+    loadStats()
+  }, [authChecked, isAdmin, token])
+
   // Lazy load tab data conditionally
   useEffect(() => {
     if (!authChecked || !isAdmin || !token) return
-
-    loadStats()
 
     if (activeTab === 'providers') {
       loadProviders()
@@ -1019,7 +1094,7 @@ export default function AdminDashboard() {
                 )}
 
                 {loading ? (
-                  <div className="py-12 text-center font-mono text-xs text-zinc-600 uppercase">[SYNCHRONIZING_CONNECTIONS_TABLE]</div>
+                  <AdminTableSkeleton rows={4} cols={6} />
                 ) : providers.length === 0 ? (
                   <p className="text-xs text-zinc-650 py-6 font-mono uppercase text-center">[NO_ACTIVE_Hermes_CONNECTIONS_CONNECTED_GENERATE_DEVICE_AUTH]</p>
                 ) : (
@@ -1097,7 +1172,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {loadingAccounts ? (
-                  <div className="py-12 text-center font-mono text-xs text-zinc-650 uppercase animate-pulse">[LOADING_ACCOUNTS_FROM_DB...]</div>
+                  <AdminTableSkeleton rows={5} cols={6} />
                 ) : accounts.length === 0 ? (
                   <div className="py-12 text-center font-mono text-xs text-zinc-600 uppercase">[NO_USER_ACCOUNTS_FOUND_MATCHING_FILTER]</div>
                 ) : (
@@ -1234,7 +1309,7 @@ export default function AdminDashboard() {
                   </div>
 
                   {loadingPlans ? (
-                    <div className="py-12 text-center font-mono text-xs text-zinc-650 uppercase animate-pulse">[LOADING_PLANS_FROM_DB...]</div>
+                    <AdminCardsSkeleton count={3} />
                   ) : plans.length === 0 ? (
                     <p className="text-xs text-zinc-600 py-6 font-mono uppercase text-center">[NO_PLAN_PRESETS_DEFINED]</p>
                   ) : (
@@ -1426,7 +1501,10 @@ export default function AdminDashboard() {
 
             {/* Tab Panel: Settings */}
             {activeTab === 'settings' && (
-              <section className="grid grid-cols-12 gap-6 animate-slide-in relative">
+              loadingSettings ? (
+                <AdminSettingsSkeleton />
+              ) : (
+                <section className="grid grid-cols-12 gap-6 animate-slide-in relative">
                 {/* Global Gateway Status Switch Card */}
                 <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
                   <div className="space-y-1">
@@ -1687,6 +1765,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </section>
+              )
             )}
             {activeTab === 'invitations' && (
               <section className="grid grid-cols-12 gap-6 animate-slide-in relative">
@@ -1748,7 +1827,7 @@ export default function AdminDashboard() {
 
                   <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
                     {loadingInvitations ? (
-                      <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center animate-pulse">[LOADING_INVITATION_REGISTRY...]</p>
+                      <AdminListSkeleton count={3} />
                     ) : invitations.length === 0 ? (
                       <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center">[NO_ACTIVE_INVITATION_CODES_FOUND]</p>
                     ) : (
@@ -1906,7 +1985,7 @@ export default function AdminDashboard() {
 
                   <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
                     {loadingDaytonaKeys ? (
-                      <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center animate-pulse">[LOADING_DAYTONA_KEYS...]</p>
+                      <AdminListSkeleton count={2} />
                     ) : daytonaKeys.length === 0 ? (
                       <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center">[NO_DAYTONA_KEYS_REGISTERED]</p>
                     ) : (
