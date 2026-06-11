@@ -335,7 +335,11 @@ async def deploy_agent(
     agent_id = agent_res.data[0]["id"]
     
     # 4. Trigger background task to provision Daytona VM and start OpenClaw
-    base_url = settings.public_backend_url or str(request.base_url)
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.url.netloc)
+    if not host:
+        host = request.url.netloc
+    base_url = settings.public_backend_url or f"{scheme}://{host}"
     gateway_url = f"{base_url.rstrip('/')}/v1"
     
     background_tasks.add_task(
@@ -401,7 +405,11 @@ async def configure_channels(
     discord_token = body.discord_bot_token or (decrypt_key(agent["discord_bot_token"]) if agent.get("discord_bot_token") else "")
     
     # 5. Build new config dictionary
-    base_url = settings.public_backend_url or str(request.base_url)
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.url.netloc)
+    if not host:
+        host = request.url.netloc
+    base_url = settings.public_backend_url or f"{scheme}://{host}"
     gateway_url = f"{base_url.rstrip('/')}/v1"
     config_dict = {
         "gateway": {
