@@ -414,6 +414,36 @@ async def get_me(request: Request):
     return supabase_auth
 
 
+async def resolve_whop_id_to_plan_id(whop_id: str) -> str:
+    """If whop_id starts with prod_, fetch company plans and resolve to its plan ID."""
+    if not whop_id or not whop_id.startswith("prod_"):
+        return whop_id
+
+    import httpx
+    from app.core.config import settings
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                "https://api.whop.com/v1/plans",
+                headers={"Authorization": f"Bearer {settings.whop_api_key}"},
+                params={"company_id": settings.whop_company_id},
+                timeout=10.0
+            )
+            if res.status_code == 200:
+                plans_data = res.json().get("data", [])
+                for plan in plans_data:
+                    p_id = plan.get("id")
+                    prod = plan.get("product", {}) or {}
+                    prod_id = prod.get("id")
+                    if prod_id == whop_id:
+                        logger.info(f"Resolved product {whop_id} to plan ID: {p_id}")
+                        return p_id
+    except Exception as e:
+        logger.error(f"Failed to resolve product ID {whop_id} to plan ID: {e}")
+        
+    return whop_id
+
+
 class CheckoutSessionRequest(BaseModel):
     tier: str  # starter, pro, ultra
     redirect_url: Optional[str] = None
@@ -436,7 +466,7 @@ async def create_checkout_session(request: Request, body: CheckoutSessionRequest
         plan_id = settings.whop_plan_ultra
     
     if not plan_id:
-        if body.tier.startswith("plan_"):
+        if body.tier.startswith("plan_") or body.tier.startswith("prod_"):
             plan_id = body.tier
         else:
             raise HTTPException(
@@ -448,6 +478,9 @@ async def create_checkout_session(request: Request, body: CheckoutSessionRequest
     if not settings.whop_api_key:
         raise HTTPException(status_code=500, detail="Whop API Key is not configured on the backend")
 
+    # Resolve product ID to plan ID if needed
+    resolved_plan_id = await resolve_whop_id_to_plan_id(plan_id)
+
     redirect_url = body.redirect_url
     if not redirect_url or not redirect_url.startswith("https://"):
         redirect_url = "https://akarouter.com/usage"  # Fallback
@@ -458,7 +491,7 @@ async def create_checkout_session(request: Request, body: CheckoutSessionRequest
                 "https://api.whop.com/v1/checkout_configurations",
                 headers={"Authorization": f"Bearer {settings.whop_api_key}"},
                 json={
-                    "plan_id": plan_id,
+                    "plan_id": resolved_plan_id,
                     "metadata": {"account_id": account_id},
                     "redirect_url": redirect_url
                 },
@@ -471,7 +504,7 @@ async def create_checkout_session(request: Request, body: CheckoutSessionRequest
             session_data = response.json()
             checkout_url = session_data.get("purchase_url")
             if not checkout_url:
-                checkout_url = f"https://whop.com/checkout/{plan_id}?session={session_data['id']}"
+                checkout_url = f"https://whop.com/checkout/{resolved_plan_id}?session={session_data['id']}"
                 
             return {"checkout_url": checkout_url}
     except httpx.RequestError as exc:

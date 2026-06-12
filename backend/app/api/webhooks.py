@@ -134,11 +134,12 @@ async def whop_webhook_handler(
                     highest_rank = 0
                     for m in active_memberships:
                         plan_id = m.get("plan", {}).get("id") or m.get("plan_id")
-                        if plan_id == settings.whop_plan_ultra:
+                        product_id = m.get("product", {}).get("id") or m.get("product_id")
+                        if plan_id == settings.whop_plan_ultra or product_id == settings.whop_plan_ultra:
                             highest_rank = max(highest_rank, 3)
-                        elif plan_id == settings.whop_plan_pro:
+                        elif plan_id == settings.whop_plan_pro or product_id == settings.whop_plan_pro:
                             highest_rank = max(highest_rank, 2)
-                        elif plan_id == settings.whop_plan_starter:
+                        elif plan_id == settings.whop_plan_starter or product_id == settings.whop_plan_starter:
                             highest_rank = max(highest_rank, 1)
 
                     if highest_rank == 3:
@@ -195,10 +196,11 @@ def _fallback_tier_from_payload(event_name: str, data: dict) -> str:
         return "free"
 
     plan_id = data.get("plan", {}).get("id") or data.get("plan_id")
-    if plan_id == settings.whop_plan_ultra:
+    product_id = data.get("product", {}).get("id") or data.get("product_id")
+    if plan_id == settings.whop_plan_ultra or product_id == settings.whop_plan_ultra:
         return "ultra"
-    elif plan_id == settings.whop_plan_pro:
+    elif plan_id == settings.whop_plan_pro or product_id == settings.whop_plan_pro:
         return "pro"
-    elif plan_id == settings.whop_plan_starter:
+    elif plan_id == settings.whop_plan_starter or product_id == settings.whop_plan_starter:
         return "starter"
     return "free"
