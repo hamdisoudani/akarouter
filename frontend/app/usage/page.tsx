@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/app/providers'
+import { createCheckoutSession } from '@/lib/api'
 import { 
   LogOut, 
   KeyRound, 
@@ -27,6 +28,9 @@ export default function UsagePage() {
   const [fullSecondsLeft5h, setFullSecondsLeft5h] = useState<number | null>(null)
   const [secondsLeft7d, setSecondsLeft7d] = useState<number | null>(null)
   const [fullSecondsLeft7d, setFullSecondsLeft7d] = useState<number | null>(null)
+
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
   useEffect(() => {
     if (usage) {
@@ -63,6 +67,23 @@ export default function UsagePage() {
     const days = Math.floor(hours / 24)
     const remainingHours = hours % 24
     return `${days}d ${remainingHours}h`
+  }
+
+  const handleCheckout = async (tier: string) => {
+    if (!token) return
+    setCheckoutLoading(tier)
+    setCheckoutError(null)
+    try {
+      const redirectUrl = window.location.origin + '/usage'
+      const data = await createCheckoutSession(token, tier, redirectUrl)
+      if (data && data.checkout_url) {
+        window.location.href = data.checkout_url
+      }
+    } catch (err: any) {
+      console.error(err)
+      setCheckoutError(err.message || 'Failed to initialize checkout')
+      setCheckoutLoading(null)
+    }
   }
 
   useEffect(() => {
@@ -482,6 +503,151 @@ export default function UsagePage() {
                 </div>
               </div>
 
+            </div>
+
+            {usage?.tier === 'free' && (
+              <div className="bg-[#ef4444]/10 border border-[#ef4444] p-5 font-mono text-xs text-[#ef4444] tracking-wider uppercase animate-pulse flex flex-col gap-2">
+                <div>[WARNING: ACCOUNT_INACTIVE_FREE_TIER_ENFORCES_0_LIMITS]</div>
+                <div className="text-[10px] text-zinc-500 lowercase font-normal">[API completions are currently disabled. Please select a billing profile below to activate your account.]</div>
+              </div>
+            )}
+
+            {/* Subscription Plans Section */}
+            <div className="bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-900 pb-4">
+                <div className="space-y-1">
+                  <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <div className="w-[3px] h-3 bg-[#ef4444] red-glow"></div>
+                    SYSTEM_SUBSCRIPTION_PROFILES
+                  </h2>
+                  <p className="text-[10px] font-mono text-zinc-500 uppercase font-medium">
+                    Select a plan via Whop Secure Checkout to adjust your system limits.
+                  </p>
+                </div>
+                {usage?.tier && usage.tier !== 'free' && (
+                  <a 
+                    href="https://whop.com/hub/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[9px] text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-500 px-3 py-1.5 bg-zinc-950 transition-colors uppercase tracking-widest font-bold"
+                  >
+                    Manage Subscription ↗
+                  </a>
+                )}
+              </div>
+
+              {checkoutError && (
+                <div className="bg-[#ef4444]/10 border border-[#ef4444] p-3 font-mono text-[10px] text-[#ef4444] uppercase tracking-wider">
+                  [CHECKOUT_ERROR]: {checkoutError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
+                {[
+                  {
+                    name: 'Starter Plan',
+                    key: 'starter',
+                    price: '$4.99',
+                    billing: 'monthly',
+                    desc: 'Essential API limits for developers starting out.',
+                    badge: null,
+                    limits: [
+                      'Monthly Budget: $10.00',
+                      'RPM Limit: 60 RPM',
+                      '5-Hour Limit: $1.00',
+                      '7-Day Limit: $5.00',
+                      'Hosted Agents: 0'
+                    ]
+                  },
+                  {
+                    name: 'Pro Plan',
+                    key: 'pro',
+                    price: '$19.99',
+                    billing: 'monthly',
+                    desc: 'Perfect for production apps and agent deployments.',
+                    badge: 'Popular • 7-Day Free Trial',
+                    limits: [
+                      'Monthly Budget: $100.00',
+                      'RPM Limit: 300 RPM',
+                      '5-Hour Limit: $10.00',
+                      '7-Day Limit: $50.00',
+                      'Hosted Agents: 2 (1GB RAM)'
+                    ]
+                  },
+                  {
+                    name: 'Ultra Plan',
+                    key: 'ultra',
+                    price: '$99.99',
+                    billing: 'monthly',
+                    desc: 'Ultimate capacity for high-scale agent networks.',
+                    badge: 'Elite Performance',
+                    limits: [
+                      'Monthly Budget: $1,000.00',
+                      'RPM Limit: 1,000 RPM',
+                      '5-Hour Limit: $100.00',
+                      '7-Day Limit: $500.00',
+                      'Hosted Agents: 5 (4GB RAM)'
+                    ]
+                  }
+                ].map((plan) => {
+                  const isCurrent = usage?.tier === plan.key;
+                  const isLoading = checkoutLoading === plan.key;
+
+                  return (
+                    <div 
+                      key={plan.key} 
+                      className={`relative bg-[#050507] border ${isCurrent ? 'border-[#ef4444] red-glow' : 'border-zinc-900'} p-6 flex flex-col justify-between transition-all hover:border-zinc-700`}
+                    >
+                      {plan.badge && (
+                        <div className="absolute top-0 right-6 -translate-y-1/2 bg-[#ef4444] text-white font-mono text-[8px] font-bold px-2 py-0.5 tracking-widest uppercase red-glow">
+                          {plan.badge}
+                        </div>
+                      )}
+
+                      <div className="space-y-4">
+                        <div className="space-y-1">
+                          <h3 className="font-mono text-xs text-white font-bold uppercase tracking-wider">{plan.name}</h3>
+                          <p className="text-[9px] font-mono text-zinc-500 min-h-[30px] uppercase font-medium">{plan.desc}</p>
+                        </div>
+
+                        <div className="flex items-baseline gap-1 py-2 border-y border-zinc-900">
+                          <span className="font-mono text-2xl text-white font-bold tracking-tighter">{plan.price}</span>
+                          <span className="font-mono text-[9px] text-zinc-500 uppercase">/ {plan.billing}</span>
+                        </div>
+
+                        <ul className="space-y-2 font-mono text-[9px] text-zinc-400">
+                          {plan.limits.map((limit, idx) => (
+                            <li key={idx} className="flex items-center gap-2">
+                              <span className="w-1 h-1 bg-[#ef4444] red-glow"></span>
+                              <span className="uppercase">{limit}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="pt-6 mt-auto">
+                        <button
+                          disabled={isCurrent || isLoading}
+                          onClick={() => handleCheckout(plan.key)}
+                          className={`w-full font-mono text-[9px] py-3 transition-all tracking-widest uppercase font-bold border ${
+                            isCurrent 
+                              ? 'bg-zinc-950 border-zinc-800 text-zinc-500 cursor-not-allowed'
+                              : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white'
+                          }`}
+                        >
+                          {isCurrent 
+                            ? 'CURRENT_PLAN' 
+                            : isLoading 
+                              ? 'INITIALIZING...' 
+                              : plan.key === 'pro' 
+                                ? 'START FREE TRIAL' 
+                                : 'SUBSCRIBE NOW'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
           </div>

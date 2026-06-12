@@ -187,6 +187,14 @@ def evict_account_caches(account_id: str) -> None:
         if account_id in _account_budgets:
             del _account_budgets[account_id]
 
+        # Evict from _jwt_cache
+        tokens_to_delete = []
+        for token, (user_info, _) in _jwt_cache.items():
+            if user_info.get("account_id") == account_id:
+                tokens_to_delete.append(token)
+        for t in tokens_to_delete:
+            del _jwt_cache[t]
+
 
 def is_gateway_enabled() -> bool:
     """Check if the gateway is enabled globally. Cached for 10s."""

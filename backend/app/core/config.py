@@ -46,6 +46,14 @@ class Settings(BaseSettings):
     # Encryption key for storing raw API keys (must be a 32-byte url-safe base64 key for Fernet)
     agent_key_encryption_secret: str = "dGhpc19pc19hXzMyX2J5dGVfc2VjcmV0X2tleV8xMjM="
 
+    # Whop Integration Settings
+    whop_api_key: str = ""
+    whop_webhook_secret: str = ""
+    whop_company_id: str = ""
+    whop_plan_starter: str = ""
+    whop_plan_pro: str = ""
+    whop_plan_ultra: str = ""
+
 
 
     # Model mapping: alias -> upstream

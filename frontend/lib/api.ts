@@ -210,6 +210,26 @@ export async function getMe(token: string): Promise<UserInfo> {
   return res.json()
 }
 
+export async function createCheckoutSession(
+  token: string,
+  tier: string,
+  redirectUrl?: string
+): Promise<{ checkout_url: string }> {
+  const res = await fetch(`${API_BASE}/user/checkout-session`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ tier, redirect_url: redirectUrl }),
+  })
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}))
+    throw new Error(errData.detail || 'Failed to initialize checkout session')
+  }
+  return res.json()
+}
+
 export async function adminGetAccounts(
   token: string, 
   search?: string,

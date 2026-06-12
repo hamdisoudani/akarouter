@@ -412,3 +412,68 @@ async def get_me(request: Request):
     if not supabase_auth:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return supabase_auth
+
+
+class CheckoutSessionRequest(BaseModel):
+    tier: str  # starter, pro, ultra
+    redirect_url: Optional[str] = None
+
+
+@router.post("/checkout-session")
+async def create_checkout_session(request: Request, body: CheckoutSessionRequest):
+    """
+    Generate a Whop checkout link pre-loaded with the user's account ID.
+    """
+    account_id = _get_user_id(request)
+    
+    tier = body.tier.lower()
+    plan_id = ""
+    if tier == "starter":
+        plan_id = settings.whop_plan_starter
+    elif tier == "pro":
+        plan_id = settings.whop_plan_pro
+    elif tier == "ultra":
+        plan_id = settings.whop_plan_ultra
+    
+    if not plan_id:
+        if body.tier.startswith("plan_"):
+            plan_id = body.tier
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Subscription tier '{body.tier}' is not configured on the backend"
+            )
+
+    import httpx
+    if not settings.whop_api_key:
+        raise HTTPException(status_code=500, detail="Whop API Key is not configured on the backend")
+
+    redirect_url = body.redirect_url
+    if not redirect_url or not redirect_url.startswith("https://"):
+        redirect_url = "https://akarouter.com/usage"  # Fallback
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.whop.com/v1/checkout_configurations",
+                headers={"Authorization": f"Bearer {settings.whop_api_key}"},
+                json={
+                    "plan_id": plan_id,
+                    "metadata": {"account_id": account_id},
+                    "redirect_url": redirect_url
+                },
+                timeout=10.0
+            )
+            if response.status_code >= 400:
+                logger.error(f"Whop Checkout API error: {response.status_code} {response.text}")
+                raise HTTPException(status_code=response.status_code, detail="Whop Checkout creation failed")
+            
+            session_data = response.json()
+            checkout_url = session_data.get("purchase_url")
+            if not checkout_url:
+                checkout_url = f"https://whop.com/checkout/{plan_id}?session={session_data['id']}"
+                
+            return {"checkout_url": checkout_url}
+    except httpx.RequestError as exc:
+        logger.error(f"Connection error calling Whop API: {exc}")
+        raise HTTPException(status_code=503, detail="Whop API is currently unreachable")
