@@ -149,6 +149,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchUserData, pathname, router])
 
+  // Redirect free tier users to /usage so they must subscribe before using the system
+  useEffect(() => {
+    if (!loading && token && user && user.status !== 'pending') {
+      if (usage && usage.tier === 'free' && pathname !== '/usage') {
+        const publicPaths = ['/', '/auth/login', '/auth/callback']
+        const isPublic = publicPaths.some(p => pathname === p || pathname.startsWith(p + '/'))
+        if (!isPublic) {
+          router.push('/usage')
+        }
+      }
+    }
+  }, [loading, token, user, usage, pathname, router])
+
   return (
     <AppContext.Provider value={{ user, token, usage, loading, error, refetchUser, refetchUsage, refetchAll, signOut }}>
       {children}
