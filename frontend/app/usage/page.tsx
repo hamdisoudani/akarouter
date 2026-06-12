@@ -92,7 +92,7 @@ export default function UsagePage() {
       try {
         const res = await getPlans()
         if (res && res.plans) {
-          const filtered = res.plans.filter(p => p.tier !== 'free')
+          const filtered = res.plans.filter(p => p.tier !== 'free' && p.tier !== 'enterprise')
           setDbPlans(filtered)
         }
       } catch (err) {
@@ -704,6 +704,12 @@ export default function UsagePage() {
                     </div>
                   );
                 })}
+              </div>
+
+              <div className="pt-4 text-center border-t border-zinc-900">
+                <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest leading-relaxed">
+                  * Need custom limits or an enterprise setup? Please contact support at <a href="mailto:support@akarouter.com" className="text-[#ef4444] hover:underline font-bold">support@akarouter.com</a> to custom configure your plan.
+                </p>
               </div>
             </div>
 
