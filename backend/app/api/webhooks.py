@@ -112,6 +112,7 @@ async def whop_webhook_handler(
 
     # Call GET memberships to avoid race conditions and fetch true active tiers
     active_tier = "free"
+    is_trialing = False
     if whop_user_id:
         try:
             async with httpx.AsyncClient() as client:
@@ -130,6 +131,8 @@ async def whop_webhook_handler(
                         m for m in memberships_data
                         if m.get("status") in ("active", "trialing")
                     ]
+                    
+                    is_trialing = any(m.get("status") == "trialing" for m in active_memberships)
                     
                     highest_rank = 0
                     for m in active_memberships:
@@ -152,12 +155,15 @@ async def whop_webhook_handler(
                     logger.error(f"Whop memberships fetch failed with status {res.status_code}: {res.text}")
                     # Fallback to current event payload if request failed
                     active_tier = _fallback_tier_from_payload(event_name, data)
+                    is_trialing = data.get("status") == "trialing"
         except Exception as e:
             logger.error(f"Error fetching memberships from Whop API: {e}")
             active_tier = _fallback_tier_from_payload(event_name, data)
+            is_trialing = data.get("status") == "trialing"
     else:
         # If no whop_user_id, rely on the payload event type
         active_tier = _fallback_tier_from_payload(event_name, data)
+        is_trialing = data.get("status") == "trialing"
 
     # Sync tier and limits with database presets
     try:
@@ -174,12 +180,13 @@ async def whop_webhook_handler(
                 "max_agents": p["max_agents"],
                 "agent_cpu": p["agent_cpu"],
                 "agent_ram": p["agent_ram"],
+                "is_trialing": is_trialing,
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }).eq("id", account_id).execute()
 
             # Evict account caches immediately
             evict_account_caches(account_id)
-            logger.info(f"Synced account {account_id} to tier {active_tier} and updated limits")
+            logger.info(f"Synced account {account_id} to tier {active_tier} (trialing: {is_trialing}) and updated limits")
             return {"status": "success", "tier": active_tier}
         else:
             logger.error(f"No plan preset found for tier: {active_tier}")

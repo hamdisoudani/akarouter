@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/app/providers'
-import { createCheckoutSession } from '@/lib/api'
+import { createCheckoutSession, getPlans, type PlanPreset } from '@/lib/api'
 import { 
   LogOut, 
   KeyRound, 
@@ -31,6 +31,7 @@ export default function UsagePage() {
 
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [dbPlans, setDbPlans] = useState<PlanPreset[]>([])
 
   useEffect(() => {
     if (usage) {
@@ -84,6 +85,94 @@ export default function UsagePage() {
       setCheckoutError(err.message || 'Failed to initialize checkout')
       setCheckoutLoading(null)
     }
+  }
+
+  useEffect(() => {
+    async function loadPlans() {
+      try {
+        const res = await getPlans()
+        if (res && res.plans) {
+          const filtered = res.plans.filter(p => p.tier !== 'free')
+          setDbPlans(filtered)
+        }
+      } catch (err) {
+        console.error('Failed to load plans from backend:', err)
+      }
+    }
+    loadPlans()
+  }, [])
+
+  const getDisplayPlans = () => {
+    const fallbackPlans = [
+      {
+        name: 'Starter Plan',
+        key: 'starter',
+        price: '$4.99',
+        billing: 'monthly',
+        desc: 'Essential API limits for developers starting out.',
+        badge: null,
+        limits: [
+          'Monthly Budget: $10.00',
+          'RPM Limit: 60 RPM',
+          '5-Hour Limit: $1.00',
+          '7-Day Limit: $5.00',
+          'Hosted Agents: 0'
+        ]
+      },
+      {
+        name: 'Pro Plan',
+        key: 'pro',
+        price: '$19.99',
+        billing: 'monthly',
+        desc: 'Perfect for production apps and agent deployments.',
+        badge: 'Popular • 7-Day Free Trial',
+        limits: [
+          'Monthly Budget: $100.00',
+          'RPM Limit: 300 RPM',
+          '5-Hour Limit: $10.00',
+          '7-Day Limit: $50.00',
+          'Hosted Agents: 2 (1GB RAM)'
+        ]
+      },
+      {
+        name: 'Ultra Plan',
+        key: 'ultra',
+        price: '$99.99',
+        billing: 'monthly',
+        desc: 'Ultimate capacity for high-scale agent networks.',
+        badge: 'Elite Performance',
+        limits: [
+          'Monthly Budget: $1,000.00',
+          'RPM Limit: 1,000 RPM',
+          '5-Hour Limit: $100.00',
+          '7-Day Limit: $500.00',
+          'Hosted Agents: 5 (4GB RAM)'
+        ]
+      }
+    ]
+
+    if (dbPlans.length === 0) {
+      return fallbackPlans
+    }
+
+    return dbPlans.map(plan => {
+      const matchingFallback = fallbackPlans.find(fp => fp.key === plan.tier)
+      return {
+        name: matchingFallback?.name || `${plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1)} Plan`,
+        key: plan.tier,
+        price: matchingFallback?.price || '$0.00',
+        billing: matchingFallback?.billing || 'monthly',
+        desc: matchingFallback?.desc || 'Custom limits tier.',
+        badge: matchingFallback?.badge || null,
+        limits: [
+          `Monthly Budget: $${plan.monthly_limit.toFixed(2)}`,
+          `RPM Limit: ${plan.rpm_limit} RPM`,
+          `5-Hour Limit: $${plan.tokens_5h_limit.toFixed(2)}`,
+          `7-Day Limit: $${plan.tokens_7d_limit.toFixed(2)}`,
+          `Hosted Agents: ${plan.max_agents ?? 0}`
+        ]
+      }
+    })
   }
 
   useEffect(() => {
@@ -314,6 +403,20 @@ export default function UsagePage() {
         {/* Canvas */}
         <main className="flex-1 p-0 grid-bg relative">
           
+          {usage?.tier === 'free' && (
+            <div className="bg-[#ef4444]/15 border-b border-[#ef4444]/35 text-[#ef4444] p-4 font-mono text-xs uppercase flex items-center justify-center gap-3 red-glow animate-pulse font-bold">
+              <span className="w-2 h-2 bg-[#ef4444] rounded-full status-pulse red-glow" />
+              <span>[BILLING_ALERT]: SUBSCRIPTION REQUIRED. GATEWAY ACCESS AND AGENT PROVISIONING ARE RESTRICTED. CHOOSE A PLAN BELOW TO ACTIVATE YOUR SERVICE.</span>
+            </div>
+          )}
+
+          {usage?.is_trialing && (
+            <div className="bg-[#ef4444]/10 border-b border-[#ef4444]/25 text-[#ef4444] p-4 font-mono text-xs uppercase flex items-center justify-center gap-3 font-bold">
+              <span className="w-2 h-2 bg-[#ef4444] rounded-full status-pulse red-glow" />
+              <span>[BILLING_NOTICE]: FREE TRIAL ACTIVE. YOU ARE CURRENTLY TRIALING THE PRO PLAN. SUBSCRIBED VIA WHOP.</span>
+            </div>
+          )}
+
           {usage?.gateway_enabled === false && (
             <div className="bg-[#ef4444]/10 border-b border-[#ef4444] p-4 text-center font-mono text-xs text-[#ef4444] tracking-wider uppercase animate-pulse">
               [WARNING_SYSTEM_MAINTENANCE_API_GATEWAY_OFFLINE_BY_ADMINISTRATOR]
@@ -543,53 +646,7 @@ export default function UsagePage() {
               )}
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
-                {[
-                  {
-                    name: 'Starter Plan',
-                    key: 'starter',
-                    price: '$4.99',
-                    billing: 'monthly',
-                    desc: 'Essential API limits for developers starting out.',
-                    badge: null,
-                    limits: [
-                      'Monthly Budget: $10.00',
-                      'RPM Limit: 60 RPM',
-                      '5-Hour Limit: $1.00',
-                      '7-Day Limit: $5.00',
-                      'Hosted Agents: 0'
-                    ]
-                  },
-                  {
-                    name: 'Pro Plan',
-                    key: 'pro',
-                    price: '$19.99',
-                    billing: 'monthly',
-                    desc: 'Perfect for production apps and agent deployments.',
-                    badge: 'Popular • 7-Day Free Trial',
-                    limits: [
-                      'Monthly Budget: $100.00',
-                      'RPM Limit: 300 RPM',
-                      '5-Hour Limit: $10.00',
-                      '7-Day Limit: $50.00',
-                      'Hosted Agents: 2 (1GB RAM)'
-                    ]
-                  },
-                  {
-                    name: 'Ultra Plan',
-                    key: 'ultra',
-                    price: '$99.99',
-                    billing: 'monthly',
-                    desc: 'Ultimate capacity for high-scale agent networks.',
-                    badge: 'Elite Performance',
-                    limits: [
-                      'Monthly Budget: $1,000.00',
-                      'RPM Limit: 1,000 RPM',
-                      '5-Hour Limit: $100.00',
-                      '7-Day Limit: $500.00',
-                      'Hosted Agents: 5 (4GB RAM)'
-                    ]
-                  }
-                ].map((plan) => {
+                {getDisplayPlans().map((plan) => {
                   const isCurrent = usage?.tier === plan.key;
                   const isLoading = checkoutLoading === plan.key;
 

@@ -529,6 +529,14 @@ export default function UserDashboard() {
 
         {/* Canvas */}
         <main className="flex-1 p-0 grid-bg relative">
+          {usage?.is_trialing && (
+            <div className="bg-[#ef4444]/10 border-b border-[#ef4444]/25 text-[#ef4444] px-6 py-3 font-mono text-[11px] flex items-center justify-between uppercase tracking-wider font-bold">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 bg-[#ef4444] rounded-full status-pulse red-glow" />
+                [BILLING_NOTICE]: FREE TRIAL ACTIVE. YOU ARE CURRENTLY TRIALING THE PRO PLAN.
+              </div>
+            </div>
+          )}
           {usage?.gateway_enabled === false && (
             <div className="bg-[#ef4444]/15 border-b border-[#ef4444]/30 text-[#ef4444] px-6 py-3 font-mono text-[11px] flex items-center justify-between animate-pulse uppercase tracking-wider font-bold">
               <div className="flex items-center gap-2">

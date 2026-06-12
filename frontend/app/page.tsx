@@ -4,14 +4,103 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Layers, Terminal, Sparkles, Copy, Check, Cpu, RefreshCw, Zap, Shield, ArrowRight } from 'lucide-react'
 import { getGatewayUrl } from '@/lib/utils'
+import { getPlans, type PlanPreset } from '@/lib/api'
 
 export default function Home() {
   const [copied, setCopied] = useState(false)
   const [origin, setOrigin] = useState('http://localhost:8000')
+  const [dbPlans, setDbPlans] = useState<PlanPreset[]>([])
 
   useEffect(() => {
     setOrigin(getGatewayUrl())
   }, [])
+
+  useEffect(() => {
+    async function loadPlans() {
+      try {
+        const res = await getPlans()
+        if (res && res.plans) {
+          const filtered = res.plans.filter(p => p.tier !== 'free')
+          setDbPlans(filtered)
+        }
+      } catch (err) {
+        console.error('Failed to load plans from backend:', err)
+      }
+    }
+    loadPlans()
+  }, [])
+
+  const getDisplayPlans = () => {
+    const fallbackPlans = [
+      {
+        name: 'Starter Plan',
+        key: 'starter',
+        price: '$4.99',
+        billing: 'monthly',
+        desc: 'Essential API limits for developers starting out.',
+        limits: [
+          'Monthly Budget: $10.00',
+          'RPM Limit: 60 RPM',
+          '5-Hour Limit: $1.00',
+          '7-Day Limit: $5.00',
+          'Hosted Agents: 0'
+        ]
+      },
+      {
+        name: 'Pro Plan',
+        key: 'pro',
+        price: '$19.99',
+        billing: 'monthly',
+        desc: 'Perfect for production apps and agent deployments.',
+        badge: 'Popular • 7-Day Free Trial',
+        limits: [
+          'Monthly Budget: $100.00',
+          'RPM Limit: 300 RPM',
+          '5-Hour Limit: $10.00',
+          '7-Day Limit: $50.00',
+          'Hosted Agents: 2'
+        ]
+      },
+      {
+        name: 'Ultra Plan',
+        key: 'ultra',
+        price: '$99.99',
+        billing: 'monthly',
+        desc: 'Ultimate capacity for high-scale agent networks.',
+        badge: 'Elite Performance',
+        limits: [
+          'Monthly Budget: $1,000.00',
+          'RPM Limit: 1,000 RPM',
+          '5-Hour Limit: $100.00',
+          '7-Day Limit: $500.00',
+          'Hosted Agents: 5'
+        ]
+      }
+    ]
+
+    if (dbPlans.length === 0) {
+      return fallbackPlans
+    }
+
+    return dbPlans.map(plan => {
+      const matchingFallback = fallbackPlans.find(fp => fp.key === plan.tier)
+      return {
+        name: matchingFallback?.name || `${plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1)} Plan`,
+        key: plan.tier,
+        price: matchingFallback?.price || '$0.00',
+        billing: matchingFallback?.billing || 'monthly',
+        desc: matchingFallback?.desc || 'Custom limits tier.',
+        badge: matchingFallback?.badge || null,
+        limits: [
+          `Monthly Budget: $${plan.monthly_limit.toFixed(2)}`,
+          `RPM Limit: ${plan.rpm_limit} RPM`,
+          `5-Hour Limit: $${plan.tokens_5h_limit.toFixed(2)}`,
+          `7-Day Limit: $${plan.tokens_7d_limit.toFixed(2)}`,
+          `Hosted Agents: ${plan.max_agents ?? 0}`
+        ]
+      }
+    })
+  }
 
   const codeSnippet = `from openai import OpenAI
 
@@ -49,6 +138,7 @@ response = client.chat.completions.create(
           <div className="flex items-center gap-3 sm:gap-6">
             <a href="#features" className="hidden sm:block text-xs font-mono uppercase tracking-wider text-zinc-400 hover:text-white transition-colors">Features</a>
             <a href="#models" className="hidden sm:block text-xs font-mono uppercase tracking-wider text-zinc-400 hover:text-white transition-colors">Models</a>
+            <a href="#pricing" className="hidden sm:block text-xs font-mono uppercase tracking-wider text-zinc-400 hover:text-white transition-colors">Pricing</a>
             <Link href="/auth/login" className="text-[10px] sm:text-xs font-mono uppercase tracking-wider text-zinc-300 hover:text-white transition-colors">
               Sign in
             </Link>
@@ -89,15 +179,25 @@ response = client.chat.completions.create(
               href="/auth/login" 
               className="bg-[#ef4444] text-black font-mono text-xs font-bold py-3.5 px-8 hover:bg-[#ff5451] transition-all red-glow flex items-center gap-2"
             >
-              <span className="font-bold">[+]</span> START FOR FREE
+              <span className="font-bold">[+]</span> SUBSCRIBE & START
             </Link>
             <a 
-              href="#models" 
+              href="#pricing" 
               className="bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono text-xs font-bold py-3.5 px-8 hover:border-zinc-500 hover:text-white transition-all"
+            >
+              EXPLORE_PRICING
+            </a>
+            <a 
+              href="#models" 
+              className="bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono text-xs font-bold py-3.5 px-8 hover:border-zinc-500 hover:text-white transition-all"
             >
               EXPLORE_MODELS
             </a>
           </div>
+
+          <p className="text-[9px] text-[#ef4444] font-mono uppercase tracking-widest pt-2 animate-pulse font-bold">
+            * Subscription plans are available with a 7-day free trial on the Pro Plan. Check our pricing page below.
+          </p>
 
           {/* Code IDE Container */}
           <div className="mt-16 w-full max-w-2xl text-left bg-[#0e0e10] border border-[#27272a] crosshair-corners overflow-hidden">
@@ -249,6 +349,64 @@ response = client.chat.completions.create(
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="border-t border-[#27272a] py-20 bg-[#09090b] relative micro-grid">
+        <div className="max-w-6xl mx-auto px-6 space-y-12">
+          <div className="text-center space-y-4 flex flex-col items-center">
+            <h3 className="text-2xl sm:text-4xl font-mono font-bold tracking-tight uppercase text-white">Pricing Profiles</h3>
+            <div className="w-[3px] h-6 bg-[#ef4444] red-glow"></div>
+            <p className="text-xs sm:text-sm text-zinc-400 font-mono uppercase tracking-wider max-w-xl">
+              Choose a flexible subscription plan that matches your production throughput demands.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-6">
+            {getDisplayPlans().map((plan, idx) => (
+              <div 
+                key={idx} 
+                className={`relative bg-[#0e0e10] border ${plan.badge ? 'border-[#ef4444] red-glow' : 'border-zinc-800'} p-8 flex flex-col justify-between hover:border-zinc-500 transition-all crosshair-corners`}
+              >
+                {plan.badge && (
+                  <div className="absolute top-0 right-6 -translate-y-1/2 bg-[#ef4444] text-white font-mono text-[8px] font-bold px-2 py-0.5 tracking-widest uppercase red-glow">
+                    {plan.badge}
+                  </div>
+                )}
+
+                <div className="space-y-6">
+                  <div className="space-y-1">
+                    <h4 className="font-mono text-xs text-white font-bold uppercase tracking-wider">{plan.name}</h4>
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase leading-relaxed">{plan.desc}</p>
+                  </div>
+
+                  <div className="flex items-baseline gap-1 py-3 border-y border-zinc-900">
+                    <span className="font-mono text-3xl text-white font-bold tracking-tighter">{plan.price}</span>
+                    <span className="font-mono text-[9px] text-zinc-500 uppercase">/ {plan.billing}</span>
+                  </div>
+
+                  <ul className="space-y-2.5 font-mono text-[9px] text-zinc-400">
+                    {plan.limits.map((limit, lIdx) => (
+                      <li key={lIdx} className="flex items-center gap-2">
+                        <span className="w-1 h-1 bg-[#ef4444] red-glow"></span>
+                        <span className="uppercase">{limit}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="pt-8 mt-auto">
+                  <Link 
+                    href="/auth/login"
+                    className="w-full text-center block font-mono text-[9px] py-3.5 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white transition-all tracking-widest uppercase font-bold"
+                  >
+                    Select Plan
+                  </Link>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>

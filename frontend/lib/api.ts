@@ -76,6 +76,9 @@ export interface UsageStats {
   full_reset_5h?: number
   next_reset_7d?: number
   full_reset_7d?: number
+  is_trialing?: boolean
+  max_agents?: number
+  openclaw_enabled?: boolean
 }
 
 export interface ModelAnalytics {
@@ -184,6 +187,12 @@ export async function getAnalytics(token: string): Promise<AnalyticsResponse> {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) throw new Error('Failed to fetch analytics')
+  return res.json()
+}
+
+export async function getPlans(): Promise<{ plans: PlanPreset[] }> {
+  const res = await fetch(`${API_BASE}/v1/plans`)
+  if (!res.ok) throw new Error('Failed to fetch plans')
   return res.json()
 }
 

@@ -204,7 +204,7 @@ async def get_my_usage(request: Request):
 
     # Get account info including limits and reset timestamp
     result = supabase.table("accounts").select(
-        "monthly_requests, monthly_limit, total_requests, tier, role, rpm_limit, tokens_5h_limit, tokens_7d_limit, budget_reset_at"
+        "monthly_requests, monthly_limit, total_requests, tier, role, rpm_limit, tokens_5h_limit, tokens_7d_limit, budget_reset_at, is_trialing, max_agents, openclaw_enabled"
     ).eq("id", account_id).execute()
 
     if not result.data:
@@ -340,6 +340,9 @@ async def get_my_usage(request: Request):
         "full_reset_5h": full_reset_5h,
         "next_reset_7d": next_reset_7d,
         "full_reset_7d": full_reset_7d,
+        "is_trialing": account.get("is_trialing", False),
+        "max_agents": account.get("max_agents", 0),
+        "openclaw_enabled": account.get("openclaw_enabled", False),
     }
 
 

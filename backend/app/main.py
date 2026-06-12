@@ -44,7 +44,7 @@ app.add_middleware(
 # Auth middleware
 # ---------------------------------------------------------------------------
 
-PUBLIC_PREFIXES = ("/health", "/healthz", "/docs", "/redoc", "/openapi", "/v1/models", "/v1/webhooks", "/")
+PUBLIC_PREFIXES = ("/health", "/healthz", "/docs", "/redoc", "/openapi", "/v1/models", "/v1/plans", "/v1/webhooks", "/")
 ADMIN_PREFIX = "/admin"
 USER_PREFIX = "/user"
 

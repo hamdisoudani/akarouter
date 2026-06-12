@@ -47,11 +47,11 @@ def _verify_supabase_jwt(token: str) -> dict | None:
         auth_user_id = user.id
 
         # Look up account in our DB
-        account_resp = supabase.table("accounts").select("id, email, role, tier, status, suspended_reason, openclaw_enabled, max_agents, agent_cpu, agent_ram").eq("auth_user_id", str(auth_user_id)).execute()
+        account_resp = supabase.table("accounts").select("id, email, role, tier, status, suspended_reason, openclaw_enabled, max_agents, agent_cpu, agent_ram, is_trialing").eq("auth_user_id", str(auth_user_id)).execute()
         if not account_resp.data:
             logger.warning("Supabase Auth: no user account found in DB for auth_user_id=%s", auth_user_id)
             return None
-
+ 
         account = account_resp.data[0]
         user_info = {
             "auth_user_id": str(auth_user_id),
@@ -65,6 +65,7 @@ def _verify_supabase_jwt(token: str) -> dict | None:
             "max_agents": account.get("max_agents", 0),
             "agent_cpu": account.get("agent_cpu", 1),
             "agent_ram": account.get("agent_ram", 1),
+            "is_trialing": account.get("is_trialing", False),
         }
         # Cache verified user info (TTL 60 seconds)
         set_jwt_cache(token, user_info)
