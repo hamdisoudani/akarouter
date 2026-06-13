@@ -486,8 +486,20 @@ async def create_checkout_session(request: Request, body: CheckoutSessionRequest
     resolved_plan_id = await resolve_whop_id_to_plan_id(plan_id)
 
     redirect_url = body.redirect_url
-    if not redirect_url or not redirect_url.startswith("https://"):
-        redirect_url = "https://akarouter.com/usage"  # Fallback
+    if not redirect_url:
+        origin = request.headers.get("origin")
+        referer = request.headers.get("referer")
+        if origin:
+            redirect_url = f"{origin}/dashboard"
+        elif referer:
+            from urllib.parse import urlparse
+            parsed = urlparse(referer)
+            redirect_url = f"{parsed.scheme}://{parsed.netloc}/dashboard"
+        else:
+            redirect_url = "https://akarouter.com/usage"  # Fallback
+
+    if not (redirect_url.startswith("https://") or redirect_url.startswith("http://")):
+        redirect_url = "https://akarouter.com/usage"
 
     try:
         async with httpx.AsyncClient() as client:

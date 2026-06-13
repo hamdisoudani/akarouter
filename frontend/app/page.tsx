@@ -128,9 +128,9 @@ response = client.chat.completions.create(
 
       {/* Navigation */}
       <nav className="sticky top-0 w-full z-50 border-b border-[#27272a] bg-[#09090b]/80 backdrop-blur-xl micro-grid">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-20 h-10 sm:w-24 sm:h-12 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
+            <div className="w-[208px] h-16 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
               <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
             </div>
           </div>

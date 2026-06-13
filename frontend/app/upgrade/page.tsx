@@ -122,7 +122,8 @@ export default function UpgradePage() {
     setCheckoutError(null)
 
     try {
-      const data = await createCheckoutSession(token, tier)
+      const redirectUrl = window.location.origin + '/dashboard'
+      const data = await createCheckoutSession(token, tier, redirectUrl)
       if (data && data.checkout_url) {
         window.location.href = data.checkout_url
       }
