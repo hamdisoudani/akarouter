@@ -412,7 +412,7 @@ export default function HostedAgentsPage() {
         <div className="px-6 mb-8 flex flex-col gap-1">
           <div className="w-full">
             <div className="w-full h-16 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
-              <span className="font-mono text-xl tracking-[0.25em] font-extrabold text-[#ef4444] animate-pulse">AKA</span>
+              <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
             </div>
           </div>
           <div className="flex items-center gap-2 mt-3">
@@ -583,7 +583,7 @@ export default function HostedAgentsPage() {
         <header className="flex justify-between items-center w-full px-6 py-3 bg-[#09090b] tech-border-b sticky top-0 z-10 micro-grid">
           <div className="md:hidden flex items-center justify-between w-full">
             <div className="w-20 h-10 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
-              <span className="font-mono text-lg tracking-[0.2em] font-extrabold text-[#ef4444]">AKA</span>
+              <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
             </div>
             <button 
               onClick={() => setMobileOpen(!mobileOpen)}
