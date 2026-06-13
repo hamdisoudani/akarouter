@@ -14,13 +14,23 @@ from app.api.hosted_agents import router as hosted_agents_router
 from app.api.webhooks import router as webhooks_router
 
 
-# Configure logging BEFORE anything else
+# Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.WARNING,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
+# Suppress chatty third-party library logs
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("hpack").setLevel(logging.WARNING)
+logging.getLogger("supabase").setLevel(logging.WARNING)
+logging.getLogger("postgrest").setLevel(logging.WARNING)
+logging.getLogger("gotrue").setLevel(logging.WARNING)
+
+# Set app and akarouter logger to INFO to track subscriptions and completions activity
+logging.getLogger("app").setLevel(logging.INFO)
 logger = logging.getLogger("akarouter")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 app = FastAPI(
     title="AKAROUTER",
