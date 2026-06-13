@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from app.core.supabase import get_supabase
 from app.core.router import generate_api_key
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
