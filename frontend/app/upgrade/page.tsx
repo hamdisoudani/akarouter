@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { useApp } from '@/app/providers'
 import { createCheckoutSession, getPlans, type PlanPreset } from '@/lib/api'
 import { LogOut, RefreshCw } from 'lucide-react'
@@ -148,8 +149,8 @@ export default function UpgradePage() {
       {/* TopAppBar */}
       <header className="flex justify-between items-center w-full px-6 py-3 bg-[#09090b] border-b border-zinc-900 sticky top-0 z-10 micro-grid">
         <div className="flex items-center gap-3">
-          <div className="w-20 h-10 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
-            <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
+          <div className="relative w-20 h-10 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
+            <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
           </div>
           <span className="hidden sm:inline-block font-mono text-[10px] tracking-[0.2em] text-zinc-400 uppercase font-bold border-l border-zinc-800 pl-4 leading-none">
             Subscription Setup Portal

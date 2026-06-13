@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useApp } from '@/app/providers'
 import {
   getAnalytics,
@@ -236,8 +237,8 @@ export default function UserDashboard() {
         
         <div className="w-full max-w-md tech-border bg-[#0e0e10] p-8 space-y-6 crosshair-corners relative red-glow">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-48 h-16 border border-[#ef4444]/30 bg-[#ef4444]/5 flex items-center justify-center overflow-hidden">
-              <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
+            <div className="relative w-48 h-16 border border-[#ef4444]/30 bg-[#ef4444]/5 flex items-center justify-center overflow-hidden">
+              <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
             </div>
             <div className="flex items-center gap-2 mt-2">
               <div className="w-2 h-2 bg-[#ef4444] red-glow animate-pulse rounded-full"></div>
@@ -327,8 +328,8 @@ export default function UserDashboard() {
       <nav className="hidden md:flex flex-col h-screen w-64 tech-border-r bg-[#09090b] py-6 fixed left-0 top-0 z-20 micro-grid">
         <div className="px-6 mb-8 flex flex-col gap-1">
           <div className="w-full">
-            <div className="w-full h-16 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
-              <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
+            <div className="relative w-full h-16 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
+              <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
             </div>
           </div>
           <div className="flex items-center gap-2 mt-3">
@@ -501,8 +502,8 @@ export default function UserDashboard() {
         {/* TopAppBar */}
         <header className="flex justify-between items-center w-full px-6 py-3 bg-[#09090b] tech-border-b sticky top-0 z-10 micro-grid">
           <div className="md:hidden flex items-center justify-between w-full">
-            <div className="w-20 h-10 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
-              <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
+            <div className="relative w-20 h-10 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
+              <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
             </div>
             <button 
               onClick={() => setMobileOpen(!mobileOpen)}

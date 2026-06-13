@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { KeyRound, Layers } from 'lucide-react'
 
@@ -59,8 +60,8 @@ export default function LoginPage() {
           
           {/* Logo & Brand */}
           <div className="flex flex-col items-center justify-center text-center mb-8 w-full">
-            <div className="w-full h-24 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow mb-4 overflow-hidden">
-              <img src="/logo.png" alt="AkaRouter Logo" className="w-full h-full object-contain scale-[2.5]" />
+            <div className="relative w-full h-24 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow mb-4 overflow-hidden">
+              <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
             </div>
           </div>
 
