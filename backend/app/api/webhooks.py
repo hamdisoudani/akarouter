@@ -39,21 +39,28 @@ async def whop_webhook_handler(
 
     try:
         import base64
-        # Decode the base64-encoded secret key after stripping prefix
         secret_str = settings.whop_webhook_secret.replace("ws_", "").replace("whsec_", "")
-        secret_bytes = base64.b64decode(secret_str)
 
-        # Construct signed payload according to Standard Webhooks spec
-        signed_content = f"{webhook_id}.{webhook_timestamp}.".encode("utf-8") + payload_bytes
+        # Try multiple methods to decode the webhook secret key
+        possible_keys = []
 
-        # Compute HMAC-SHA256 signature
-        computed_sig_bytes = hmac.new(
-            key=secret_bytes,
-            msg=signed_content,
-            digestmod=hashlib.sha256
-        ).digest()
+        # 1. Hex decoded bytes (likely, since it's a 64-char hex string)
+        try:
+            possible_keys.append(bytes.fromhex(secret_str))
+        except ValueError:
+            pass
 
-        computed_sig_b64 = base64.b64encode(computed_sig_bytes).decode("utf-8")
+        # 2. Raw UTF-8 bytes of stripped secret
+        possible_keys.append(secret_str.encode("utf-8"))
+
+        # 3. Raw UTF-8 bytes of full secret
+        possible_keys.append(settings.whop_webhook_secret.encode("utf-8"))
+
+        # 4. Base64 decoded bytes (Svix default)
+        try:
+            possible_keys.append(base64.b64decode(secret_str))
+        except Exception:
+            pass
 
         # Parse signatures from header (could be space-separated list)
         signatures = webhook_signature.split(" ")
@@ -66,10 +73,27 @@ async def whop_webhook_handler(
             logger.warning("Whop webhook rejected: No v1 signature found in header")
             raise HTTPException(status_code=401, detail="Invalid signature format")
 
+        # Construct signed payload according to Standard Webhooks spec
+        signed_content = f"{webhook_id}.{webhook_timestamp}.".encode("utf-8") + payload_bytes
+
         verified = False
-        for v1_sig in v1_signatures:
-            if hmac.compare_digest(computed_sig_b64, v1_sig):
-                verified = True
+        for secret_bytes in possible_keys:
+            # Compute HMAC-SHA256 signature
+            computed_sig_bytes = hmac.new(
+                key=secret_bytes,
+                msg=signed_content,
+                digestmod=hashlib.sha256
+            ).digest()
+
+            computed_sig_b64 = base64.b64encode(computed_sig_bytes).decode("utf-8")
+            computed_sig_hex = computed_sig_bytes.hex()
+
+            for v1_sig in v1_signatures:
+                if hmac.compare_digest(computed_sig_b64, v1_sig) or hmac.compare_digest(computed_sig_hex, v1_sig):
+                    verified = True
+                    break
+
+            if verified:
                 break
 
         if not verified:
