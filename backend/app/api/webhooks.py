@@ -17,17 +17,18 @@ router = APIRouter()
 
 @router.post("/v1/webhooks/whop")
 async def whop_webhook_handler(
-    request: Request,
-    x_whop_signature: str = Header(None),
-    webhook_signature: str = Header(None)
+    request: Request
 ):
     """
-    Handle incoming Whop webhooks to sync subscriptions.
+    Handle incoming Whop webhooks to sync subscriptions using Standard Webhooks verification.
     """
-    signature = x_whop_signature or webhook_signature
-    if not signature:
-        logger.warning("Whop webhook rejected: Missing signature header")
-        raise HTTPException(status_code=401, detail="Missing signature header")
+    webhook_id = request.headers.get("webhook-id") or request.headers.get("svix-id")
+    webhook_timestamp = request.headers.get("webhook-timestamp") or request.headers.get("svix-timestamp")
+    webhook_signature = request.headers.get("webhook-signature") or request.headers.get("svix-signature") or request.headers.get("x-whop-signature")
+
+    if not webhook_id or not webhook_timestamp or not webhook_signature:
+        logger.warning("Whop webhook rejected: Missing standard signature/timestamp headers")
+        raise HTTPException(status_code=401, detail="Missing signature headers")
 
     payload_bytes = await request.body()
 
@@ -36,14 +37,47 @@ async def whop_webhook_handler(
         logger.error("Whop webhook secret is not configured in settings")
         raise HTTPException(status_code=500, detail="Webhook configuration error")
 
-    expected_signature = hmac.new(
-        key=settings.whop_webhook_secret.encode("utf-8"),
-        msg=payload_bytes,
-        digestmod=hashlib.sha256
-    ).hexdigest()
+    try:
+        import base64
+        # Decode the base64-encoded secret key after stripping prefix
+        secret_str = settings.whop_webhook_secret.replace("ws_", "").replace("whsec_", "")
+        secret_bytes = base64.b64decode(secret_str)
 
-    if not hmac.compare_digest(expected_signature, signature):
-        logger.warning("Whop webhook rejected: Invalid signature")
+        # Construct signed payload according to Standard Webhooks spec
+        signed_content = f"{webhook_id}.{webhook_timestamp}.".encode("utf-8") + payload_bytes
+
+        # Compute HMAC-SHA256 signature
+        computed_sig_bytes = hmac.new(
+            key=secret_bytes,
+            msg=signed_content,
+            digestmod=hashlib.sha256
+        ).digest()
+
+        computed_sig_b64 = base64.b64encode(computed_sig_bytes).decode("utf-8")
+
+        # Parse signatures from header (could be space-separated list)
+        signatures = webhook_signature.split(" ")
+        v1_signatures = []
+        for sig in signatures:
+            if sig.startswith("v1,"):
+                v1_signatures.append(sig.split(",", 1)[1])
+
+        if not v1_signatures:
+            logger.warning("Whop webhook rejected: No v1 signature found in header")
+            raise HTTPException(status_code=401, detail="Invalid signature format")
+
+        verified = False
+        for v1_sig in v1_signatures:
+            if hmac.compare_digest(computed_sig_b64, v1_sig):
+                verified = True
+                break
+
+        if not verified:
+            logger.warning("Whop webhook rejected: Invalid signature")
+            raise HTTPException(status_code=401, detail="Invalid signature")
+
+    except Exception as e:
+        logger.error(f"Error during Whop signature verification: {e}", exc_info=True)
         raise HTTPException(status_code=401, detail="Invalid signature")
 
     # Parse payload
