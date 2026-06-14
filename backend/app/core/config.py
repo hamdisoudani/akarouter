@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     whop_plan_pro: str = ""
     whop_plan_ultra: str = ""
 
+    # CORS Origins
+    cors_origins: list[str] = ["http://localhost:3000"]
+
 
 
     # Model mapping: alias -> upstream

@@ -3,7 +3,7 @@ import time
 import logging
 import threading
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Optional
 
 from app.core.supabase import get_supabase
@@ -147,15 +147,164 @@ def get_account_budget(account_id: str) -> Optional[dict[str, Any]]:
     return None
 
 
-def set_account_budget(account_id: str, consumed_5h: float, consumed_7d: float, consumed_month: float) -> None:
+def set_account_budget(
+    account_id: str,
+    consumed_5h: float,
+    consumed_7d: float,
+    consumed_month: float,
+    reset_5h_at: Optional[float] = None,
+    reset_7d_at: Optional[float] = None
+) -> None:
     """Set the cached budget tracking for an account."""
     with _lock:
         _account_budgets[account_id] = {
             "consumed_5h": consumed_5h,
             "consumed_7d": consumed_7d,
             "consumed_month": consumed_month,
+            "reset_5h_at": reset_5h_at,
+            "reset_7d_at": reset_7d_at,
             "last_fetched_at": time.time(),
         }
+
+
+def get_budget_cycles(budget_reset_at: Optional[str], now_dt: datetime) -> dict[str, Any]:
+    """Helper to calculate consistent budget cycle start and reset times."""
+    reset_dt = None
+    if budget_reset_at:
+        try:
+            reset_dt = datetime.fromisoformat(budget_reset_at.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
+    if reset_dt:
+        month_start = reset_dt
+    else:
+        month_start = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+    elapsed = (now_dt - month_start).total_seconds()
+    
+    # 5h Cycle
+    cycle_5h_length = 5 * 3600
+    completed_5h_cycles = int(max(0.0, elapsed) // cycle_5h_length)
+    cycle_5h_start = month_start + timedelta(seconds=completed_5h_cycles * cycle_5h_length)
+    cycle_5h_reset = cycle_5h_start + timedelta(seconds=cycle_5h_length)
+    
+    # 7d Cycle
+    cycle_7d_length = 7 * 24 * 3600
+    completed_7d_cycles = int(max(0.0, elapsed) // cycle_7d_length)
+    cycle_7d_start = month_start + timedelta(seconds=completed_7d_cycles * cycle_7d_length)
+    cycle_7d_reset = cycle_7d_start + timedelta(seconds=cycle_7d_length)
+    
+    return {
+        "reset_dt": reset_dt,
+        "month_start": month_start,
+        "cycle_5h_start": cycle_5h_start,
+        "cycle_5h_reset": cycle_5h_reset,
+        "cycle_7d_start": cycle_7d_start,
+        "cycle_7d_reset": cycle_7d_reset,
+    }
+
+
+async def calculate_account_budget(account_id: str, budget_reset_at: Optional[str]) -> dict[str, Any]:
+    """Calculate budget consumption from DB RPC and include unflushed in-memory logs."""
+    now_dt = datetime.now(timezone.utc)
+    bounds = get_budget_cycles(budget_reset_at, now_dt)
+    month_start = bounds["month_start"]
+    cycle_5h_start = bounds["cycle_5h_start"]
+    cycle_5h_reset = bounds["cycle_5h_reset"]
+    cycle_7d_start = bounds["cycle_7d_start"]
+    cycle_7d_reset = bounds["cycle_7d_reset"]
+    reset_dt = bounds["reset_dt"]
+
+    # 1. Fetch aggregated consumed amounts from database RPC
+    supabase = get_supabase()
+    try:
+        res = supabase.rpc("get_budget_consumption", {
+            "p_account_id": account_id,
+            "p_month_start": month_start.isoformat(),
+            "p_cycle_5h_start": cycle_5h_start.isoformat(),
+            "p_cycle_5h_reset": cycle_5h_reset.isoformat(),
+            "p_cycle_7d_start": cycle_7d_start.isoformat(),
+            "p_cycle_7d_reset": cycle_7d_reset.isoformat(),
+        }).execute()
+        if res.data:
+            db_data = res.data[0]
+            consumed_5h = float(db_data.get("consumed_5h", 0.0))
+            consumed_7d = float(db_data.get("consumed_7d", 0.0))
+            consumed_month = float(db_data.get("consumed_month", 0.0))
+        else:
+            consumed_5h = consumed_7d = consumed_month = 0.0
+    except Exception as e:
+        logger.error(f"Failed to query budget consumption RPC: {e}")
+        # Fallback to direct query if RPC is missing/fails
+        consumed_5h = consumed_7d = consumed_month = 0.0
+        try:
+            logs_res = (
+                supabase.table("request_logs")
+                .select("cost, created_at")
+                .eq("account_id", account_id)
+                .gte("created_at", month_start.isoformat())
+                .execute()
+            )
+            if logs_res and logs_res.data:
+                for log in logs_res.data:
+                    cost = log.get("cost") or 0.0
+                    created_at_str = log.get("created_at")
+                    if not created_at_str:
+                        continue
+                    try:
+                        log_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                        if reset_dt and log_dt < reset_dt:
+                            continue
+                        if log_dt >= cycle_5h_start and log_dt < cycle_5h_reset:
+                            consumed_5h += cost
+                        if log_dt >= cycle_7d_start and log_dt < cycle_7d_reset:
+                            consumed_7d += cost
+                        if log_dt >= month_start:
+                            consumed_month += cost
+                    except Exception:
+                        pass
+        except Exception as fallback_err:
+            logger.error(f"Fallback budget query also failed: {fallback_err}")
+
+    # 2. Add unflushed log costs from the in-memory write buffer
+    with _lock:
+        for log in _request_log_buffer:
+            if log.get("account_id") == account_id:
+                cost = log.get("cost") or 0.0
+                created_at = log.get("created_at")
+                if isinstance(created_at, str):
+                    try:
+                        log_dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                    except Exception:
+                        log_dt = now_dt
+                else:
+                    log_dt = now_dt
+
+                if reset_dt and log_dt < reset_dt:
+                    continue
+                if log_dt >= cycle_5h_start and log_dt < cycle_5h_reset:
+                    consumed_5h += cost
+                if log_dt >= cycle_7d_start and log_dt < cycle_7d_reset:
+                    consumed_7d += cost
+                if log_dt >= month_start:
+                    consumed_month += cost
+
+    # 3. Cache the computed budget metrics
+    set_account_budget(
+        account_id,
+        consumed_5h,
+        consumed_7d,
+        consumed_month,
+        reset_5h_at=cycle_5h_reset.timestamp(),
+        reset_7d_at=cycle_7d_reset.timestamp()
+    )
+
+    return {
+        "consumed_5h": consumed_5h,
+        "consumed_7d": consumed_7d,
+        "consumed_month": consumed_month
+    }
 
 
 def increment_account_budget(account_id: str, cost: float) -> None:
@@ -503,31 +652,27 @@ async def flush_buffers_to_db() -> None:
         except Exception as e:
             logger.error("Failed to batch insert request logs, dropping logs: %s", e)
 
-    # 2. Flush account usages (deferred reads/writes)
+    # 2. Flush account usages (deferred atomic RPC updates)
     for account_id, counts in accounts_to_update.items():
         try:
             logger.debug("Flushing account usage for %s: %s", account_id, counts)
-            res = supabase.table("accounts").select("monthly_requests, total_requests").eq("id", account_id).execute()
-            if res.data:
-                curr = res.data[0]
-                supabase.table("accounts").update({
-                    "monthly_requests": curr.get("monthly_requests", 0) + counts["monthly"],
-                    "total_requests": curr.get("total_requests", 0) + counts["total"],
-                }).eq("id", account_id).execute()
+            supabase.rpc("increment_account_usage", {
+                "p_account_id": account_id,
+                "p_monthly_delta": counts["monthly"],
+                "p_total_delta": counts["total"]
+            }).execute()
         except Exception as e:
             logger.error("Failed to flush usage for account %s: %s", account_id, e)
 
-    # 3. Flush provider statistics (deferred reads/writes)
+    # 3. Flush provider statistics (deferred atomic RPC updates)
     for provider_id, stats in providers_to_update.items():
         try:
             logger.debug("Flushing provider stats for %s: %s", provider_id, stats)
-            res = supabase.table("providers").select("total_requests, total_errors").eq("id", provider_id).execute()
-            if res.data:
-                curr = res.data[0]
-                supabase.table("providers").update({
-                    "total_requests": curr.get("total_requests", 0) + stats["requests"],
-                    "total_errors": curr.get("total_errors", 0) + stats["errors"],
-                }).eq("id", provider_id).execute()
+            supabase.rpc("increment_provider_stats", {
+                "p_provider_id": provider_id,
+                "p_requests_delta": stats["requests"],
+                "p_errors_delta": stats["errors"]
+            }).execute()
         except Exception as e:
             logger.error("Failed to flush stats for provider %s: %s", provider_id, e)
 

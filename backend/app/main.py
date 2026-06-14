@@ -12,6 +12,8 @@ from app.api.admin.routes import router as admin_router
 from app.api.user import router as user_router
 from app.api.hosted_agents import router as hosted_agents_router
 from app.api.webhooks import router as webhooks_router
+from app.api.plans import router as plans_router
+from app.core.http_client import init_http_client, close_http_client
 
 
 # Configure logging
@@ -41,10 +43,13 @@ app = FastAPI(
 )
 
 # CORS
+cors_origins = [str(o) for o in settings.cors_origins] if settings.cors_origins else ["*"]
+allow_credentials = "*" not in cors_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -68,9 +73,6 @@ async def auth_middleware(request: Request, call_next):
     auth_header = request.headers.get("authorization", "")
     parts = auth_header.split(" ", 1)
     token = parts[1].strip() if len(parts) == 2 and parts[0].lower() == "bearer" else ""
-    print(f"MIDDLEWARE_DEBUG: path={path} auth_header_len={len(auth_header)} token_len={len(token)}")
-    if token:
-        print(f"MIDDLEWARE_DEBUG: token starts with={token[:15]}")
 
     # Enforce gateway-wide status check for completions and model paths
     if path.startswith("/v1/"):
@@ -172,6 +174,7 @@ app.include_router(admin_router, tags=["Admin"])
 app.include_router(user_router, tags=["User"])
 app.include_router(hosted_agents_router, tags=["Hosted Agents"])
 app.include_router(webhooks_router, tags=["Webhooks"])
+app.include_router(plans_router, tags=["Plans"])
 
 
 
@@ -197,6 +200,9 @@ async def startup():
     logger.info(f"Supabase configured: {settings.supabase_configured}")
     logger.info(f"Nous API base: {settings.nous_api_base}")
     
+    # Initialize the global HTTP client pool
+    await init_http_client()
+    
     # Start the background cache and write-buffer flusher
     from app.core.cache import start_flusher
     start_flusher()
@@ -205,6 +211,9 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     logger.info("AKAROUTER shutting down")
+    
+    # Close the global HTTP client pool
+    await close_http_client()
     
     # Stop flusher task and execute final database flush
     from app.core.cache import stop_flusher

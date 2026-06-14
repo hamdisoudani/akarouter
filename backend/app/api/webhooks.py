@@ -3,6 +3,10 @@ import json
 import hmac
 import hashlib
 import logging
+import time
+import base64
+import uuid
+import asyncio
 from datetime import datetime, timezone
 import httpx
 from fastapi import APIRouter, Request, Header, HTTPException
@@ -10,6 +14,7 @@ from fastapi import APIRouter, Request, Header, HTTPException
 from app.core.config import settings
 from app.core.supabase import get_supabase
 from app.core.cache import evict_account_caches
+from app.core.http_client import get_http_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -30,6 +35,16 @@ async def whop_webhook_handler(
         logger.warning("Whop webhook rejected: Missing standard signature/timestamp headers")
         raise HTTPException(status_code=401, detail="Missing signature headers")
 
+    # Verify timestamp freshness to prevent replay attacks
+    try:
+        ts = int(webhook_timestamp)
+        if abs(time.time() - ts) > 300:
+            logger.warning(f"Whop webhook rejected: Timestamp is stale (delta: {abs(time.time() - ts)}s)")
+            raise HTTPException(status_code=401, detail="Webhook timestamp too old (replay rejected)")
+    except (ValueError, TypeError):
+        logger.warning("Whop webhook rejected: Invalid timestamp format")
+        raise HTTPException(status_code=401, detail="Invalid webhook timestamp")
+
     payload_bytes = await request.body()
 
     # Verify Whop Webhook Signature
@@ -38,7 +53,6 @@ async def whop_webhook_handler(
         raise HTTPException(status_code=500, detail="Webhook configuration error")
 
     try:
-        import base64
         secret_str = settings.whop_webhook_secret.replace("ws_", "").replace("whsec_", "")
 
         # Try multiple methods to decode the webhook secret key
@@ -100,6 +114,8 @@ async def whop_webhook_handler(
             logger.warning("Whop webhook rejected: Invalid signature")
             raise HTTPException(status_code=401, detail="Invalid signature")
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error during Whop signature verification: {e}", exc_info=True)
         raise HTTPException(status_code=401, detail="Invalid signature")
@@ -154,7 +170,6 @@ async def whop_webhook_handler(
         logger.warning(f"Could not resolve account_id for Whop event: {event_name} (user_id: {whop_user_id})")
         return {"status": "ignored", "reason": "could_not_resolve_account"}
 
-    import uuid
     try:
         uuid.UUID(str(account_id))
     except ValueError:
@@ -173,47 +188,47 @@ async def whop_webhook_handler(
     is_trialing = False
     if whop_user_id:
         try:
-            async with httpx.AsyncClient() as client:
-                res = await client.get(
-                    "https://api.whop.com/v1/memberships",
-                    headers={"Authorization": f"Bearer {settings.whop_api_key}"},
-                    params={
-                        "company_id": settings.whop_company_id,
-                        "user_ids[]": [whop_user_id]
-                    },
-                    timeout=10.0
-                )
-                if res.status_code == 200:
-                    memberships_data = res.json().get("data", [])
-                    active_memberships = [
-                        m for m in memberships_data
-                        if m.get("status") in ("active", "trialing")
-                    ]
-                    
-                    is_trialing = any(m.get("status") == "trialing" for m in active_memberships)
-                    
-                    highest_rank = 0
-                    for m in active_memberships:
-                        plan_id = m.get("plan", {}).get("id") or m.get("plan_id")
-                        product_id = m.get("product", {}).get("id") or m.get("product_id")
-                        if plan_id == settings.whop_plan_ultra or product_id == settings.whop_plan_ultra:
-                            highest_rank = max(highest_rank, 3)
-                        elif plan_id == settings.whop_plan_pro or product_id == settings.whop_plan_pro:
-                            highest_rank = max(highest_rank, 2)
-                        elif plan_id == settings.whop_plan_starter or product_id == settings.whop_plan_starter:
-                            highest_rank = max(highest_rank, 1)
+            client = get_http_client()
+            res = await client.get(
+                "https://api.whop.com/v1/memberships",
+                headers={"Authorization": f"Bearer {settings.whop_api_key}"},
+                params={
+                    "company_id": settings.whop_company_id,
+                    "user_ids[]": [whop_user_id]
+                },
+                timeout=10.0
+            )
+            if res.status_code == 200:
+                memberships_data = res.json().get("data", [])
+                active_memberships = [
+                    m for m in memberships_data
+                    if m.get("status") in ("active", "trialing")
+                ]
+                
+                is_trialing = any(m.get("status") == "trialing" for m in active_memberships)
+                
+                highest_rank = 0
+                for m in active_memberships:
+                    plan_id = m.get("plan", {}).get("id") or m.get("plan_id")
+                    product_id = m.get("product", {}).get("id") or m.get("product_id")
+                    if plan_id == settings.whop_plan_ultra or product_id == settings.whop_plan_ultra:
+                        highest_rank = max(highest_rank, 3)
+                    elif plan_id == settings.whop_plan_pro or product_id == settings.whop_plan_pro:
+                        highest_rank = max(highest_rank, 2)
+                    elif plan_id == settings.whop_plan_starter or product_id == settings.whop_plan_starter:
+                        highest_rank = max(highest_rank, 1)
 
-                    if highest_rank == 3:
-                        active_tier = "ultra"
-                    elif highest_rank == 2:
-                        active_tier = "pro"
-                    elif highest_rank == 1:
-                        active_tier = "starter"
-                else:
-                    logger.error(f"Whop memberships fetch failed with status {res.status_code}: {res.text}")
-                    # Fallback to current event payload if request failed
-                    active_tier = _fallback_tier_from_payload(event_name, data)
-                    is_trialing = data.get("status") == "trialing"
+                if highest_rank == 3:
+                    active_tier = "ultra"
+                elif highest_rank == 2:
+                    active_tier = "pro"
+                elif highest_rank == 1:
+                    active_tier = "starter"
+            else:
+                logger.error(f"Whop memberships fetch failed with status {res.status_code}: {res.text}")
+                # Fallback to current event payload if request failed
+                active_tier = _fallback_tier_from_payload(event_name, data)
+                is_trialing = data.get("status") == "trialing"
         except Exception as e:
             logger.error(f"Error fetching memberships from Whop API: {e}")
             active_tier = _fallback_tier_from_payload(event_name, data)
@@ -223,24 +238,63 @@ async def whop_webhook_handler(
         active_tier = _fallback_tier_from_payload(event_name, data)
         is_trialing = data.get("status") == "trialing"
 
+    # Idempotency check: fetch current account limits and tier
+    current_acc_res = None
+    try:
+        current_acc_res = supabase.table("accounts").select("tier, monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, openclaw_enabled, max_agents, agent_cpu, agent_ram, is_trialing").eq("id", account_id).execute()
+    except Exception as e:
+        logger.error(f"Failed to query current account state for idempotency check: {e}")
+
     # Sync tier and limits with database presets
     try:
         presets_res = supabase.table("plan_presets").select("*").eq("tier", active_tier).execute()
         if presets_res.data:
             p = presets_res.data[0]
-            supabase.table("accounts").update({
-                "tier": active_tier,
-                "monthly_limit": p["monthly_limit"],
-                "rpm_limit": p["rpm_limit"],
-                "tokens_5h_limit": p["tokens_5h_limit"],
-                "tokens_7d_limit": p["tokens_7d_limit"],
-                "openclaw_enabled": p["openclaw_enabled"],
-                "max_agents": p["max_agents"],
-                "agent_cpu": p["agent_cpu"],
-                "agent_ram": p["agent_ram"],
-                "is_trialing": is_trialing,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }).eq("id", account_id).execute()
+            
+            # Compare current state to avoid redundant updates
+            is_already_synced = False
+            if current_acc_res and current_acc_res.data:
+                curr = current_acc_res.data[0]
+                if (
+                    curr.get("tier") == active_tier and
+                    curr.get("is_trialing") == is_trialing and
+                    float(curr.get("monthly_limit") or 0.0) == float(p["monthly_limit"] or 0.0) and
+                    int(curr.get("rpm_limit") or 0) == int(p["rpm_limit"] or 0) and
+                    float(curr.get("tokens_5h_limit") or 0.0) == float(p["tokens_5h_limit"] or 0.0) and
+                    float(curr.get("tokens_7d_limit") or 0.0) == float(p["tokens_7d_limit"] or 0.0) and
+                    curr.get("openclaw_enabled") == p["openclaw_enabled"] and
+                    int(curr.get("max_agents") or 0) == int(p["max_agents"] or 0) and
+                    int(curr.get("agent_cpu") or 0) == int(p["agent_cpu"] or 0) and
+                    int(curr.get("agent_ram") or 0) == int(p["agent_ram"] or 0)
+                ):
+                    is_already_synced = True
+
+            if is_already_synced:
+                logger.info(f"Account {account_id} is already in sync with tier {active_tier}. Skipping DB write.")
+                return {"status": "success", "tier": active_tier, "reason": "idempotent_skip"}
+
+            # Wrap the database sync in a retry loop
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    supabase.table("accounts").update({
+                        "tier": active_tier,
+                        "monthly_limit": p["monthly_limit"],
+                        "rpm_limit": p["rpm_limit"],
+                        "tokens_5h_limit": p["tokens_5h_limit"],
+                        "tokens_7d_limit": p["tokens_7d_limit"],
+                        "openclaw_enabled": p["openclaw_enabled"],
+                        "max_agents": p["max_agents"],
+                        "agent_cpu": p["agent_cpu"],
+                        "agent_ram": p["agent_ram"],
+                        "is_trialing": is_trialing,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }).eq("id", account_id).execute()
+                    break
+                except Exception as db_err:
+                    if attempt == max_retries - 1:
+                        raise db_err
+                    await asyncio.sleep(2 ** attempt)
 
             # Evict account caches immediately
             evict_account_caches(account_id)

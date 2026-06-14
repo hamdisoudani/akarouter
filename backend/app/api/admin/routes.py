@@ -317,6 +317,12 @@ class CreatePlanRequest(BaseModel):
     max_agents: Optional[int] = 0
     agent_cpu: Optional[int] = 1
     agent_ram: Optional[int] = 1
+    price: Optional[str] = "$0"
+    billing_period: Optional[str] = "mo"
+    description: Optional[str] = ""
+    badge: Optional[str] = ""
+    has_trial: Optional[bool] = False
+    trial_days: Optional[int] = 7
 
 class UpdatePlanRequest(BaseModel):
     tier: Optional[str] = None
@@ -328,6 +334,12 @@ class UpdatePlanRequest(BaseModel):
     max_agents: Optional[int] = None
     agent_cpu: Optional[int] = None
     agent_ram: Optional[int] = None
+    price: Optional[str] = None
+    billing_period: Optional[str] = None
+    description: Optional[str] = None
+    badge: Optional[str] = None
+    has_trial: Optional[bool] = None
+    trial_days: Optional[int] = None
 
 class UpdateSettingsRequest(BaseModel):
     gateway_enabled: Optional[bool] = None
@@ -663,6 +675,12 @@ async def create_plan(body: CreatePlanRequest, authorization: Optional[str] = He
         "max_agents": body.max_agents,
         "agent_cpu": body.agent_cpu,
         "agent_ram": body.agent_ram,
+        "price": body.price,
+        "billing_period": body.billing_period,
+        "description": body.description,
+        "badge": body.badge,
+        "has_trial": body.has_trial,
+        "trial_days": body.trial_days,
     }).execute()
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create plan preset")
@@ -702,6 +720,18 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         updates["agent_cpu"] = body.agent_cpu
     if body.agent_ram is not None:
         updates["agent_ram"] = body.agent_ram
+    if body.price is not None:
+        updates["price"] = body.price
+    if body.billing_period is not None:
+        updates["billing_period"] = body.billing_period
+    if body.description is not None:
+        updates["description"] = body.description
+    if body.badge is not None:
+        updates["badge"] = body.badge
+    if body.has_trial is not None:
+        updates["has_trial"] = body.has_trial
+    if body.trial_days is not None:
+        updates["trial_days"] = body.trial_days
         
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")

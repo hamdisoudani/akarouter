@@ -3,11 +3,19 @@ import hashlib
 import time
 import logging
 import secrets
+import asyncio
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import Optional, Any
 
 from app.core.config import settings
 from app.core.supabase import get_supabase
+from app.core.cache import (
+    get_api_key_cache, set_api_key_cache, should_update_last_used_at,
+    check_and_increment_rpm, get_account_budget, set_account_budget,
+    calculate_account_budget, get_active_providers_cache, set_active_providers_cache,
+    get_in_flight, inc_in_flight, buffer_request_log, buffer_account_usage,
+    increment_account_budget, get_model_metadata
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +49,6 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
     key_hash = hash_api_key(api_key)
     
     # Try in-memory cache first
-    from app.core.cache import (
-        get_api_key_cache, set_api_key_cache, should_update_last_used_at,
-        check_and_increment_rpm, get_account_budget, set_account_budget
-    )
-    
     auth_metadata = get_api_key_cache(key_hash)
     if auth_metadata is None:
         supabase = get_supabase()
@@ -91,7 +94,6 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
     # We have auth_metadata (either from cache or database).
     # Throttle last_used_at writes to DB (only write if > 60s since last update)
     if should_update_last_used_at(auth_metadata["key_id"]):
-        import asyncio
         async def _update_key_db():
             try:
                 supabase = get_supabase()
@@ -119,85 +121,7 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
     # Enforce Token sliding budgets
     budget = get_account_budget(account_id)
     if budget is None:
-        now_dt = datetime.now(timezone.utc)
-        
-        budget_reset_at = auth_metadata.get("budget_reset_at")
-        reset_dt = None
-        if budget_reset_at:
-            try:
-                reset_dt = datetime.fromisoformat(budget_reset_at.replace("Z", "+00:00"))
-            except Exception:
-                pass
-
-        if reset_dt:
-            month_start = reset_dt
-        else:
-            month_start = now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            
-        # Compute fixed cycle bounds relative to month_start
-        elapsed = (now_dt - month_start).total_seconds()
-        
-        # 5h Cycle
-        cycle_5h_length = 5 * 3600
-        completed_5h_cycles = int(max(0.0, elapsed) // cycle_5h_length)
-        cycle_5h_start = month_start + timedelta(seconds=completed_5h_cycles * cycle_5h_length)
-        cycle_5h_reset = cycle_5h_start + timedelta(seconds=cycle_5h_length)
-        
-        # 7d Cycle
-        cycle_7d_length = 7 * 24 * 3600
-        completed_7d_cycles = int(max(0.0, elapsed) // cycle_7d_length)
-        cycle_7d_start = month_start + timedelta(seconds=completed_7d_cycles * cycle_7d_length)
-        cycle_7d_reset = cycle_7d_start + timedelta(seconds=cycle_7d_length)
-        
-        query_start = month_start
-        
-        try:
-            supabase = get_supabase()
-            logs_res = (
-                supabase.table("request_logs")
-                .select("cost, created_at")
-                .eq("account_id", account_id)
-                .gte("created_at", query_start.isoformat())
-                .execute()
-            )
-        except Exception as e:
-            logger.error(f"Failed to query request logs for budget calculation: {e}")
-            logs_res = None
-            
-        consumed_5h = 0.0
-        consumed_7d = 0.0
-        consumed_month = 0.0
-        
-        if logs_res and logs_res.data:
-            for log in logs_res.data:
-                cost = log.get("cost") or 0.0
-                created_at_str = log.get("created_at")
-                if not created_at_str:
-                    continue
-                try:
-                    log_dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
-                    if reset_dt and log_dt < reset_dt:
-                        continue
-                    if log_dt >= cycle_5h_start and log_dt < cycle_5h_reset:
-                        consumed_5h += cost
-                    if log_dt >= cycle_7d_start and log_dt < cycle_7d_reset:
-                        consumed_7d += cost
-                    if log_dt >= month_start:
-                        consumed_month += cost
-                except Exception:
-                    pass
-        
-        set_account_budget(account_id, consumed_5h, consumed_7d, consumed_month)
-        with _lock:
-            if account_id in _account_budgets:
-                _account_budgets[account_id]["reset_5h_at"] = cycle_5h_reset.timestamp()
-                _account_budgets[account_id]["reset_7d_at"] = cycle_7d_reset.timestamp()
-                
-        budget = {
-            "consumed_5h": consumed_5h,
-            "consumed_7d": consumed_7d,
-            "consumed_month": consumed_month
-        }
+        budget = await calculate_account_budget(account_id, auth_metadata.get("budget_reset_at"))
         
     if check_limits:
         tokens_5h_limit = auth_metadata.get("tokens_5h_limit", 1.0)
@@ -221,11 +145,6 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
 
 async def select_provider(model: str) -> Optional[dict]:
     """Select the best available provider for a given upstream model."""
-    from app.core.cache import (
-        get_active_providers_cache, set_active_providers_cache,
-        get_in_flight, inc_in_flight, should_update_last_used_at
-    )
-    
     # Try providers cache first
     providers = get_active_providers_cache()
     if providers is None:
@@ -288,7 +207,6 @@ async def select_provider(model: str) -> Optional[dict]:
 
     # Throttle provider last_used_at DB updates
     if should_update_last_used_at(best["id"]):
-        import asyncio
         async def _update_provider_db():
             try:
                 supabase = get_supabase()
@@ -365,24 +283,25 @@ async def log_request(
     error_message=None, ip_address=None, user_agent=None
 ):
     """Log a request to memory buffer for deferred batch insertions."""
-    from app.core.cache import buffer_request_log, buffer_account_usage, increment_account_budget, get_model_metadata
-    
-    # Calculate request cost in USD using dynamic cache/DB values
-    meta = get_model_metadata(model)
-    input_cost_rate = meta.get("input_cost_per_million")
-    output_cost_rate = meta.get("output_cost_per_million")
-    
-    # Fallback to settings.model_pricing if not configured in DB
-    if input_cost_rate is None or output_cost_rate is None:
-        pricing = settings.model_pricing.get(model, settings.model_pricing["default"])
-        if input_cost_rate is None:
-            input_cost_rate = pricing.get("input_cost_per_million", 0.10)
-        if output_cost_rate is None:
-            output_cost_rate = pricing.get("output_cost_per_million", 0.30)
-            
-    input_cost = (prompt_tokens / 1_000_000.0) * input_cost_rate
-    output_cost = (completion_tokens / 1_000_000.0) * output_cost_rate
-    cost = input_cost + output_cost
+    # Only calculate cost for successful requests (< 400)
+    if status_code is not None and status_code < 400:
+        meta = get_model_metadata(model)
+        input_cost_rate = meta.get("input_cost_per_million")
+        output_cost_rate = meta.get("output_cost_per_million")
+        
+        # Fallback to settings.model_pricing if not configured in DB
+        if input_cost_rate is None or output_cost_rate is None:
+            pricing = settings.model_pricing.get(model, settings.model_pricing["default"])
+            if input_cost_rate is None:
+                input_cost_rate = pricing.get("input_cost_per_million", 0.10)
+            if output_cost_rate is None:
+                output_cost_rate = pricing.get("output_cost_per_million", 0.30)
+                
+        input_cost = (prompt_tokens / 1_000_000.0) * input_cost_rate
+        output_cost = (completion_tokens / 1_000_000.0) * output_cost_rate
+        cost = input_cost + output_cost
+    else:
+        cost = 0.0
     
     log_data = {
         "account_id": account_id,
@@ -399,11 +318,12 @@ async def log_request(
         "ip_address": ip_address,
         "user_agent": user_agent,
         "cost": cost,
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     # Buffer the telemetry log
     buffer_request_log(log_data)
 
-    # Buffer the account requests increment metrics and cached sliding budget
-    if account_id:
+    # Buffer the account requests increment metrics and cached sliding budget only on success (< 400)
+    if account_id and status_code is not None and status_code < 400:
         buffer_account_usage(account_id)
         increment_account_budget(account_id, cost)

@@ -54,12 +54,23 @@ CREATE TABLE IF NOT EXISTS accounts (
     display_name TEXT,
     
     -- Subscription tier
-    tier TEXT NOT NULL DEFAULT 'free' CHECK (tier IN ('free', 'pro', 'enterprise')),
+    tier TEXT NOT NULL DEFAULT 'free' CHECK (tier IN ('free', 'starter', 'pro', 'ultra', 'enterprise')),
     
     -- Usage tracking
     monthly_requests BIGINT NOT NULL DEFAULT 0,
     monthly_limit BIGINT NOT NULL DEFAULT 1000,
+    rpm_limit BIGINT NOT NULL DEFAULT 60,
+    tokens_5h_limit BIGINT NOT NULL DEFAULT 500000,
+    tokens_7d_limit BIGINT NOT NULL DEFAULT 5000000,
+    budget_reset_at TIMESTAMPTZ,
     total_requests BIGINT NOT NULL DEFAULT 0,
+    
+    -- Features & Limits
+    is_trialing BOOLEAN NOT NULL DEFAULT FALSE,
+    openclaw_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    max_agents INT NOT NULL DEFAULT 1,
+    agent_cpu INT NOT NULL DEFAULT 1,
+    agent_ram INT NOT NULL DEFAULT 1,
     
     -- Status
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'cancelled')),
@@ -131,6 +142,10 @@ CREATE TABLE IF NOT EXISTS request_logs (
     ip_address INET,
     user_agent TEXT,
     
+    -- Billing
+    cost NUMERIC NOT NULL DEFAULT 0.0,
+    upstream_model TEXT,
+    
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -159,6 +174,50 @@ ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE request_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE providers ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- SYSTEM_SETTINGS: Global configuration
+-- ============================================
+CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================
+-- PLAN_PRESETS: SaaS Tiers Config
+-- ============================================
+CREATE TABLE IF NOT EXISTS plan_presets (
+    tier TEXT PRIMARY KEY CHECK (tier IN ('free', 'starter', 'pro', 'ultra', 'enterprise')),
+    price TEXT DEFAULT '$0',
+    billing_period TEXT DEFAULT 'mo',
+    description TEXT,
+    badge TEXT,
+    has_trial BOOLEAN NOT NULL DEFAULT FALSE,
+    trial_days INT NOT NULL DEFAULT 7,
+    monthly_limit BIGINT NOT NULL DEFAULT 1000,
+    rpm_limit BIGINT NOT NULL DEFAULT 60,
+    tokens_5h_limit BIGINT NOT NULL DEFAULT 500000,
+    tokens_7d_limit BIGINT NOT NULL DEFAULT 5000000,
+    openclaw_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    max_agents INT NOT NULL DEFAULT 1,
+    agent_cpu INT NOT NULL DEFAULT 1,
+    agent_ram INT NOT NULL DEFAULT 1,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================
+-- INVITATION_CODES: Beta/Invite codes
+-- ============================================
+CREATE TABLE IF NOT EXISTS invitation_codes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code TEXT NOT NULL UNIQUE,
+    max_uses INT NOT NULL DEFAULT 1,
+    used_count INT NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- Users can only read their own account
 CREATE POLICY "Users can read own account" ON accounts
@@ -313,3 +372,138 @@ SELECT
     p.last_used_at,
     p.last_error_msg
 FROM providers p;
+
+
+-- ============================================
+-- RPC FUNCTIONS FOR ATOMIC OPERATIONS
+-- ============================================
+
+-- Atomic increment for account requests and usage
+CREATE OR REPLACE FUNCTION public.increment_account_usage(
+    p_account_id UUID,
+    p_monthly_delta INT,
+    p_total_delta INT
+)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE public.accounts
+    SET monthly_requests = monthly_requests + p_monthly_delta,
+        total_requests = total_requests + p_total_delta,
+        updated_at = NOW()
+    WHERE id = p_account_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Atomic increment for provider usage and error stats
+CREATE OR REPLACE FUNCTION public.increment_provider_stats(
+    p_provider_id UUID,
+    p_requests_delta INT,
+    p_errors_delta INT
+)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE public.providers
+    SET total_requests = total_requests + p_requests_delta,
+        total_errors = total_errors + p_errors_delta,
+        updated_at = NOW()
+    WHERE id = p_provider_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Atomic invitation code claiming with row locking
+CREATE OR REPLACE FUNCTION public.claim_invitation_code(
+    p_code TEXT,
+    p_account_id UUID
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_id UUID;
+    v_max_uses INT;
+    v_used_count INT;
+BEGIN
+    -- Select and lock the invitation code row
+    SELECT id, max_uses, used_count 
+    INTO v_id, v_max_uses, v_used_count
+    FROM public.invitation_codes
+    WHERE code = p_code AND is_active = TRUE
+    FOR UPDATE;
+    
+    IF v_id IS NULL OR v_used_count >= v_max_uses THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- Update invitation code usage count and active status
+    UPDATE public.invitation_codes
+    SET used_count = v_used_count + 1,
+        is_active = (v_used_count + 1 < v_max_uses),
+        updated_at = NOW()
+    WHERE id = v_id;
+    
+    -- Activate the associated account
+    UPDATE public.accounts
+    SET status = 'active',
+        updated_at = NOW()
+    WHERE id = p_account_id;
+    
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Optimized database aggregation for budget sliding cycle logic
+CREATE OR REPLACE FUNCTION public.get_budget_consumption(
+    p_account_id UUID,
+    p_month_start TIMESTAMPTZ,
+    p_cycle_5h_start TIMESTAMPTZ,
+    p_cycle_5h_reset TIMESTAMPTZ,
+    p_cycle_7d_start TIMESTAMPTZ,
+    p_cycle_7d_reset TIMESTAMPTZ
+)
+RETURNS TABLE (
+    consumed_5h NUMERIC,
+    consumed_7d NUMERIC,
+    consumed_month NUMERIC
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        COALESCE(SUM(CASE WHEN created_at >= p_cycle_5h_start AND created_at < p_cycle_5h_reset THEN cost ELSE 0 END), 0)::NUMERIC as consumed_5h,
+        COALESCE(SUM(CASE WHEN created_at >= p_cycle_7d_start AND created_at < p_cycle_7d_reset THEN cost ELSE 0 END), 0)::NUMERIC as consumed_7d,
+        COALESCE(SUM(CASE WHEN created_at >= p_month_start THEN cost ELSE 0 END), 0)::NUMERIC as consumed_month
+    FROM public.request_logs
+    WHERE account_id = p_account_id AND created_at >= p_month_start;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Note on request_logs table partitioning:
+-- To migrate to a partitioned table in production:
+-- 1. Rename request_logs to request_logs_old: ALTER TABLE request_logs RENAME TO request_logs_old;
+-- 2. Create the partitioned table:
+--    CREATE TABLE request_logs (
+--        id UUID NOT NULL DEFAULT uuid_generate_v4(),
+--        account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+--        api_key_id UUID REFERENCES api_keys(id) ON DELETE SET NULL,
+--        provider_id UUID REFERENCES providers(id) ON DELETE SET NULL,
+--        model TEXT NOT NULL,
+--        endpoint TEXT NOT NULL DEFAULT '/v1/chat/completions',
+--        method TEXT NOT NULL DEFAULT 'POST',
+--        status_code INT,
+--        latency_ms INT,
+--        prompt_tokens INT,
+--        completion_tokens INT,
+--        total_tokens INT,
+--        error_message TEXT,
+--        ip_address INET,
+--        user_agent TEXT,
+--        cost NUMERIC NOT NULL DEFAULT 0.0,
+--        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+--        PRIMARY KEY (id, created_at)
+--    ) PARTITION BY RANGE (created_at);
+-- 3. Create monthly or weekly partitions, e.g.:
+--    CREATE TABLE request_logs_y2026m06 PARTITION OF request_logs
+--    FOR VALUES FROM ('2026-06-01 00:00:00+00') TO ('2026-07-01 00:00:00+00');
+-- 4. Copy data from request_logs_old to request_logs.
+

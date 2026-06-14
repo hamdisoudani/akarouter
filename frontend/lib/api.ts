@@ -207,6 +207,12 @@ export interface PlanPreset {
   max_agents?: number
   agent_cpu?: number
   agent_ram?: number
+  price?: string
+  billing_period?: string
+  description?: string
+  badge?: string
+  has_trial?: boolean
+  trial_days?: number
   created_at: string
   updated_at: string
 }
@@ -310,7 +316,13 @@ export async function adminCreatePlan(
   openclawEnabled?: boolean,
   maxAgents?: number,
   agentCpu?: number,
-  agentRam?: number
+  agentRam?: number,
+  price?: string,
+  billingPeriod?: string,
+  description?: string,
+  badge?: string,
+  hasTrial?: boolean,
+  trialDays?: number
 ): Promise<{ ok: boolean; plan: PlanPreset }> {
   const res = await fetch(`${API_BASE}/admin/plans`, {
     method: 'POST',
@@ -327,7 +339,13 @@ export async function adminCreatePlan(
       openclaw_enabled: openclawEnabled ?? false,
       max_agents: maxAgents ?? 0,
       agent_cpu: agentCpu ?? 1,
-      agent_ram: agentRam ?? 1
+      agent_ram: agentRam ?? 1,
+      price: price ?? '$0',
+      billing_period: billingPeriod ?? 'mo',
+      description: description ?? '',
+      badge: badge ?? '',
+      has_trial: hasTrial ?? false,
+      trial_days: trialDays ?? 7
     }),
   })
   if (!res.ok) {
@@ -350,6 +368,12 @@ export async function adminUpdatePlan(
     max_agents?: number;
     agent_cpu?: number;
     agent_ram?: number;
+    price?: string;
+    billing_period?: string;
+    description?: string;
+    badge?: string;
+    has_trial?: boolean;
+    trial_days?: number;
   }
 ): Promise<{ ok: boolean; plan: PlanPreset }> {
   const res = await fetch(`${API_BASE}/admin/plans/${planId}`, {

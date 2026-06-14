@@ -85,15 +85,20 @@ export default function Home() {
 
     return dbPlans.map(plan => {
       const matchingFallback = fallbackPlans.find(fp => fp.key === plan.tier)
+      let defaultBadge = matchingFallback?.badge || null;
+      if (plan.has_trial && plan.trial_days) {
+        defaultBadge = `${plan.trial_days}-Day Free Trial`;
+      }
+      
       return {
-        name: matchingFallback?.name || `${plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1)} Plan`,
+        name: `${plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1)} Plan`,
         key: plan.tier,
-        price: matchingFallback?.price || '$0.00',
-        billing: matchingFallback?.billing || 'monthly',
-        desc: matchingFallback?.desc || 'Custom limits tier.',
-        badge: matchingFallback?.badge || null,
+        price: plan.price || matchingFallback?.price || '$0.00',
+        billing: plan.billing_period || matchingFallback?.billing || 'monthly',
+        desc: plan.description || matchingFallback?.desc || 'Custom limits tier.',
+        badge: plan.badge || defaultBadge,
         limits: [
-          `Monthly Budget: $${plan.monthly_limit.toFixed(2)}`,
+          `Monthly Budget: ${plan.monthly_limit >= 999999999 ? 'UNLIMITED' : `$${plan.monthly_limit.toFixed(2)}`}`,
           `RPM Limit: ${plan.rpm_limit} RPM`,
           `5-Hour Limit: $${plan.tokens_5h_limit.toFixed(2)}`,
           `7-Day Limit: $${plan.tokens_7d_limit.toFixed(2)}`,

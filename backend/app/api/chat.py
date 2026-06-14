@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import time
 import logging
+import json
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import httpx
@@ -12,12 +14,11 @@ from fastapi.responses import StreamingResponse
 from app.core.config import settings
 from app.core.router import select_provider, release_provider, log_request
 from app.core.supabase import get_supabase
+from app.core.http_client import get_http_client
+from app.core.cache import is_model_active
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
-
-import json
 
 class SSEUsageExtractor:
     def __init__(self):
@@ -95,7 +96,6 @@ async def proxy_chat(req: Request):
     if model_alias not in settings.model_mapping:
         raise HTTPException(status_code=400, detail=f"Unknown model '{model_alias}'")
 
-    from app.core.cache import is_model_active
     if not is_model_active(model_alias):
         raise HTTPException(status_code=400, detail=f"Model '{model_alias}' is disabled by administrator")
 
@@ -111,7 +111,6 @@ async def proxy_chat(req: Request):
     # Check if token needs refresh
     if provider.get("token_expires_at"):
         try:
-            from datetime import datetime
             exp = datetime.fromisoformat(provider["token_expires_at"].replace("Z", "+00:00"))
             if exp.timestamp() - time.time() < settings.token_refresh_skew:
                 # Token expired, try refresh
@@ -134,7 +133,7 @@ async def proxy_chat(req: Request):
 
     if stream:
         started = time.time()
-        client = httpx.AsyncClient(timeout=120)
+        client = get_http_client()
         try:
             req_obj = client.build_request(
                 "POST",
@@ -149,7 +148,7 @@ async def proxy_chat(req: Request):
             
             if response.status_code >= 400:
                 await response.aread()
-                await client.aclose()
+                await response.aclose()
                 
                 upstream_error = ""
                 try:
@@ -182,7 +181,6 @@ async def proxy_chat(req: Request):
         except HTTPException:
             raise
         except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
-            await client.aclose()
             latency = int((time.time() - started) * 1000)
             await release_provider(provider["id"], False, "Connection failed to upstream")
             await log_request(
@@ -192,7 +190,6 @@ async def proxy_chat(req: Request):
             )
             raise HTTPException(status_code=502, detail="Upstream gateway timeout or connection failure")
         except httpx.RequestError as exc:
-            await client.aclose()
             latency = int((time.time() - started) * 1000)
             await release_provider(provider["id"], False, str(exc))
             await log_request(
@@ -202,7 +199,6 @@ async def proxy_chat(req: Request):
             )
             raise HTTPException(status_code=502, detail="Upstream request failed")
         except Exception as exc:
-            await client.aclose()
             latency = int((time.time() - started) * 1000)
             await release_provider(provider["id"], False, str(exc))
             raise HTTPException(status_code=500, detail=f"Internal proxy error: {sanitize_error_msg(str(exc))}")
@@ -217,11 +213,9 @@ async def proxy_chat(req: Request):
                 success = True
             except Exception as exc:
                 logger.error(f"Streaming failed mid-stream: {exc}")
-                await release_provider(provider["id"], False, str(exc))
                 raise
             finally:
                 await response.aclose()
-                await client.aclose()
                 latency = int((time.time() - started) * 1000)
                 await release_provider(provider["id"], success)
                 
@@ -330,38 +324,47 @@ async def proxy_chat(req: Request):
 
 
 async def _upstream(provider: dict, body: dict) -> dict:
-    async with httpx.AsyncClient(timeout=120) as client:
-        response = await client.post(
-            f"{settings.nous_api_base}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {provider['access_token']}",
-                "Content-Type": "application/json",
-            },
-            json=body,
-        )
-        response.raise_for_status()
-        try:
-            return response.json()
-        except Exception as exc:
-            text_preview = response.text[:500] if response.text else "<empty response>"
-            logger.error(f"Failed to parse JSON response from upstream {settings.nous_api_base}: {exc}. Response text: {text_preview}")
-            raise ValueError(f"Upstream returned invalid JSON response: {text_preview}")
+    client = get_http_client()
+    response = await client.post(
+        f"{settings.nous_api_base}/chat/completions",
+        headers={
+            "Authorization": f"Bearer {provider['access_token']}",
+            "Content-Type": "application/json",
+        },
+        json=body,
+    )
+    response.raise_for_status()
+    try:
+        return response.json()
+    except Exception as exc:
+        text_preview = response.text[:500] if response.text else "<empty response>"
+        logger.error(f"Failed to parse JSON response from upstream {settings.nous_api_base}: {exc}. Response text: {text_preview}")
+        raise ValueError(f"Upstream returned invalid JSON response: {text_preview}")
 
 
 async def _try_refresh(provider: dict) -> bool:
-    """Try to refresh a provider's access token."""
+    """Try to refresh a provider's access token atomically using CAS locking."""
     if not provider.get("refresh_token"):
         return False
 
-    # Check refresh lock
-    if provider.get("refresh_lock_acquired_at"):
-        try:
-            from datetime import datetime
-            lock = datetime.fromisoformat(provider["refresh_lock_acquired_at"].replace("Z", "+00:00"))
-            if (time.time() - lock.timestamp()) < settings.refresh_lock_ttl:
-                return False
-        except (ValueError, TypeError):
-            pass
+    supabase = get_supabase()
+    now_ts = datetime.now(timezone.utc)
+    lock_threshold = now_ts - timedelta(seconds=settings.refresh_lock_ttl)
+    
+    # Try to acquire the refresh lock atomically in PostgreSQL
+    try:
+        lock_res = supabase.table("providers").update({
+            "refresh_lock_acquired_at": now_ts.isoformat()
+        }).eq("id", provider["id"]).or_(
+            f"refresh_lock_acquired_at.is.null,refresh_lock_acquired_at.lt.{lock_threshold.isoformat()}"
+        ).execute()
+        
+        if not lock_res.data:
+            logger.info(f"Token refresh lock for provider {provider['id']} already held by another concurrent request. Skipping.")
+            return False
+    except Exception as e:
+        logger.error(f"Failed to acquire token refresh lock for provider {provider['id']}: {e}")
+        return False
 
     payload = {
         "grant_type": "refresh_token",
@@ -373,13 +376,20 @@ async def _try_refresh(provider: dict) -> bool:
         "x-nous-refresh-token": provider["refresh_token"],
     }
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(settings.nous_token_url, data=payload, headers=headers)
-            response.raise_for_status()
-            token_resp = response.json()
+        client = get_http_client()
+        response = await client.post(settings.nous_token_url, data=payload, headers=headers, timeout=30.0)
+        response.raise_for_status()
+        token_resp = response.json()
     except Exception as exc:
         logger_msg = f"[refresh] failed provider={provider['id']} error={exc}"
         print(logger_msg)
+        # Release the lock on failure so it can be retried immediately
+        try:
+            supabase.table("providers").update({
+                "refresh_lock_acquired_at": None
+            }).eq("id", provider["id"]).execute()
+        except Exception:
+            pass
         return False
 
     # Update provider in DB
@@ -388,7 +398,6 @@ async def _try_refresh(provider: dict) -> bool:
         "%Y-%m-%dT%H:%M:%SZ",
         time.gmtime(time.time() + expires_in - settings.token_refresh_skew),
     )
-    supabase = get_supabase()
     supabase.table("providers").update({
         "access_token": token_resp["access_token"],
         "refresh_token": token_resp.get("refresh_token", provider["refresh_token"]),

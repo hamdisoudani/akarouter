@@ -53,7 +53,8 @@ import {
   Menu,
   X,
   Layers,
-  FileText
+  FileText,
+  Settings
 } from 'lucide-react'
 
 interface ProviderAccount {
@@ -217,6 +218,12 @@ export default function AdminDashboard() {
   const [newPlanMaxAgents, setNewPlanMaxAgents] = useState(0)
   const [newPlanAgentCpu, setNewPlanAgentCpu] = useState(1)
   const [newPlanAgentRam, setNewPlanAgentRam] = useState(1)
+  const [newPlanPrice, setNewPlanPrice] = useState('$0')
+  const [newPlanBillingPeriod, setNewPlanBillingPeriod] = useState('mo')
+  const [newPlanDescription, setNewPlanDescription] = useState('')
+  const [newPlanBadge, setNewPlanBadge] = useState('')
+  const [newPlanHasTrial, setNewPlanHasTrial] = useState(false)
+  const [newPlanTrialDays, setNewPlanTrialDays] = useState(7)
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null)
   const [editingPlanLimit, setEditingPlanLimit] = useState<number>(10.0)
   const [editingPlanRpm, setEditingPlanRpm] = useState<number>(60)
@@ -226,6 +233,12 @@ export default function AdminDashboard() {
   const [editingPlanMaxAgents, setEditingPlanMaxAgents] = useState(0)
   const [editingPlanAgentCpu, setEditingPlanAgentCpu] = useState(1)
   const [editingPlanAgentRam, setEditingPlanAgentRam] = useState(1)
+  const [editingPlanPrice, setEditingPlanPrice] = useState('$0')
+  const [editingPlanBillingPeriod, setEditingPlanBillingPeriod] = useState('mo')
+  const [editingPlanDescription, setEditingPlanDescription] = useState('')
+  const [editingPlanBadge, setEditingPlanBadge] = useState('')
+  const [editingPlanHasTrial, setEditingPlanHasTrial] = useState(false)
+  const [editingPlanTrialDays, setEditingPlanTrialDays] = useState(7)
 
   // Users state
   const [accounts, setAccounts] = useState<any[]>([])
@@ -510,7 +523,13 @@ export default function AdminDashboard() {
         newPlanOpenclawEnabled,
         newPlanMaxAgents,
         newPlanAgentCpu,
-        newPlanAgentRam
+        newPlanAgentRam,
+        newPlanPrice,
+        newPlanBillingPeriod,
+        newPlanDescription,
+        newPlanBadge,
+        newPlanHasTrial,
+        newPlanTrialDays
       )
       setNewPlanTier('')
       setNewPlanLimit(10.0)
@@ -521,6 +540,12 @@ export default function AdminDashboard() {
       setNewPlanMaxAgents(0)
       setNewPlanAgentCpu(1)
       setNewPlanAgentRam(1)
+      setNewPlanPrice('$0')
+      setNewPlanBillingPeriod('mo')
+      setNewPlanDescription('')
+      setNewPlanBadge('')
+      setNewPlanHasTrial(false)
+      setNewPlanTrialDays(7)
       await loadPlans()
     } catch (err: any) {
       setError(err.message)
@@ -538,6 +563,12 @@ export default function AdminDashboard() {
         max_agents: editingPlanMaxAgents,
         agent_cpu: editingPlanAgentCpu,
         agent_ram: editingPlanAgentRam,
+        price: editingPlanPrice,
+        billing_period: editingPlanBillingPeriod,
+        description: editingPlanDescription,
+        badge: editingPlanBadge,
+        has_trial: editingPlanHasTrial,
+        trial_days: editingPlanTrialDays,
       })
       setEditingPlanId(null)
       await loadPlans()
@@ -1377,78 +1408,6 @@ export default function AdminDashboard() {
                           {plans.map(p => (
                             <tr key={p.id} className="hover:bg-zinc-900/10 transition-colors">
                               <td className="p-4 font-bold text-white uppercase">{p.tier}</td>
-                              {editingPlanId === p.id ? (
-                                <>
-                                  <td className="p-4 text-zinc-300">
-                                    <input
-                                      type="number"
-                                      step="0.01"
-                                      value={editingPlanLimit}
-                                      onChange={e => setEditingPlanLimit(Number(e.target.value))}
-                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-20 text-xs focus:outline-none focus:border-[#ef4444]"
-                                    />
-                                  </td>
-                                  <td className="p-4 text-zinc-300">
-                                    <input
-                                      type="number"
-                                      value={editingPlanRpm}
-                                      onChange={e => setEditingPlanRpm(Number(e.target.value))}
-                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-16 text-xs focus:outline-none focus:border-[#ef4444]"
-                                    />
-                                  </td>
-                                  <td className="p-4 text-zinc-300">
-                                    <input
-                                      type="number"
-                                      step="0.01"
-                                      value={editingPlan5h}
-                                      onChange={e => setEditingPlan5h(Number(e.target.value))}
-                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-16 text-xs focus:outline-none focus:border-[#ef4444]"
-                                    />
-                                  </td>
-                                  <td className="p-4 text-zinc-300">
-                                    <input
-                                      type="number"
-                                      step="0.01"
-                                      value={editingPlan7d}
-                                      onChange={e => setEditingPlan7d(Number(e.target.value))}
-                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-16 text-xs focus:outline-none focus:border-[#ef4444]"
-                                    />
-                                  </td>
-                                  <td className="p-4 text-zinc-300">
-                                    <input
-                                      type="checkbox"
-                                      checked={editingPlanOpenclawEnabled}
-                                      onChange={e => setEditingPlanOpenclawEnabled(e.target.checked)}
-                                      className="w-4 h-4 rounded border-zinc-800 bg-[#050507] text-[#ef4444] accent-[#ef4444]"
-                                    />
-                                  </td>
-                                  <td className="p-4 text-zinc-300">
-                                    <input
-                                      type="number"
-                                      value={editingPlanMaxAgents}
-                                      onChange={e => setEditingPlanMaxAgents(Number(e.target.value))}
-                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-14 text-xs focus:outline-none focus:border-[#ef4444]"
-                                    />
-                                  </td>
-                                  <td className="p-4 text-zinc-300">
-                                    <input
-                                      type="number"
-                                      value={editingPlanAgentCpu}
-                                      onChange={e => setEditingPlanAgentCpu(Number(e.target.value))}
-                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-12 text-xs focus:outline-none focus:border-[#ef4444]"
-                                    />
-                                  </td>
-                                  <td className="p-4 text-zinc-300">
-                                    <input
-                                      type="number"
-                                      value={editingPlanAgentRam}
-                                      onChange={e => setEditingPlanAgentRam(Number(e.target.value))}
-                                      className="bg-zinc-950 border border-zinc-900 px-2 py-1 text-white w-12 text-xs focus:outline-none focus:border-[#ef4444]"
-                                    />
-                                  </td>
-                                </>
-                              ) : (
-                                <>
                                   <td className="p-4 text-zinc-300">
                                     {p.monthly_limit >= 999999999 ? 'UNLIMITED' : `$${p.monthly_limit.toFixed(2)}`}
                                   </td>
@@ -1467,12 +1426,9 @@ export default function AdminDashboard() {
                                   <td className="p-4 text-zinc-300 font-bold">{p.max_agents ?? 0}</td>
                                   <td className="p-4 text-zinc-300">{p.agent_cpu ?? 1} CPU</td>
                                   <td className="p-4 text-zinc-300">{p.agent_ram ?? 1} GB</td>
-                                </>
-                              )}
                               <td className="p-4 text-right space-x-2">
                                 {editingPlanId === p.id ? (
                                   <div className="inline-flex gap-2">
-                                    <button onClick={() => handleUpdatePlan(p.id)} className="text-emerald-400 font-bold hover:underline">SAVE</button>
                                     <button onClick={() => setEditingPlanId(null)} className="text-zinc-500 font-bold hover:underline">CANCEL</button>
                                   </div>
                                 ) : (
@@ -1645,6 +1601,186 @@ export default function AdminDashboard() {
                     </button>
                   </form>
                 </div>
+                
+                {/* Plan Edit Modal */}
+                {editingPlanId && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-[#0e0e10] border border-zinc-900 w-full max-w-2xl max-h-[90vh] overflow-y-auto crosshair-corners p-6 shadow-2xl">
+                      <div className="flex items-center justify-between mb-6">
+                        <h2 className="font-mono text-lg text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                          <Settings className="w-5 h-5 text-[#ef4444]" />
+                          EDIT_PLAN_PRESET
+                        </h2>
+                        <button onClick={() => setEditingPlanId(null)} className="text-zinc-500 hover:text-white transition-colors">
+                          <X className="w-6 h-6" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-4 font-mono text-xs text-zinc-300">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Monthly Budget ($)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editingPlanLimit}
+                              onChange={e => setEditingPlanLimit(Number(e.target.value))}
+                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">RPM Limit</label>
+                            <input
+                              type="number"
+                              value={editingPlanRpm}
+                              onChange={e => setEditingPlanRpm(Number(e.target.value))}
+                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">5h Budget ($)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editingPlan5h}
+                              onChange={e => setEditingPlan5h(Number(e.target.value))}
+                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">7d Budget ($)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editingPlan7d}
+                              onChange={e => setEditingPlan7d(Number(e.target.value))}
+                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                            />
+                          </div>
+                        </div>
+
+                        {/* UI Config Fields */}
+                        <div className="border border-zinc-900 bg-zinc-950 p-4 space-y-4">
+                          <h3 className="text-[#ef4444] uppercase text-[10px] tracking-widest font-bold">UI Configuration</h3>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Display Price</label>
+                              <input
+                                type="text"
+                                value={editingPlanPrice}
+                                onChange={e => setEditingPlanPrice(e.target.value)}
+                                placeholder="$0"
+                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Billing Period</label>
+                              <input
+                                type="text"
+                                value={editingPlanBillingPeriod}
+                                onChange={e => setEditingPlanBillingPeriod(e.target.value)}
+                                placeholder="mo"
+                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              />
+                            </div>
+                            <div className="space-y-1 col-span-2">
+                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Description</label>
+                              <input
+                                type="text"
+                                value={editingPlanDescription}
+                                onChange={e => setEditingPlanDescription(e.target.value)}
+                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Badge (e.g., POPULAR)</label>
+                              <input
+                                type="text"
+                                value={editingPlanBadge}
+                                onChange={e => setEditingPlanBadge(e.target.value)}
+                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Free Trial Settings</label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={editingPlanHasTrial}
+                                  onChange={e => setEditingPlanHasTrial(e.target.checked)}
+                                  className="w-4 h-4 rounded border-zinc-800 bg-[#050507] text-[#ef4444] accent-[#ef4444]"
+                                />
+                                <span className="text-zinc-400 text-xs">Enable</span>
+                                {editingPlanHasTrial && (
+                                  <input
+                                    type="number"
+                                    value={editingPlanTrialDays}
+                                    onChange={e => setEditingPlanTrialDays(Number(e.target.value))}
+                                    className="w-16 bg-[#050507] border border-zinc-900 px-2 py-1 text-white focus:outline-none focus:border-[#ef4444]"
+                                  />
+                                )}
+                                {editingPlanHasTrial && <span className="text-zinc-400 text-xs">days</span>}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* OpenClaw Config */}
+                        <div className="border border-zinc-900 bg-zinc-950 p-4 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-zinc-400 uppercase text-[10px] tracking-widest font-bold">OpenClaw Settings</h3>
+                            <input
+                              type="checkbox"
+                              checked={editingPlanOpenclawEnabled}
+                              onChange={e => setEditingPlanOpenclawEnabled(e.target.checked)}
+                              className="w-4 h-4 rounded border-zinc-800 bg-[#050507] text-[#ef4444] accent-[#ef4444]"
+                            />
+                          </div>
+                          {editingPlanOpenclawEnabled && (
+                            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-zinc-900/60 animate-fade-in">
+                              <div className="space-y-1">
+                                <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Max Agents</label>
+                                <input
+                                  type="number"
+                                  value={editingPlanMaxAgents}
+                                  onChange={e => setEditingPlanMaxAgents(Number(e.target.value))}
+                                  className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-zinc-500 uppercase text-[9px] tracking-wider">CPU Cores</label>
+                                <input
+                                  type="number"
+                                  value={editingPlanAgentCpu}
+                                  onChange={e => setEditingPlanAgentCpu(Number(e.target.value))}
+                                  className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-zinc-500 uppercase text-[9px] tracking-wider">RAM (GB)</label>
+                                <input
+                                  type="number"
+                                  value={editingPlanAgentRam}
+                                  onChange={e => setEditingPlanAgentRam(Number(e.target.value))}
+                                  className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex gap-4 pt-4 border-t border-zinc-900">
+                          <button
+                            onClick={() => handleUpdatePlan(editingPlanId)}
+                            className="flex-1 bg-[#ef4444] text-black font-bold py-3 hover:bg-[#ff5451] transition-all flex items-center justify-center gap-2 crosshair-corners"
+                          >
+                            <span className="tracking-widest uppercase font-bold">SAVE CHANGES</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </section>
             )}
 
