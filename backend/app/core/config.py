@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     whop_plan_ultra: str = ""
 
     # CORS Origins
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:3000", "https://akarouter.dev", "https://akarouter-frontend-production.up.railway.app]
 
 
 
