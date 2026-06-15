@@ -1,5 +1,6 @@
 """AKAROUTER Backend Configuration."""
-from typing import Optional
+from typing import Optional, Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -55,7 +56,27 @@ class Settings(BaseSettings):
     whop_plan_ultra: str = ""
 
     # CORS Origins
-    cors_origins: list[str] = ["http://localhost:3000", "https://akarouter.dev", "https://akarouter-frontend-production.up.railway.app]
+    cors_origins: Union[str, list[str]] = [
+        "http://localhost:3000",
+        "https://akarouter.dev",
+        "https://akarouter-frontend-production.up.railway.app",
+    ]
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, list[str]]) -> list[str]:
+        import json
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed]
+            except json.JSONDecodeError:
+                pass
+            return [item.strip() for item in v.split(",") if item.strip()]
+        elif isinstance(v, list):
+            return [str(item).strip() for item in v]
+        return v
 
 
 

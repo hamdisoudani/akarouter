@@ -33,3 +33,29 @@ def test_cors_production_wildcard_no_credentials():
     
     assert cors_origins == ["*"]
     assert allow_credentials is False
+
+
+def test_cors_origins_env_parsing():
+    import os
+    from app.core.config import Settings
+    
+    # Backup existing environment variable
+    orig_env = os.environ.get("AKAROUTER_CORS_ORIGINS")
+    
+    try:
+        # 1. Comma separated
+        os.environ["AKAROUTER_CORS_ORIGINS"] = "https://example1.com, https://example2.com"
+        settings = Settings()
+        assert settings.cors_origins == ["https://example1.com", "https://example2.com"]
+        
+        # 2. JSON list
+        os.environ["AKAROUTER_CORS_ORIGINS"] = '["https://json1.com", "https://json2.com"]'
+        settings = Settings()
+        assert settings.cors_origins == ["https://json1.com", "https://json2.com"]
+    finally:
+        # Restore or clean up
+        if orig_env is not None:
+            os.environ["AKAROUTER_CORS_ORIGINS"] = orig_env
+        elif "AKAROUTER_CORS_ORIGINS" in os.environ:
+            del os.environ["AKAROUTER_CORS_ORIGINS"]
+
