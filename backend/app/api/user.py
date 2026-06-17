@@ -451,7 +451,19 @@ async def create_checkout_session(request: Request, body: CheckoutSessionRequest
         else:
             redirect_url = "https://akarouter.com/usage"  # Fallback
 
-    if not (redirect_url.startswith("https://") or redirect_url.startswith("http://")):
+    # Enforce redirect URL allowlist to prevent open redirect attacks
+    ALLOWED_REDIRECT_HOSTS = {
+        "akarouter.com",
+        "www.akarouter.com",
+        "akarouter.dev",
+        "akarouter-frontend-production.up.railway.app",
+        "localhost",
+    }
+    try:
+        parsed_redirect = urlparse(redirect_url)
+        if parsed_redirect.hostname not in ALLOWED_REDIRECT_HOSTS:
+            redirect_url = "https://akarouter.com/usage"
+    except Exception:
         redirect_url = "https://akarouter.com/usage"
 
     try:

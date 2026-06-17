@@ -27,11 +27,11 @@ def _verify_admin(authorization: Optional[str]) -> bool:
         return False
     token = parts[1].strip()
     
-    # 1. Match service role key
-    if token == settings.supabase_service_role_key:
+    # Dev-only: accept service role key directly (NEVER use in production)
+    if settings.app_env == "development" and token == settings.supabase_service_role_key:
         return True
         
-    # 2. Match Supabase JWT for admin user
+    # Verify Supabase JWT and check for admin role
     if token.startswith("eyJ"):
         try:
             user_info = _verify_supabase_jwt(token)
