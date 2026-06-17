@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { env } from '@/lib/env'
 
 /**
- * Edge middleware for route protection.
+ * Edge proxy for route protection.
  *
- * SECURITY: the previous implementation used a cookie-name match
+ * Note: in Next.js 16 the `middleware.ts` convention has been renamed to
+ * `proxy.ts`. The runtime behavior, the `NextRequest`/`NextResponse` API,
+ * and the `config.matcher` pattern are identical — only the file name and
+ * the exported function name changed. See:
+ *   https://nextjs.org/docs/app/api-reference/file-conventions/proxy
+ *   https://nextjs.org/docs/messages/middleware-to-proxy
+ *
+ * SECURITY: the previous middleware used a cookie-name match
  * (`c.name.includes('auth-token')`) to decide if the user was authenticated.
  * This is fake auth: any cookie whose name contains the substring
  * 'auth-token' (e.g. an attacker setting a cookie via subdomain XSS, or a
@@ -12,13 +20,10 @@ import { createServerClient } from '@supabase/ssr'
  * no JWT signature verification, no expiry check, and no role check on the
  * edge.
  *
- * This new version uses @supabase/ssr's getUser() which:
+ * This proxy uses @supabase/ssr's getUser() which:
  *  1. Verifies the JWT signature against Supabase's published JWKS.
  *  2. Checks exp / nbf claims.
  *  3. Rejects revoked sessions.
- *
- * It also expands the protected-paths list to include /usage, /upgrade,
- * /agents, /docs (if you want it gated), and any other authenticated page.
  *
  * If getUser() throws or returns null, we redirect to /auth/login with the
  * intended destination in the `next` query parameter so the user can be
@@ -50,17 +55,20 @@ const PUBLIC_PREFIXES = [
   '/sitemap.xml',
   '/privacy',
   '/terms',
+  '/cookies',
+  '/docs',
+  '/logo.png',
 ]
 
 function isProtected(pathname: string): boolean {
-  return PROTECTED_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
+  return PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
 
 function isPublic(pathname: string): boolean {
-  return PUBLIC_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
+  return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Skip public paths and static assets
@@ -80,23 +88,21 @@ export async function middleware(request: NextRequest) {
   })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, options),
           )
         },
       },
-    }
+    },
   )
 
   // SECURITY: getUser() validates the JWT signature and expiry server-side.
@@ -105,13 +111,10 @@ export async function middleware(request: NextRequest) {
   let user = null
   try {
     const { data, error } = await supabase.auth.getUser()
-    if (error) {
-      // Token invalid/expired/revoked — fall through to redirect
-      user = null
-    } else {
+    if (!error) {
       user = data?.user ?? null
     }
-  } catch (e) {
+  } catch {
     user = null
   }
 
@@ -125,9 +128,10 @@ export async function middleware(request: NextRequest) {
   // non-'user' role. This check uses the JWT claims (which Supabase signs),
   // not a cookie-name match.
   if (pathname.startsWith('/admin')) {
-    const role = (user.app_metadata?.role as string | undefined)
-      || (user.user_metadata?.role as string | undefined)
-      || 'user'
+    const role =
+      (user.app_metadata?.role as string | undefined) ||
+      (user.user_metadata?.role as string | undefined) ||
+      'user'
     if (role !== 'admin') {
       // Don't leak that the path exists — redirect to dashboard with 302.
       return NextResponse.redirect(new URL('/dashboard', request.url))
