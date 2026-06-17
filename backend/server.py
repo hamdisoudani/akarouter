@@ -34,12 +34,24 @@ BRANDED_MODELS = {
     "akarouter-pro": "stepfun/step-3.7-flash:free",
 }
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://fleouqrgltkodumrgxlt.supabase.co").rstrip("/")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-SUPABASE_DB_URL = os.getenv(
-    "SUPABASE_DB_URL",
-    "postgresql://postgres.fleouqrgltkodumrgxlt:sihamdisoudani@aws-1-eu-north-1.pooler.supabase.com:6543/postgres",
-)
+# SECURITY: SUPABASE_DB_URL has no default — fail-fast at import time if missing
+# so we never accidentally fall back to a placeholder that could leak into
+# logs, error messages, or outbound requests. A previous version of this file
+# had a hardcoded fallback URL containing the project password; that
+# credential was exposed when this file was committed to git. The new
+# behavior: if the env var is missing, the import fails loudly.
+SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL", "")
+if not SUPABASE_DB_URL:
+    import sys as _sys
+    print(
+        "FATAL: SUPABASE_DB_URL is not set. Refusing to start with a "
+        "placeholder connection string. Set it in your environment "
+        "(e.g., Railway/Render env vars) before launching.",
+        file=_sys.stderr,
+    )
+    raise SystemExit(1)
 
 PORT = int(os.getenv("PORT", "8888"))
 PROVIDER_NAME = "nous"

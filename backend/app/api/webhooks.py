@@ -347,6 +347,25 @@ async def whop_webhook_handler(
 
             # Evict account caches immediately
             evict_account_caches(account_id)
+            # Audit log: tier sync from Whop webhook. The DB trigger on
+            # `accounts.tier` will also fire, but we add this for explicit
+            # correlation with the webhook event and for the `webhook_id`
+            # in metadata.
+            try:
+                from app.core.audit import audit
+                audit(
+                    action="tier.sync_webhook",
+                    target_type="account",
+                    target_id=account_id,
+                    metadata={
+                        "webhook_id": webhook_id,
+                        "event": event_name,
+                        "tier": active_tier,
+                        "is_trialing": is_trialing,
+                    },
+                )
+            except Exception as audit_err:
+                logger.warning("audit_log write failed (continuing): %s", audit_err)
             # Mark webhook as processed
             try:
                 supabase.table("processed_webhooks").update({
