@@ -4,34 +4,17 @@ const isProd = process.env.NODE_ENV === 'production'
 /**
  * Content Security Policy.
  *
- * STRICT for app routes — allows only same-origin scripts/styles, Google
- * reCAPTCHA, and Google OAuth domains. The 'unsafe-inline' for styles is
- * needed because Next.js injects inline styles for the App Router; for a
- * stricter policy, switch to nonced styles (requires middleware cooperation).
+ * We DO NOT set the CSP here. CSP is set per-request in proxy.ts where
+ * a per-request nonce can be embedded into script-src. Setting CSP
+ * here would either:
+ *   1. force 'unsafe-inline' (regressing security)
+ *   2. force a static nonce (defeating the purpose — every response
+ *      would share the same nonce, which is just as bad as
+ *      'unsafe-inline')
  *
- * For API routes: completely separate CSP that does not allow any inline
- * content (API responses are JSON; no scripts needed).
+ * Static security headers (HSTS, X-Frame-Options, etc.) are still set
+ * here because they don't need a nonce.
  */
-const appCSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "img-src 'self' data: blob: https:",
-  "font-src 'self' data: https://fonts.gstatic.com",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://www.google.com",
-  "frame-src 'self' https://www.google.com https://accounts.google.com https://recaptcha.google.com",
-  "frame-ancestors 'none'",
-  "form-action 'self' https://accounts.google.com",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "upgrade-insecure-requests",
-].join('; ')
-
-const apiCSP = [
-  "default-src 'none'",
-  "frame-ancestors 'none'",
-  "base-uri 'none'",
-].join('; ')
 
 const securityHeaders = [
   // Prevent MIME-type sniffing
@@ -80,8 +63,8 @@ const nextConfig = {
     remotePatterns: [],
   },
 
-  // Security headers — applied to every response. The API routes get a
-  // stricter CSP via the `api` matcher.
+  // Static security headers — applied to every response. The CSP is set
+  // per-request in proxy.ts so it can include a fresh nonce.
   async headers() {
     return [
       {
@@ -92,18 +75,13 @@ const nextConfig = {
         source: '/api/:path*',
         headers: [
           ...securityHeaders,
-          { key: 'Content-Security-Policy', value: apiCSP },
+          // API routes get a strict CSP — they never serve HTML, only
+          // JSON, so no script/style/frame sources are needed.
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+          },
           { key: 'Cache-Control', value: 'no-store, max-age=0' },
-        ],
-      },
-      {
-        source: '/:path*',
-        headers: [{ key: 'Content-Security-Policy', value: appCSP }],
-        // Apply the app CSP only to HTML responses (not /api/* which is
-        // handled above and not /_next/static which is hashed).
-        missing: [
-          { type: 'header', key: 'next-router-prefetch' },
-          { type: 'header', key: 'purpose', value: 'prefetch' },
         ],
       },
     ]

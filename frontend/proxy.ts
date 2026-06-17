@@ -28,6 +28,14 @@ import { env } from '@/lib/env'
  * If getUser() throws or returns null, we redirect to /auth/login with the
  * intended destination in the `next` query parameter so the user can be
  * bounced back after sign-in.
+ *
+ * SECURITY: a per-request CSP nonce is generated here and embedded into
+ * the `script-src` directive of the response's CSP header. This is what
+ * allows us to drop `'unsafe-inline'` from script-src — inline scripts
+ * are only allowed when they carry this nonce. The nonce is also
+ * propagated via the `x-nonce` request header so server components can
+ * read it via `headers().get('x-nonce')` if they need to set
+ * `nonce="..."` on inline `<script>` tags.
  */
 
 // Pages that require an authenticated Supabase session
@@ -68,24 +76,124 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
 
+/**
+ * Generate a cryptographically random 16-byte nonce, base64url-encoded.
+ *
+ * `crypto.getRandomValues` is the Web Crypto API, available in the
+ * edge runtime. We deliberately use a CSPRNG — a predictable nonce
+ * would let an attacker pre-compute allowed inline scripts.
+ */
+function generateNonce(): string {
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  // base64url to keep CSP clean (no `+`/`/`/`=` characters that
+  // would require quoting in the header value).
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
+
+/**
+ * Build the per-request Content-Security-Policy for HTML pages.
+ *
+ * `nonce` enables our own inline scripts (Next.js hydration scripts,
+ * future inline user content). We deliberately omit 'unsafe-inline'
+ * so a leaked nonce is the only way to run attacker-injected
+ * script. The nonce is per-request and short-lived.
+ *
+ * `supabaseHost` is the specific Supabase project host (e.g.,
+ * "abcdefgh.supabase.co") pinned at build time from
+ * NEXT_PUBLIC_SUPABASE_URL. NO `*.supabase.co` wildcard.
+ */
+function buildAppCSP(nonce: string, supabaseHost: string): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/`,
+    // 'unsafe-inline' for styles is required by Next.js's runtime
+    // style injection in App Router. A future Tailwind v4 upgrade
+    // will let us drop it.
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://www.google.com/recaptcha/`,
+    "frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com https://accounts.google.com",
+    "frame-ancestors 'none'",
+    "form-action 'self' https://accounts.google.com",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "upgrade-insecure-requests",
+  ].join('; ')
+}
+
+/**
+ * Extract the host (e.g. "abcdefgh.supabase.co") from a Supabase
+ * project URL. Falls back to a safe placeholder if the env var is
+ * unset (which lib/env.ts already prevents).
+ */
+function supabaseHostFromUrl(url: string | undefined): string {
+  if (!url) return 'invalid.supabase.co'
+  try {
+    return new URL(url).host
+  } catch {
+    return 'invalid.supabase.co'
+  }
+}
+
+/**
+ * Paths that get the app HTML CSP (vs. API JSON CSP or static asset
+ * passthrough). Static assets (_next/static, /favicon.ico, etc.) get
+ * no CSP from this proxy — they're served with long-lived immutable
+ * headers from the edge cache.
+ */
+function isHtmlResponse(pathname: string): boolean {
+  if (pathname.startsWith('/_next/')) return false
+  if (pathname.startsWith('/api/')) return false
+  if (pathname === '/favicon.ico' || pathname === '/robots.txt' || pathname === '/sitemap.xml') return false
+  return true
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Generate a per-request nonce and propagate it via a request header.
+  // Server components can read this via headers().get('x-nonce') if
+  // they need to set nonce on inline <script> tags.
+  const nonce = generateNonce()
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-nonce', nonce)
+
+  // Build a CSP for this request. We attach it to every HTML response
+  // — never to API JSON, never to static assets.
+  const supabaseHost = supabaseHostFromUrl(env.NEXT_PUBLIC_SUPABASE_URL)
+  const csp = isHtmlResponse(pathname) ? buildAppCSP(nonce, supabaseHost) : null
+
+  // For the public auth route, build a response we can attach CSP +
+  // headers to.
+  const buildResponse = (status = 200) => {
+    const response = NextResponse.next({
+      request: { headers: requestHeaders },
+      status,
+    })
+    if (csp) {
+      response.headers.set('Content-Security-Policy', csp)
+    }
+    return response
+  }
+
   // Skip public paths and static assets
   if (isPublic(pathname)) {
-    return NextResponse.next()
+    return buildResponse()
   }
 
   // Only protect the protected prefixes; everything else is allowed at the
   // edge and protected at the page level by the page's own auth check.
   if (!isProtected(pathname)) {
-    return NextResponse.next()
+    return buildResponse()
   }
 
   // Build a response object we can attach refreshed cookies to
-  const response = NextResponse.next({
-    request: { headers: request.headers },
-  })
+  const response = buildResponse()
 
   const supabase = createServerClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
