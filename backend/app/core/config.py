@@ -5,6 +5,44 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # SECURITY: pydantic-settings is strict about empty strings — by default,
+    # `int` fields will fail validation if the env var is set to an empty
+    # string. This commonly happens when a Docker ARG has no matching
+    # service variable (e.g., AKAROUTER_DAYTONA_SANDBOX_CPU='' because no
+    # Railway var named that). Treat empty strings as "unset, use default"
+    # for all int fields, so the app stays bootable in production.
+    #
+    # Pydantic v2 quirk: a `before` validator returning None for a non-Optional
+    # `int` field still fails. So we declare each field as `Optional[int]` and
+    # apply a default in `model_post_init` if the value is None.
+    @field_validator(
+        "port", "token_refresh_skew", "refresh_lock_ttl",
+        "max_concurrent_per_account", "daytona_sandbox_cpu",
+        "daytona_sandbox_memory", "daytona_sandbox_disk",
+        mode="before",
+    )
+    @classmethod
+    def _empty_string_to_default(cls, v):
+        if v == "" or v is None:
+            return None  # resolved in model_post_init
+        return v
+
+    def model_post_init(self, __context):
+        """Apply defaults for int fields that were None (because the env var
+        was unset or empty in the container)."""
+        defaults = {
+            "port": 8000,
+            "token_refresh_skew": 120,
+            "refresh_lock_ttl": 30,
+            "max_concurrent_per_account": 12,
+            "daytona_sandbox_cpu": 1,
+            "daytona_sandbox_memory": 1,
+            "daytona_sandbox_disk": 3,
+        }
+        for field, default in defaults.items():
+            if getattr(self, field) is None:
+                setattr(self, field, default)
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -18,7 +56,7 @@ class Settings(BaseSettings):
     # accepted as admin bearer token in _verify_admin). Never set this to anything other
     # than "production" or "staging" in any non-local environment.
     app_env: str = "production"
-    port: int = 8000
+    port: Optional[int] = None
 
     # SECURITY: separate dev-only admin token. Only honored when app_env == "development".
     # Use `python -c "import secrets; print(secrets.token_urlsafe(48))"` to generate one.
@@ -36,16 +74,16 @@ class Settings(BaseSettings):
     nous_scope: str = "inference:invoke"
     nous_device_code_url: str = "https://portal.nousresearch.com/api/oauth/device/code"
     nous_token_url: str = "https://portal.nousresearch.com/api/oauth/token"
-    token_refresh_skew: int = 120
-    refresh_lock_ttl: int = 30
-    max_concurrent_per_account: int = 12
+    token_refresh_skew: Optional[int] = None
+    refresh_lock_ttl: Optional[int] = None
+    max_concurrent_per_account: Optional[int] = None
 
     # Daytona integration
     daytona_api_base: str = "https://app.daytona.io/api"
     daytona_api_key: str = ""                     # dtn_... key
-    daytona_sandbox_cpu: int = 1
-    daytona_sandbox_memory: int = 1               # GB
-    daytona_sandbox_disk: int = 3                 # GB
+    daytona_sandbox_cpu: Optional[int] = None
+    daytona_sandbox_memory: Optional[int] = None  # GB
+    daytona_sandbox_disk: Optional[int] = None    # GB
     public_backend_url: Optional[str] = None      # ngrok or other public base URL for VMs to hit backend
 
     # Agent limits
