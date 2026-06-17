@@ -81,6 +81,13 @@ app.add_middleware(
     max_age=3600,
 )
 
+# Security headers — applied after CORS so we don't strip the CORS
+# headers the middleware adds (Access-Control-Allow-Origin etc.). The
+# security_headers middleware is non-destructive: it never overwrites
+# a header a route handler set, so anything CORS adds is preserved.
+from app.core.security_headers import SecurityHeadersMiddleware
+app.add_middleware(SecurityHeadersMiddleware)
+
 
 # ---------------------------------------------------------------------------
 # Auth middleware
