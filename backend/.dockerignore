@@ -1,0 +1,100 @@
+# .dockerignore — exclude dev/test/scratch files from the production image.
+#
+# Why this matters: the previous Dockerfile did `COPY . .` which shipped
+# the entire backend tree — including server.py (a no-auth open proxy),
+# stress_*.py (auth-bypass load testers), refresh_*.py (dev-only token
+# refreshers), and the entire scratch/ directory — into the production
+# image. Anyone with RCE on the running container (or with shell access
+# via `docker exec`) could run them. This file ensures the image only
+# contains the application code, the entrypoint, and its runtime
+# dependencies.
+
+# --- Dev-only / load-test / open-proxy scripts ---------------------------
+# server.py was an unauthenticated OpenAI-compatible proxy on port 8888.
+# It is deleted from the repo in PR 16. The pattern below catches it in
+# case it's ever reintroduced by a copy-paste.
+server.py
+*_proxy.py
+nous_proxy.py
+nous_openai_proxy.py
+token_proxy.py
+
+# Stress / load / bypass scripts. These are intentionally meant to bypass
+# auth and rate limits for load testing; they must never reach prod.
+stress_*.py
+stress_*.sh
+limits_bypass.py
+
+# Dev token-refresh scripts. The backend uses the live OAuth flow in
+# production; these scripts are for local Hermes auth.
+refresh_*.py
+refresh_*.sh
+generate_device_code.py
+current_token.sh
+watchdog.sh
+
+# --- Scratch / one-shot DB scripts ---------------------------------------
+# These are committed for reference but should never run inside the
+# production container. They typically assume a developer's local Supabase
+# project and would either fail noisily or, worse, succeed silently and
+# mutate production data in unexpected ways.
+scratch/
+
+# --- Tests ---------------------------------------------------------------
+# Pytest tests must not be in the prod image — they pull in pytest,
+# response-mock libs, etc. as transitive deps and double the image size.
+tests/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# --- Python build / cache artifacts --------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+build/
+dist/
+
+# --- Git / IDE / OS noise -----------------------------------------------
+.git/
+.gitignore
+.gitattributes
+.github/
+.editorconfig
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Docs and changelogs (no runtime value) ------------------------------
+*.md
+docs/
+CHANGELOG.md
+
+# --- Local env / secrets ------------------------------------------------
+# .env* files are NEVER copied into images. Production secrets come from
+# Railway runtime env injection only.
+.env
+.env.*
+!.env.example
+
+# --- Generated / runtime artifacts --------------------------------------
+*.log
+*.pid
+*.sock
+.cache/
+.tmp/
+tmp/
+
+# --- Type stubs / mypy cache --------------------------------------------
+.mypy_cache/
+.pyright_cache/
+*.pyi
