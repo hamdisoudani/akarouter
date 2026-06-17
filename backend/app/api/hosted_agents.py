@@ -560,9 +560,16 @@ async def destroy_agent(agent_id: str, request: Request):
         "updated_at": datetime.now(timezone.utc).isoformat()
     }).eq("id", agent_id).execute()
     
-    # 2. Revoke the API key
+    # 2. Revoke the API key (and evict the in-memory auth cache).
+    # SECURITY: if a key is just marked inactive but stays in the auth cache
+    # for the rest of its 30s TTL, a request that was already in-flight
+    # could still hit upstream with it. Evict immediately.
     if agent.get("api_key_id"):
+        key_res = supabase.table("api_keys").select("key_hash").eq("id", agent["api_key_id"]).execute()
         supabase.table("api_keys").update({"is_active": False}).eq("id", agent["api_key_id"]).execute()
+        if key_res.data:
+            from app.core.cache import evict_api_key_cache
+            evict_api_key_cache(key_res.data[0]["key_hash"])
         
     # 3. Delete the Daytona sandbox VM
     if agent.get("sandbox_id"):

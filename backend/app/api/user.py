@@ -15,6 +15,7 @@ from app.core.recaptcha import verify_recaptcha
 from app.core.cache import (
     check_and_increment_activation_rate_limit,
     evict_jwt_cache,
+    evict_api_key_cache,
     calculate_account_budget,
     is_gateway_enabled,
     get_budget_cycles
@@ -174,12 +175,21 @@ async def revoke_my_key(key_id: str, request: Request):
     account_id = _get_user_id(request)
     supabase = get_supabase()
 
-    # Verify ownership
-    result = supabase.table("api_keys").select("id").eq("id", key_id).eq("account_id", account_id).execute()
+    # Verify ownership AND fetch the key_hash so we can evict the in-memory cache.
+    result = supabase.table("api_keys").select("id, key_hash").eq("id", key_id).eq("account_id", account_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Key not found")
 
+    key_hash = result.data[0]["key_hash"]
+
     supabase.table("api_keys").update({"is_active": False}).eq("id", key_id).execute()
+
+    # SECURITY: evict the in-memory auth cache immediately. Without this, a revoked
+    # key remains usable for up to 30s (the cache TTL) — for a security-critical
+    # action like key revocation, that's a 30-second window during which a stolen
+    # key still works. Evicting collapses the window to sub-millisecond.
+    evict_api_key_cache(key_hash)
+
     return {"ok": True}
 
 

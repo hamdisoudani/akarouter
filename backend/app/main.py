@@ -42,16 +42,43 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS
-cors_origins = [str(o) for o in settings.cors_origins] if settings.cors_origins else ["*"]
+# CORS — fail-closed in production.
+# SECURITY: an empty cors_origins list used to fall back to ["*"] which is a wildcard
+# CORS origin. Even with allow_credentials=False, a wildcard origin still exposes the
+# API to any site (browsers will reflect the request). In production, an empty / missing
+# AKAROUTER_CORS_ORIGINS now causes startup to fail rather than silently opening CORS.
+def _resolve_cors_origins() -> list[str]:
+    raw = [str(o).strip() for o in settings.cors_origins if o]
+    if not raw:
+        if settings.app_env == "production":
+            raise RuntimeError(
+                "AKAROUTER_CORS_ORIGINS is empty in production. "
+                "Refusing to start with a permissive CORS policy. "
+                "Set the env var to a comma-separated list of allowed origins."
+            )
+        # In dev, default to localhost:3000 (Next.js dev server)
+        return ["http://localhost:3000"]
+    # Reject wildcard in production
+    if settings.app_env == "production" and "*" in raw:
+        raise RuntimeError(
+            "AKAROUTER_CORS_ORIGINS contains '*' in production. "
+            "Wildcard CORS origins are not allowed in non-dev environments."
+        )
+    return raw
+
+cors_origins = _resolve_cors_origins()
 allow_credentials = "*" not in cors_origins
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=allow_credentials,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Restrict to methods we actually use. Wildcards make CSRF / cross-origin abuse surface larger.
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    # Restrict to headers we actually accept. Authorization + Content-Type cover all current calls.
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
+    # Cache preflight for 1 hour to avoid hammering OPTIONS.
+    max_age=3600,
 )
 
 
@@ -199,10 +226,33 @@ async def startup():
     logger.info(f"AKAROUTER starting in {settings.app_env} mode")
     logger.info(f"Supabase configured: {settings.supabase_configured}")
     logger.info(f"Nous API base: {settings.nous_api_base}")
-    
+
+    # SECURITY: fail-closed in production if the Fernet encryption secret is missing or
+    # the wrong length. An empty secret either crashes Fernet at first use (good) or, in
+    # edge cases, derives a deterministic key from empty bytes (bad). Force the failure
+    # to surface at startup, not on the first deploy_hosted_agent request.
+    if not settings.agent_key_encryption_secret or len(settings.agent_key_encryption_secret) < 32:
+        if settings.app_env == "production":
+            raise RuntimeError(
+                "AKAROUTER_AGENT_KEY_ENCRYPTION_SECRET is missing or too short in production. "
+                "Generate a 32-byte url-safe base64 Fernet key with: "
+                "`python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"`"
+            )
+        logger.warning(
+            "AKAROUTER_AGENT_KEY_ENCRYPTION_SECRET is missing or weak. "
+            "Hosted agent key encryption will FAIL on first use. Set it before deploying to production."
+        )
+
+    # SECURITY: in production, refuse to start without a webhook secret.
+    if settings.app_env == "production" and not settings.whop_webhook_secret:
+        raise RuntimeError(
+            "AKAROUTER_WHOP_WEBHOOK_SECRET is missing in production. "
+            "Webhook signature verification would be disabled. Refusing to start."
+        )
+
     # Initialize the global HTTP client pool
     await init_http_client()
-    
+
     # Start the background cache and write-buffer flusher
     from app.core.cache import start_flusher
     start_flusher()

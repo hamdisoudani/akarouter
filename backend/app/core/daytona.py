@@ -110,26 +110,57 @@ def upload_openclaw_config(
     api_key: Optional[str] = None,
     api_url: Optional[str] = None
 ) -> None:
-    """Upload the openclaw.json config dictionary into the sandbox."""
+    """Upload the openclaw.json config dictionary into the sandbox.
+
+    SECURITY: the previous version wrote the user's raw AkaRouter API key
+    to disk inside the sandbox in plaintext. We now:
+      1. Write the config to /home/node/.openclaw/openclaw.json (the openclaw
+         process needs to read it).
+      2. chmod 600 the file so only the `node` user can read it.
+      3. chmod 700 the parent directory.
+      4. Also write a sanitized copy to /root/.openclaw/openclaw.json with
+         the key replaced by a placeholder, so root-side tooling doesn't
+         leak the real key.
+    """
     logger.info(f"Uploading OpenClaw config to sandbox: {sandbox_id}")
     client = get_daytona_client(api_key, api_url)
     sandbox = client.get(sandbox_id)
     
     config_json = json.dumps(config_dict, indent=2)
     
+    # Build a sanitized copy for /root with the key replaced. /root needs a
+    # config file for some openclaw operations, but the raw key never needs
+    # to be readable by root.
+    sanitized = json.loads(config_json)
+    try:
+        sanitized["models"]["providers"]["akarouter"]["apiKey"] = "__REDACTED__"
+    except (KeyError, TypeError):
+        pass
+    sanitized_json = json.dumps(sanitized, indent=2)
+    
     # Ensure both config directories exist
     exec_command(sandbox_id, "mkdir -p /home/node/.openclaw /root/.openclaw", api_key=api_key, api_url=api_url)
     
-    # Upload to /home/node/.openclaw/openclaw.json and set owner to node
+    # Upload to /home/node/.openclaw/openclaw.json and set owner to node.
+    # SECURITY: chmod 600 (owner read/write only), chmod 700 on the directory.
     try:
         sandbox.fs.upload_file(config_json.encode("utf-8"), "/home/node/.openclaw/openclaw.json")
-        exec_command(sandbox_id, "chown -R node:node /home/node/.openclaw", api_key=api_key, api_url=api_url)
+        exec_command(
+            sandbox_id,
+            "chown -R node:node /home/node/.openclaw && chmod 700 /home/node/.openclaw && chmod 600 /home/node/.openclaw/openclaw.json",
+            api_key=api_key, api_url=api_url
+        )
     except Exception as e:
         logger.warning(f"Failed to upload config to /home/node/.openclaw/openclaw.json: {e}")
         
-    # Upload to /root/.openclaw/openclaw.json
+    # Upload the sanitized copy to /root/.openclaw/openclaw.json
     try:
-        sandbox.fs.upload_file(config_json.encode("utf-8"), "/root/.openclaw/openclaw.json")
+        sandbox.fs.upload_file(sanitized_json.encode("utf-8"), "/root/.openclaw/openclaw.json")
+        exec_command(
+            sandbox_id,
+            "chmod 700 /root/.openclaw && chmod 600 /root/.openclaw/openclaw.json",
+            api_key=api_key, api_url=api_url
+        )
     except Exception as e:
         logger.warning(f"Failed to upload config to /root/.openclaw/openclaw.json: {e}")
 

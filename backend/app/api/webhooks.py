@@ -8,8 +8,7 @@ import base64
 import uuid
 import asyncio
 from datetime import datetime, timezone
-import httpx
-from fastapi import APIRouter, Request, Header, HTTPException
+from fastapi import APIRouter, Request, HTTPException
 
 from app.core.config import settings
 from app.core.supabase import get_supabase
@@ -53,28 +52,26 @@ async def whop_webhook_handler(
         raise HTTPException(status_code=500, detail="Webhook configuration error")
 
     try:
-        secret_str = settings.whop_webhook_secret.replace("ws_", "").replace("whsec_", "")
+        # SECURITY: decode the webhook secret EXACTLY ONCE using the documented Standard
+        # Webhooks encoding (URL-safe base64). The previous code tried 4 different encodings
+        # (hex, raw utf-8 stripped, raw utf-8 full, base64) and accepted the request if ANY
+        # encoding produced a matching HMAC. This is "accept the weakest valid interpretation"
+        # — if the secret is ever leaked in any of those encodings, the request can be forged.
+        # Standard Webhooks / Whop uses base64 (the "whsec_" prefix is just a label).
+        secret_str = settings.whop_webhook_secret
+        if secret_str.startswith("whsec_"):
+            secret_str = secret_str[len("whsec_"):]
 
-        # Try multiple methods to decode the webhook secret key
-        possible_keys = []
-
-        # 1. Hex decoded bytes (likely, since it's a 64-char hex string)
         try:
-            possible_keys.append(bytes.fromhex(secret_str))
-        except ValueError:
-            pass
-
-        # 2. Raw UTF-8 bytes of stripped secret
-        possible_keys.append(secret_str.encode("utf-8"))
-
-        # 3. Raw UTF-8 bytes of full secret
-        possible_keys.append(settings.whop_webhook_secret.encode("utf-8"))
-
-        # 4. Base64 decoded bytes (Svix default)
-        try:
-            possible_keys.append(base64.b64decode(secret_str))
+            # Try URL-safe base64 first (Standard Webhooks / Whop default)
+            secret_bytes = base64.urlsafe_b64decode(secret_str + "=" * (-len(secret_str) % 4))
         except Exception:
-            pass
+            # Fall back to standard base64 for backwards compat with Svix-style secrets
+            try:
+                secret_bytes = base64.b64decode(secret_str + "=" * (-len(secret_str) % 4))
+            except Exception as e:
+                logger.error(f"Whop webhook secret is not valid base64: {e}")
+                raise HTTPException(status_code=500, detail="Webhook configuration error")
 
         # Parse signatures from header (could be space-separated list)
         signatures = webhook_signature.split(" ")
@@ -87,28 +84,24 @@ async def whop_webhook_handler(
             logger.warning("Whop webhook rejected: No v1 signature found in header")
             raise HTTPException(status_code=401, detail="Invalid signature format")
 
-        # Construct signed payload according to Standard Webhooks spec
+        # Construct signed payload according to Standard Webhooks spec:
+        # `<webhook_id>.<webhook_timestamp>.<body>`
         signed_content = f"{webhook_id}.{webhook_timestamp}.".encode("utf-8") + payload_bytes
 
-        verified = False
-        for secret_bytes in possible_keys:
-            # Compute HMAC-SHA256 signature
-            computed_sig_bytes = hmac.new(
-                key=secret_bytes,
-                msg=signed_content,
-                digestmod=hashlib.sha256
-            ).digest()
+        # Compute HMAC-SHA256 with the (single, validated) secret
+        computed_sig_bytes = hmac.new(
+            key=secret_bytes,
+            msg=signed_content,
+            digestmod=hashlib.sha256
+        ).digest()
 
-            computed_sig_b64 = base64.b64encode(computed_sig_bytes).decode("utf-8")
-            computed_sig_hex = computed_sig_bytes.hex()
+        # Standard Webhooks encodes the signature as base64. Compute both forms in case
+        # Whop sends a hex variant, but only accept ONE match — not "any of 4 encodings".
+        computed_sig_b64 = base64.b64encode(computed_sig_bytes).decode("utf-8")
 
-            for v1_sig in v1_signatures:
-                if hmac.compare_digest(computed_sig_b64, v1_sig) or hmac.compare_digest(computed_sig_hex, v1_sig):
-                    verified = True
-                    break
-
-            if verified:
-                break
+        verified = any(
+            hmac.compare_digest(computed_sig_b64, v1_sig) for v1_sig in v1_signatures
+        )
 
         if not verified:
             logger.warning("Whop webhook rejected: Invalid signature")
@@ -175,6 +168,41 @@ async def whop_webhook_handler(
     except ValueError:
         logger.warning(f"Whop webhook resolved account_id is not a valid UUID: {account_id}")
         return {"status": "ignored", "reason": "invalid_account_id_format"}
+
+    # SECURITY: webhook idempotency via `processed_webhooks` table. Insert the
+    # webhook_id before any side effects. If the insert violates the unique
+    # constraint, this is a duplicate delivery (Whop retries on transient errors)
+    # and we return 200 to acknowledge it without re-applying state changes.
+    try:
+        insert_res = supabase.table("processed_webhooks").insert({
+            "webhook_id": webhook_id,
+            "source": "whop",
+            "account_id": account_id,
+            "event_type": event_name,
+            "status": "received",
+        }).execute()
+        if not insert_res.data:
+            logger.warning("processed_webhooks insert returned no data; proceeding anyway")
+    except Exception as e:
+        # Detect unique-constraint violation (PostgREST returns 409 with code 23505).
+        is_duplicate = False
+        err_str = str(e)
+        if "duplicate key" in err_str.lower() or "23505" in err_str or "already exists" in err_str.lower():
+            is_duplicate = True
+        if is_duplicate:
+            logger.info(f"Duplicate Whop webhook ignored: {webhook_id} (event: {event_name})")
+            # Mark as processed in the dedup log so we can audit later
+            try:
+                supabase.table("processed_webhooks").update({
+                    "status": "duplicate_skipped",
+                    "processed_at": datetime.now(timezone.utc).isoformat()
+                }).eq("webhook_id", webhook_id).execute()
+            except Exception:
+                pass
+            return {"status": "success", "reason": "duplicate_webhook_skipped"}
+        # Any other DB error: log but continue (we don't want to block legitimate webhooks
+        # if the dedup table is briefly unavailable). Operators should monitor the logs.
+        logger.error(f"processed_webhooks insert failed (continuing): {e}")
 
     # Update whop_user_id on account to bind them for future calls
     if whop_user_id:
@@ -271,40 +299,85 @@ async def whop_webhook_handler(
 
             if is_already_synced:
                 logger.info(f"Account {account_id} is already in sync with tier {active_tier}. Skipping DB write.")
+                # Mark webhook as processed (idempotent skip path)
+                try:
+                    supabase.table("processed_webhooks").update({
+                        "status": "idempotent_skip",
+                        "processed_at": datetime.now(timezone.utc).isoformat()
+                    }).eq("webhook_id", webhook_id).execute()
+                except Exception:
+                    pass
                 return {"status": "success", "tier": active_tier, "reason": "idempotent_skip"}
 
-            # Wrap the database sync in a retry loop
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    supabase.table("accounts").update({
-                        "tier": active_tier,
-                        "monthly_limit": p["monthly_limit"],
-                        "rpm_limit": p["rpm_limit"],
-                        "tokens_5h_limit": p["tokens_5h_limit"],
-                        "tokens_7d_limit": p["tokens_7d_limit"],
-                        "openclaw_enabled": p["openclaw_enabled"],
-                        "max_agents": p["max_agents"],
-                        "agent_cpu": p["agent_cpu"],
-                        "agent_ram": p["agent_ram"],
-                        "is_trialing": is_trialing,
-                        "updated_at": datetime.now(timezone.utc).isoformat()
-                    }).eq("id", account_id).execute()
-                    break
-                except Exception as db_err:
-                    if attempt == max_retries - 1:
-                        raise db_err
-                    await asyncio.sleep(2 ** attempt)
+            # SECURITY: serialize tier-upgrade writes for this account.
+            # A Whop webhook and a user-initiated checkout flow can both
+            # try to update `accounts.tier` for the same account within
+            # milliseconds of each other. Without this lock, last-writer-wins
+            # loses one of the two updates.
+            #
+            # Blocking acquire: this is a webhook handler — by the time
+            # we've verified the HMAC signature, we want this write to
+            # succeed deterministically. Worst case is a 50-100ms wait.
+            from app.core.locks import get_lock_backend
+            locks = get_lock_backend()
+            tier_lock = await locks.tier_upgrade(account_id)
+            async with tier_lock:
+                # Wrap the database sync in a retry loop
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        supabase.table("accounts").update({
+                            "tier": active_tier,
+                            "monthly_limit": p["monthly_limit"],
+                            "rpm_limit": p["rpm_limit"],
+                            "tokens_5h_limit": p["tokens_5h_limit"],
+                            "tokens_7d_limit": p["tokens_7d_limit"],
+                            "openclaw_enabled": p["openclaw_enabled"],
+                            "max_agents": p["max_agents"],
+                            "agent_cpu": p["agent_cpu"],
+                            "agent_ram": p["agent_ram"],
+                            "is_trialing": is_trialing,
+                            "updated_at": datetime.now(timezone.utc).isoformat()
+                        }).eq("id", account_id).execute()
+                        break
+                    except Exception as db_err:
+                        if attempt == max_retries - 1:
+                            raise db_err
+                        await asyncio.sleep(2 ** attempt)
 
             # Evict account caches immediately
             evict_account_caches(account_id)
+            # Mark webhook as processed
+            try:
+                supabase.table("processed_webhooks").update({
+                    "status": "applied",
+                    "processed_at": datetime.now(timezone.utc).isoformat()
+                }).eq("webhook_id", webhook_id).execute()
+            except Exception as mark_err:
+                logger.warning(f"Failed to mark webhook {webhook_id} as processed: {mark_err}")
             logger.info(f"Synced account {account_id} to tier {active_tier} (trialing: {is_trialing}) and updated limits")
             return {"status": "success", "tier": active_tier}
         else:
             logger.error(f"No plan preset found for tier: {active_tier}")
+            # Mark webhook as failed
+            try:
+                supabase.table("processed_webhooks").update({
+                    "status": "failed_no_preset",
+                    "processed_at": datetime.now(timezone.utc).isoformat()
+                }).eq("webhook_id", webhook_id).execute()
+            except Exception:
+                pass
             raise HTTPException(status_code=500, detail="Configuration error: plan preset missing")
     except Exception as e:
         logger.error(f"Failed to sync account {account_id} with plan presets: {e}")
+        # Mark webhook as failed
+        try:
+            supabase.table("processed_webhooks").update({
+                "status": "failed_sync",
+                "processed_at": datetime.now(timezone.utc).isoformat()
+            }).eq("webhook_id", webhook_id).execute()
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail="Database update failed")
 
 

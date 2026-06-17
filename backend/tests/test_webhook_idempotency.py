@@ -19,10 +19,18 @@ def test_webhook_idempotency_skips_db_update(mock_compare_digest, mock_get_http_
         importlib.reload(sys.modules["app.main"])
     from app.main import app
     client = TestClient(app)
-    
+
+    # Use the in-memory lock backend so tests don't need to mock the
+    # Postgres advisory-lock RPCs. Keeps the cross-instance race
+    # protection semantics intact while keeping tests hermetic.
+    import os as _os
+    _os.environ["AKAROUTER_LOCK_BACKEND"] = "memory"
+    import app.core.locks as _locks_mod
+    _locks_mod.reset_lock_backend()
+
     # Bypass HMAC verification
     mock_compare_digest.return_value = True
-    
+
     mock_supabase = MagicMock()
     mock_get_supabase.return_value = mock_supabase
     
@@ -121,10 +129,18 @@ async def test_webhook_db_writes_retried_on_failure(mock_compare_digest, mock_ge
         importlib.reload(sys.modules["app.main"])
     from app.main import app
     client = TestClient(app)
-    
+
+    # Use the in-memory lock backend so tests don't need to mock the
+    # Postgres advisory-lock RPCs. Keeps the cross-instance race
+    # protection semantics intact while keeping tests hermetic.
+    import os as _os
+    _os.environ["AKAROUTER_LOCK_BACKEND"] = "memory"
+    import app.core.locks as _locks_mod
+    _locks_mod.reset_lock_backend()
+
     # Bypass HMAC verification
     mock_compare_digest.return_value = True
-    
+
     mock_supabase = MagicMock()
     mock_get_supabase.return_value = mock_supabase
     
@@ -177,6 +193,15 @@ async def test_webhook_db_writes_retried_on_failure(mock_compare_digest, mock_ge
         Exception("DB Timeout")  # Retry 3
     ]
     mock_supabase.table().update.return_value.eq.return_value = mock_update_executor
+
+    # Mock advisory lock acquisition RPCs (introduced for cross-instance tier-sync race protection).
+    # Both pg_try_advisory_xact_lock_int and pg_advisory_xact_lock_int must return success so the
+    # lock is considered acquired and the tier-update code path executes.
+    def _make_rpc_executor(acquired: bool = True):
+        rpc_exec = MagicMock()
+        rpc_exec.execute.return_value = MagicMock(data=acquired)
+        return rpc_exec
+    mock_supabase.rpc.return_value = _make_rpc_executor(acquired=True)
     
     # Send webhook with custom sleep patching to run test quickly
     with patch("asyncio.sleep", AsyncMock()) as mock_sleep:

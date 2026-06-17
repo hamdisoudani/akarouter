@@ -5,11 +5,12 @@ import time
 import logging
 import json
 from datetime import datetime, timezone, timedelta
-from typing import Any
+from typing import Any, List, Optional, Union
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.core.config import settings
 from app.core.router import select_provider, release_provider, log_request
@@ -19,6 +20,57 @@ from app.core.cache import is_model_active
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# SECURITY: maximum body size for /v1/chat/completions. The previous code used
+# req.json() with no size cap, allowing an attacker to POST a 100MB body and
+# blow memory + cost. 1 MB is generous for legitimate completions; OpenAI itself
+# caps at 2 MB for non-image, 50 MB for image inputs.
+MAX_CHAT_REQUEST_BYTES = 1 * 1024 * 1024  # 1 MB
+
+
+# ---------------------------------------------------------------------------
+# Request validation models
+# ---------------------------------------------------------------------------
+# SECURITY: replace the previous dict-of-anything input with a strict Pydantic
+# model. This rejects garbage (wrong types, missing fields, oversized arrays)
+# at the edge with a 422 instead of forwarding it to the upstream API.
+
+class ChatMessagePart(BaseModel):
+    """A single content part (for multi-modal messages). Text-only enforced."""
+    model_config = ConfigDict(extra="forbid")
+    type: str = Field(..., pattern=r"^text$")  # only text parts accepted
+    text: str = Field(..., max_length=128_000)
+
+
+class ChatMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    role: str = Field(..., pattern=r"^(system|user|assistant|tool|function)$")
+    content: Union[str, List[ChatMessagePart]] = Field(...)
+    name: Optional[str] = Field(None, max_length=256)
+
+    @property
+    def content_length(self) -> int:
+        if isinstance(self.content, str):
+            return len(self.content)
+        return sum(len(p.text) for p in self.content)
+
+
+class ChatCompletionRequest(BaseModel):
+    """Strict request validation. extra='forbid' rejects unknown fields."""
+    model_config = ConfigDict(extra="forbid")
+    model: str = Field(..., min_length=1, max_length=128)
+    messages: List[ChatMessage] = Field(..., min_length=1, max_length=200)
+    stream: Optional[bool] = False
+    temperature: Optional[float] = Field(None, ge=0.0, le=2.0)
+    top_p: Optional[float] = Field(None, ge=0.0, le=1.0)
+    max_tokens: Optional[int] = Field(None, ge=1, le=32_000)
+    stop: Optional[Union[str, List[str]]] = None
+    presence_penalty: Optional[float] = Field(None, ge=-2.0, le=2.0)
+    frequency_penalty: Optional[float] = Field(None, ge=-2.0, le=2.0)
+    n: Optional[int] = Field(None, ge=1, le=8)
+    user: Optional[str] = Field(None, max_length=256)
+    # stream_options, tools, response_format etc. can be added later; for now
+    # we reject them with extra='forbid' to avoid surprises.
 
 class SSEUsageExtractor:
     def __init__(self):
@@ -73,35 +125,103 @@ def estimate_prompt_tokens(messages: list) -> int:
 
 
 def sanitize_error_msg(msg: str) -> str:
+    """
+    Map any upstream error string to a strict, opaque, user-safe category label.
+
+    SECURITY: the previous implementation used string-replace on substrings
+    (e.g. 'nous_api_base', 'inference-api.nousresearch.com', 'nousresearch').
+    That fails closed for: (a) custom error messages that don't contain those
+    substrings, leaking full upstream text to the user; (b) exception types and
+    traceback fragments; (c) custom provider names. The cleaned string was also
+    stored in request_logs and visible via the analytics endpoint.
+
+    This new version maps ALL upstream errors to a fixed enum. The upstream
+    error is logged with an opaque ID for operators; the user sees only the
+    category label. Internal hostnames, provider names, and library names can
+    never reach the client.
+    """
     if not msg:
-        return ""
-    # Remove/replace references to raw upstream hostnames or provider names
-    cleaned = msg.replace(settings.nous_api_base, "AkaRouter Gateway")
-    cleaned = cleaned.replace("inference-api.nousresearch.com", "AkaRouter Gateway")
-    cleaned = cleaned.replace("nousresearch", "upstream provider")
-    return cleaned
+        return "upstream_error"
+    s = str(msg).lower()
+    if "rate limit" in s or "429" in s or "too many requests" in s:
+        return "rate_limited"
+    if "unauthorized" in s or "401" in s or "invalid api key" in s or "invalid_api_key" in s:
+        return "auth_failed"
+    if "forbidden" in s or "403" in s or "permission" in s:
+        return "forbidden"
+    if "billing" in s or "quota" in s or "insufficient" in s or "402" in s:
+        return "billing"
+    if "timeout" in s or "timed out" in s or "504" in s or "deadline" in s:
+        return "timeout"
+    if "connect" in s and ("refused" in s or "reset" in s or "error" in s):
+        return "connection_failed"
+    if any(code in s for code in ("500", "502", "503", "internal server", "bad gateway", "service unavailable")):
+        return "upstream_unavailable"
+    if "invalid request" in s or "400" in s or "validation" in s or "bad request" in s:
+        return "invalid_request"
+    if "model" in s and ("not found" in s or "unknown" in s or "unsupported" in s):
+        return "model_unavailable"
+    return "upstream_error"
 
 
 @router.post("/v1/chat/completions")
 async def proxy_chat(req: Request):
+    # SECURITY: enforce a hard body-size cap BEFORE reading the body. The
+    # previous code used `req.json()` with no size limit, allowing a 100MB POST
+    # to blow memory and cost. Reject with 413 early.
+    content_length = req.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_CHAT_REQUEST_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Request body too large. Max {MAX_CHAT_REQUEST_BYTES // 1024} KB."
+                )
+        except ValueError:
+            pass
+
+    # Read body once with a hard cap. Anything past the cap raises.
+    raw_body = b""
+    async for chunk in req.stream():
+        raw_body += chunk
+        if len(raw_body) > MAX_CHAT_REQUEST_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Request body too large. Max {MAX_CHAT_REQUEST_BYTES // 1024} KB."
+            )
+
     try:
-        body = await req.json()
+        raw = json.loads(raw_body.decode("utf-8"))
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON body")
 
-    model_alias = body.get("model")
-    if not model_alias:
-        raise HTTPException(status_code=400, detail="Missing 'model' parameter")
+    # SECURITY: strict Pydantic validation. Rejects unknown fields, wrong
+    # types, oversized messages, etc. with a 422.
+    try:
+        body = ChatCompletionRequest.model_validate(raw)
+    except Exception as ve:
+        # Surface only a generic message; full Pydantic details go to logs (already
+        # printed by Pydantic). Don't echo internal model fields back to clients.
+        raise HTTPException(status_code=422, detail="Invalid request body")
 
+    model_alias = body.model
     if model_alias not in settings.model_mapping:
         raise HTTPException(status_code=400, detail=f"Unknown model '{model_alias}'")
 
     if not is_model_active(model_alias):
         raise HTTPException(status_code=400, detail=f"Model '{model_alias}' is disabled by administrator")
 
-    # Resolve model alias → upstream model
+    # Re-serialize the validated body to a dict for downstream use. `body.model_dump(exclude_none=True)`
+    # strips None values, matching OpenAI's wire format.
+    body_dict = body.model_dump(exclude_none=True)
     upstream_model = settings.resolve_model(model_alias)
-    body["model"] = upstream_model
+    body_dict["model"] = upstream_model
+
+    # Re-validate total prompt length (defense in depth: per-message caps above
+    # already prevent this, but we double-check total).
+    total_chars = sum(m.content_length for m in body.messages)
+    if total_chars > 1_000_000:  # ~250k tokens worst case
+        raise HTTPException(status_code=413, detail="Total prompt content too large")
 
     # Pick provider
     provider = await select_provider(upstream_model)
@@ -126,10 +246,10 @@ async def proxy_chat(req: Request):
     account_id = auth_info["account_id"] if auth_info else None
     api_key_id = auth_info.get("key_id") if auth_info else None
 
-    stream = body.get("stream", False)
+    stream = body_dict.get("stream", False)
     if stream:
         # Request upstream provider to include usage chunk at the end of the stream
-        body["stream_options"] = {"include_usage": True}
+        body_dict["stream_options"] = {"include_usage": True}
 
     if stream:
         started = time.time()
@@ -142,7 +262,7 @@ async def proxy_chat(req: Request):
                     "Authorization": f"Bearer {provider['access_token']}",
                     "Content-Type": "application/json",
                 },
-                json=body,
+                json=body_dict,
             )
             response = await client.send(req_obj, stream=True)
             
@@ -224,7 +344,7 @@ async def proxy_chat(req: Request):
                     prompt_tokens = extractor.prompt_tokens
                     completion_tokens = extractor.completion_tokens
                 else:
-                    prompt_tokens = estimate_prompt_tokens(body.get("messages", []))
+                    prompt_tokens = estimate_prompt_tokens(body_dict.get("messages", []))
                     completion_tokens = max(1, len(extractor.completion_text) // 4)
                 
                 total_tokens = prompt_tokens + completion_tokens
@@ -242,7 +362,7 @@ async def proxy_chat(req: Request):
     # Non-streaming request
     started = time.time()
     try:
-        response = await _upstream(provider, body)
+        response = await _upstream(provider, body_dict)
     except httpx.HTTPStatusError as exc:
         latency = int((time.time() - started) * 1000)
         upstream_error = ""

@@ -132,6 +132,21 @@ def evict_jwt_cache(token: str) -> None:
             del _jwt_cache[token]
 
 
+def evict_api_key_cache(key_hash: str) -> None:
+    """
+    Evict a specific API key from the in-memory auth cache.
+
+    SECURITY: call this synchronously whenever a key is revoked, rotated, or
+    marked inactive. Without this, a revoked key remains usable until the
+    30-second TTL expires — for a security-critical action like key revocation,
+    that's a 30-second window during which a stolen key still works. Evicting
+    the entry collapses that window to sub-millisecond.
+    """
+    with _lock:
+        if key_hash in _api_key_cache:
+            del _api_key_cache[key_hash]
+
+
 def get_account_budget(account_id: str) -> Optional[dict[str, Any]]:
     """Retrieve the cached budget tracking for an account if not expired (TTL 30s)."""
     with _lock:
@@ -513,8 +528,17 @@ def get_jwt_cache(token: str) -> Optional[dict[str, Any]]:
     return None
 
 
-def set_jwt_cache(token: str, user_info: dict[str, Any], ttl: float = 60.0) -> None:
-    """Cache verified JWT user info with a given TTL."""
+def set_jwt_cache(token: str, user_info: dict[str, Any], ttl: float = 10.0) -> None:
+    """
+    Cache verified Supabase JWT user info.
+
+    SECURITY: TTL reduced from 60s to 10s. With a 60s cache, role/status/suspension
+    changes by an admin would not propagate for up to 60s, leaving banned users
+    authenticated. Tier/limit changes are still propagated immediately via
+    evict_account_caches() which is called from the Whop webhook handler and admin
+    endpoints. 10s gives us reasonable perf (most calls re-use cache) while bounding
+    the privilege-escalation window after a role/status change.
+    """
     with _lock:
         _jwt_cache[token] = (user_info, time.time() + ttl)
 
