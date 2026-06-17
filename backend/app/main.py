@@ -253,6 +253,14 @@ async def startup():
     # Initialize the global HTTP client pool
     await init_http_client()
 
+    # Initialize the in-memory rate limiter. Stored on app.state so
+    # route handlers can pull it via `request.app.state.rate_limiter`.
+    # In-memory only — no shared state across instances. A future Redis
+    # implementation can drop in behind the same RateLimiter Protocol.
+    from app.core.rate_limit import InMemoryRateLimiter
+    app.state.rate_limiter = InMemoryRateLimiter()
+    logger.info("Rate limiter initialized (in-memory, sliding-window log)")
+
     # Start the background cache and write-buffer flusher
     from app.core.cache import start_flusher
     start_flusher()
