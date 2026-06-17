@@ -219,6 +219,19 @@ CREATE TABLE IF NOT EXISTS invitation_codes (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- SECURITY: enable RLS on invitation_codes. Without this, anon can SELECT
+-- all codes (incl. `code` and `used_count`) and harvest beta invite codes.
+-- The RLS migration (scratch/migrate_rls_and_audit_log.sql) also enables RLS
+-- on this table, but applying it in schema.sql means operators don't have to
+-- run a separate migration to get a safe default.
+ALTER TABLE invitation_codes ENABLE ROW LEVEL SECURITY;
+
+-- Default-deny. Only service_role (used by the backend) can read or write
+-- invitation codes. Users MUST NOT be able to enumerate codes.
+DROP POLICY IF EXISTS "Service role can manage invitation_codes" ON invitation_codes;
+CREATE POLICY "Service role can manage invitation_codes" ON invitation_codes
+    FOR ALL USING (auth.role() = 'service_role');
+
 -- Users can only read their own account
 CREATE POLICY "Users can read own account" ON accounts
     FOR SELECT USING (auth_user_id = auth.uid());
@@ -256,18 +269,35 @@ CREATE POLICY "Service role can insert request logs" ON request_logs
 -- ============================================
 
 -- Auto-create account on signup, inheriting details from free plan preset
+-- SECURITY: SET search_path = public, pg_catalog prevents schema-hijack
+-- attacks. As SECURITY DEFINER, the function runs with the privileges of
+-- its owner; if an attacker can create objects in a writable schema on
+-- the search path, they could shadow built-ins or the accounts table.
+-- Same hardening applies to every other SECURITY DEFINER function below.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
-    free_monthly_limit DOUBLE PRECISION;
+    -- SECURITY: declare limit vars as BIGINT to match the accounts table
+    -- column types. Previously declared as DOUBLE PRECISION which silently
+    -- loses precision for values > 2^53 when inserted into BIGINT columns.
+    free_monthly_limit BIGINT;
     free_rpm_limit BIGINT;
-    free_tokens_5h_limit DOUBLE PRECISION;
-    free_tokens_7d_limit DOUBLE PRECISION;
+    free_tokens_5h_limit BIGINT;
+    free_tokens_7d_limit BIGINT;
     req_act TEXT;
     init_status TEXT := 'active';
 BEGIN
-    -- Query the current FREE plan preset details
-    SELECT monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit
+    -- Query the current FREE plan preset details.
+    -- The plan_presets columns are NUMERIC/DOUBLE PRECISION in this schema
+    -- (see plan_presets table definition), so we cast to BIGINT explicitly
+    -- to match the accounts column types. If the limit is ever > 2^53 we
+    -- would lose precision in the cast; in practice the only limit of
+    -- that size is tokens_5h_limit/tokens_7d_limit which we round down.
+    SELECT
+        monthly_limit::BIGINT,
+        rpm_limit::BIGINT,
+        tokens_5h_limit::BIGINT,
+        tokens_7d_limit::BIGINT
     INTO free_monthly_limit, free_rpm_limit, free_tokens_5h_limit, free_tokens_7d_limit
     FROM public.plan_presets
     WHERE tier = 'free';
@@ -308,7 +338,8 @@ BEGIN
     );
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+   SET search_path = public, pg_catalog;
 
 
 -- Trigger: auto-create account when user signs up
@@ -318,13 +349,19 @@ CREATE TRIGGER on_auth_user_created
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- Auto-update updated_at timestamp
+-- SECURITY: SECURITY INVOKER (the default) is correct here — this trigger
+-- function does no privileged work and runs in the caller's context, so
+-- RLS on the calling table applies normally. SECURITY DEFINER is only
+-- needed when the function must run with the privileges of its owner
+-- (e.g., to bypass RLS or access an object the caller cannot).
 CREATE OR REPLACE FUNCTION public.update_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql
+   SET search_path = public, pg_catalog;
 
 CREATE TRIGGER update_accounts_updated_at
     BEFORE UPDATE ON accounts
@@ -337,10 +374,30 @@ CREATE TRIGGER update_providers_updated_at
 -- ============================================
 -- VIEWS for dashboard
 -- ============================================
+--
+-- SECURITY: views in Postgres do NOT inherit RLS from the underlying
+-- tables. A plain view is executed with the privileges of its owner
+-- (typically the view creator), and PostgREST exposes it to anon and
+-- authenticated roles just like a table. That means `monthly_usage` and
+-- `provider_health` as plain views would let anon read aggregated data
+-- across ALL users — a cross-account data leak.
+--
+-- Fix: with `security_invoker = true` (PG15+), the view is executed
+-- with the privileges of the calling user, so the underlying table's
+-- RLS policies apply and anon can no longer see other accounts' data.
+--
+-- Requires PostgreSQL 15+. If you're on an older Supabase version,
+-- the alternative is to grant SELECT on the view only to service_role
+-- and have the backend proxy the data to authenticated users.
 
 -- Usage summary per account (current month)
-CREATE OR REPLACE VIEW monthly_usage AS
-SELECT 
+-- SECURITY: security_invoker ensures the RLS policies on `accounts` and
+-- `request_logs` apply to queries against this view. Anon users will see
+-- zero rows (their auth.uid() won't match any account), authenticated
+-- users will see only their own data.
+CREATE OR REPLACE VIEW monthly_usage
+WITH (security_invoker = true) AS
+SELECT
     a.id AS account_id,
     a.email,
     a.tier,
@@ -355,17 +412,23 @@ LEFT JOIN request_logs rl ON a.id = rl.account_id
 GROUP BY a.id, a.email, a.tier, a.monthly_limit;
 
 -- Provider health overview
-CREATE OR REPLACE VIEW provider_health AS
-SELECT 
+-- SECURITY: providers table has a "Service role can manage providers"
+-- policy, but without security_invoker on this view, anon could read
+-- ALL provider health data (account_label, error_rate_pct, in_flight,
+-- last_error_msg) which leaks operational secrets (which providers are
+-- failing, what their concurrency limits are, etc.).
+CREATE OR REPLACE VIEW provider_health
+WITH (security_invoker = true) AS
+SELECT
     p.id,
     p.account_label,
     p.health_status,
     p.weight,
     p.total_requests,
     p.total_errors,
-    CASE WHEN p.total_requests > 0 
+    CASE WHEN p.total_requests > 0
         THEN ROUND((p.total_errors::FLOAT / p.total_requests::FLOAT) * 100, 2)
-        ELSE 0 
+        ELSE 0
     END AS error_rate_pct,
     p.in_flight,
     p.max_concurrent,
@@ -379,6 +442,7 @@ FROM providers p;
 -- ============================================
 
 -- Atomic increment for account requests and usage
+-- SECURITY: SET search_path = public, pg_catalog prevents schema-hijack.
 CREATE OR REPLACE FUNCTION public.increment_account_usage(
     p_account_id UUID,
     p_monthly_delta INT,
@@ -392,10 +456,12 @@ BEGIN
         updated_at = NOW()
     WHERE id = p_account_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+   SET search_path = public, pg_catalog;
 
 
 -- Atomic increment for provider usage and error stats
+-- SECURITY: SET search_path = public, pg_catalog prevents schema-hijack.
 CREATE OR REPLACE FUNCTION public.increment_provider_stats(
     p_provider_id UUID,
     p_requests_delta INT,
@@ -409,10 +475,12 @@ BEGIN
         updated_at = NOW()
     WHERE id = p_provider_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+   SET search_path = public, pg_catalog;
 
 
 -- Atomic invitation code claiming with row locking
+-- SECURITY: SET search_path = public, pg_catalog prevents schema-hijack.
 CREATE OR REPLACE FUNCTION public.claim_invitation_code(
     p_code TEXT,
     p_account_id UUID
@@ -449,10 +517,12 @@ BEGIN
     
     RETURN TRUE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+   SET search_path = public, pg_catalog;
 
 
 -- Optimized database aggregation for budget sliding cycle logic
+-- SECURITY: SET search_path = public, pg_catalog prevents schema-hijack.
 CREATE OR REPLACE FUNCTION public.get_budget_consumption(
     p_account_id UUID,
     p_month_start TIMESTAMPTZ,
@@ -475,7 +545,8 @@ BEGIN
     FROM public.request_logs
     WHERE account_id = p_account_id AND created_at >= p_month_start;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+   SET search_path = public, pg_catalog;
 
 
 -- Note on request_logs table partitioning:
