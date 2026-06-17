@@ -102,4 +102,64 @@ describe('GET /auth/callback', () => {
     expect(loc).toContain('/auth/login?error=auth_failed')
     expect(loc).not.toContain('network')
   })
+
+  describe('NEXT_PUBLIC_SITE_URL override (avoids Docker container hostname in redirect)', () => {
+    it('uses NEXT_PUBLIC_SITE_URL when set, ignoring Docker-style request origin', async () => {
+      // Simulate a request that arrived at the Docker container directly
+      // (e.g., http://830635b86b84:8080) — which is the bug we fixed.
+      const original = process.env.NEXT_PUBLIC_SITE_URL
+      process.env.NEXT_PUBLIC_SITE_URL = 'https://akarouter.dev'
+      try {
+        mockExchange.mockResolvedValue({ error: null })
+        const res = await GET(fakeRequest('http://830635b86b84:8080/auth/callback?code=abc123&next=/dashboard'))
+        // The redirect MUST go to the public site, not the container hostname
+        expect(getLocation(res)).toBe('https://akarouter.dev/dashboard')
+      } finally {
+        if (original === undefined) delete process.env.NEXT_PUBLIC_SITE_URL
+        else process.env.NEXT_PUBLIC_SITE_URL = original
+      }
+    })
+
+    it('strips trailing slash from NEXT_PUBLIC_SITE_URL', async () => {
+      const original = process.env.NEXT_PUBLIC_SITE_URL
+      process.env.NEXT_PUBLIC_SITE_URL = 'https://akarouter.dev/'
+      try {
+        mockExchange.mockResolvedValue({ error: null })
+        const res = await GET(fakeRequest('http://localhost:3000/auth/callback?code=abc'))
+        const loc = getLocation(res)
+        // No double slash before /dashboard
+        expect(loc).toBe('https://akarouter.dev/dashboard')
+        expect(loc).not.toContain('akarouter.dev//')
+      } finally {
+        if (original === undefined) delete process.env.NEXT_PUBLIC_SITE_URL
+        else process.env.NEXT_PUBLIC_SITE_URL = original
+      }
+    })
+
+    it('ignores NEXT_PUBLIC_SITE_URL that is not http(s) and falls back to request origin', async () => {
+      const original = process.env.NEXT_PUBLIC_SITE_URL
+      process.env.NEXT_PUBLIC_SITE_URL = 'javascript:alert(1)'  // XSS attempt
+      try {
+        mockExchange.mockResolvedValue({ error: null })
+        const res = await GET(fakeRequest('https://example.com/auth/callback?code=abc'))
+        // Falls back to request origin (example.com), NOT javascript:
+        expect(getLocation(res)).toBe('https://example.com/dashboard')
+      } finally {
+        if (original === undefined) delete process.env.NEXT_PUBLIC_SITE_URL
+        else process.env.NEXT_PUBLIC_SITE_URL = original
+      }
+    })
+
+    it('falls back to request origin when NEXT_PUBLIC_SITE_URL is unset', async () => {
+      const original = process.env.NEXT_PUBLIC_SITE_URL
+      delete process.env.NEXT_PUBLIC_SITE_URL
+      try {
+        mockExchange.mockResolvedValue({ error: null })
+        const res = await GET(fakeRequest('https://akarouter.dev/auth/callback?code=abc'))
+        expect(getLocation(res)).toBe('https://akarouter.dev/dashboard')
+      } finally {
+        if (original !== undefined) process.env.NEXT_PUBLIC_SITE_URL = original
+      }
+    })
+  })
 })

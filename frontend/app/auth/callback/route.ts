@@ -24,17 +24,44 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
  *
  * This route handler runs server-side, can read/write cookies through
  * next/headers, and can call `exchangeCodeForSession()` on the server.
+ *
+ * REDIRECT URL RESOLUTION:
+ *   The `origin` of an incoming request can be a Docker container
+ *   hostname (e.g. http://830635b86b84:8080) when the route handler is
+ *   reached through a Docker network instead of the public hostname.
+ *   Using that as the redirect target would send the user's browser to
+ *   an internal address they can't reach. We therefore prefer
+ *   `NEXT_PUBLIC_SITE_URL` if set, and fall back to the request origin
+ *   only if the env var is absent. The fallback is bounded by the
+ *   request's own host header so we never redirect to an arbitrary
+ *   third-party URL.
  */
+function resolveSiteOrigin(request: NextRequest): string {
+  // 1. Configured site URL wins (preferred in production).
+  const configured = process.env.NEXT_PUBLIC_SITE_URL
+  if (configured) {
+    // Strip trailing slash, reject anything that isn't http(s).
+    const cleaned = configured.replace(/\/+$/, '')
+    if (/^https?:\/\//i.test(cleaned)) return cleaned
+  }
+  // 2. Fall back to the request's origin. This is the host the browser
+  //    actually saw, so it must be reachable. (In dev, that's localhost;
+  //    in prod behind a reverse proxy, Railway/Cloudflare will set the
+  //    Host header to the public hostname.)
+  return new URL(request.url).origin
+}
+
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   // `next` is the path the user was trying to reach before being bounced
   // to login. Falls back to /dashboard.
   const nextParam = searchParams.get('next')
   const safeNext = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : '/dashboard'
+  const siteOrigin = resolveSiteOrigin(request)
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/auth/login?error=auth_missing_code`)
+    return NextResponse.redirect(`${siteOrigin}/auth/login?error=auth_missing_code`)
   }
 
   try {
@@ -46,15 +73,15 @@ export async function GET(request: NextRequest) {
       // can contain hints about the OAuth config that are useful to
       // attackers probing the auth endpoint.
       console.error('[auth/callback] exchangeCodeForSession failed:', error.message)
-      return NextResponse.redirect(`${origin}/auth/login?error=auth_failed`)
+      return NextResponse.redirect(`${siteOrigin}/auth/login?error=auth_failed`)
     }
 
     // Session is now set in cookies (via the createServerSupabaseClient
     // setAll adapter). Redirect to the intended destination.
-    return NextResponse.redirect(`${origin}${safeNext}`)
+    return NextResponse.redirect(`${siteOrigin}${safeNext}`)
   } catch (err) {
     console.error('[auth/callback] unexpected error:', (err as Error).message)
-    return NextResponse.redirect(`${origin}/auth/login?error=auth_failed`)
+    return NextResponse.redirect(`${siteOrigin}/auth/login?error=auth_failed`)
   }
 }
 
