@@ -28,3 +28,13 @@ target-version = "py311"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Scope to the tests/ directory. The scratch/ folder contains one-off
+# scripts (some with names starting with `test_`) that exit the
+# interpreter with sys.exit and are not pytest tests. Without this,
+# pytest auto-collects them and fails the whole run.
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+# Add the project root to sys.path so `from app.X import Y` works in
+# tests, regardless of where pytest is invoked from (CI runs from
+# `backend/` so this matters).
+pythonpath = ["."]
