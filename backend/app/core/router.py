@@ -4,18 +4,18 @@ import time
 import logging
 import secrets
 import asyncio
-from datetime import datetime, timezone, timedelta
-from typing import Optional, Any
+from datetime import datetime, timezone
+from typing import Optional
 
 from app.core.config import settings
 from app.core.supabase import get_supabase
 from app.core.cache import (
     get_api_key_cache, set_api_key_cache, should_update_last_used_at,
-    check_and_increment_rpm, get_account_budget, set_account_budget,
-    calculate_account_budget, get_active_providers_cache, set_active_providers_cache,
+    check_and_increment_rpm, get_account_budget, calculate_account_budget, get_active_providers_cache, set_active_providers_cache,
     get_in_flight, inc_in_flight, buffer_request_log, buffer_account_usage,
     increment_account_budget, get_model_metadata
 )
+from app.core.locks import get_lock_backend
 
 logger = logging.getLogger(__name__)
 
@@ -122,23 +122,44 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
     budget = get_account_budget(account_id)
     if budget is None:
         budget = await calculate_account_budget(account_id, auth_metadata.get("budget_reset_at"))
-        
-    if check_limits:
-        tokens_5h_limit = auth_metadata.get("tokens_5h_limit", 1.0)
-        tokens_7d_limit = auth_metadata.get("tokens_7d_limit", 5.0)
-        monthly_limit = auth_metadata.get("monthly_limit", 10.0)
-        
-        if budget["consumed_5h"] >= tokens_5h_limit:
-            logger.warning(f"5-hour token budget exceeded for account: {account_id} ({budget['consumed_5h']} >= {tokens_5h_limit})")
-            raise BudgetLimitException("5-hour token budget exceeded")
-            
-        if budget["consumed_7d"] >= tokens_7d_limit:
-            logger.warning(f"7-day token budget exceeded for account: {account_id} ({budget['consumed_7d']} >= {tokens_7d_limit})")
-            raise BudgetLimitException("7-day token budget exceeded")
 
-        if budget["consumed_month"] >= monthly_limit:
-            logger.warning(f"Monthly token budget exceeded for account: {account_id} ({budget['consumed_month']} >= {monthly_limit})")
-            raise BudgetLimitException("Monthly token budget exceeded")
+    if check_limits:
+        # SECURITY: cross-instance budget race protection.
+        # Without this lock, two FastAPI instances behind a load balancer
+        # could both read budget["consumed_5h"] < limit, both allow the
+        # request, and both flush a cost increment — pushing the account
+        # over budget. The lock serializes the read-check-increment cycle
+        # across instances for the same account_id.
+        #
+        # Non-blocking try-acquire: if another instance is mid-check for
+        # this account, fail-fast with 429 instead of waiting. This is
+        # safer for tail latency — clients retry with backoff and another
+        # instance will accept the request.
+        locks = get_lock_backend()
+        lock_ctx = await locks.account_budget(account_id)
+        async with lock_ctx as budget_lock:
+            if not getattr(budget_lock, "acquired", True):
+                logger.warning(
+                    f"Budget lock contended for account {account_id}; "
+                    "failing fast with 429 (client should retry)"
+                )
+                raise RateLimitException("Budget check contended, retry shortly")
+
+            tokens_5h_limit = auth_metadata.get("tokens_5h_limit", 1.0)
+            tokens_7d_limit = auth_metadata.get("tokens_7d_limit", 5.0)
+            monthly_limit = auth_metadata.get("monthly_limit", 10.0)
+
+            if budget["consumed_5h"] >= tokens_5h_limit:
+                logger.warning(f"5-hour token budget exceeded for account: {account_id} ({budget['consumed_5h']} >= {tokens_5h_limit})")
+                raise BudgetLimitException("5-hour token budget exceeded")
+
+            if budget["consumed_7d"] >= tokens_7d_limit:
+                logger.warning(f"7-day token budget exceeded for account: {account_id} ({budget['consumed_7d']} >= {tokens_7d_limit})")
+                raise BudgetLimitException("7-day token budget exceeded")
+
+            if budget["consumed_month"] >= monthly_limit:
+                logger.warning(f"Monthly token budget exceeded for account: {account_id} ({budget['consumed_month']} >= {monthly_limit})")
+                raise BudgetLimitException("Monthly token budget exceeded")
 
     return auth_metadata
 

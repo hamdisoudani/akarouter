@@ -8,8 +8,7 @@ import base64
 import uuid
 import asyncio
 from datetime import datetime, timezone
-import httpx
-from fastapi import APIRouter, Request, Header, HTTPException
+from fastapi import APIRouter, Request, HTTPException
 
 from app.core.config import settings
 from app.core.supabase import get_supabase
@@ -175,7 +174,6 @@ async def whop_webhook_handler(
     # constraint, this is a duplicate delivery (Whop retries on transient errors)
     # and we return 200 to acknowledge it without re-applying state changes.
     try:
-        from postgrest.exceptions import APIError as _PostgrestAPIError
         insert_res = supabase.table("processed_webhooks").insert({
             "webhook_id": webhook_id,
             "source": "whop",
@@ -311,28 +309,41 @@ async def whop_webhook_handler(
                     pass
                 return {"status": "success", "tier": active_tier, "reason": "idempotent_skip"}
 
-            # Wrap the database sync in a retry loop
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    supabase.table("accounts").update({
-                        "tier": active_tier,
-                        "monthly_limit": p["monthly_limit"],
-                        "rpm_limit": p["rpm_limit"],
-                        "tokens_5h_limit": p["tokens_5h_limit"],
-                        "tokens_7d_limit": p["tokens_7d_limit"],
-                        "openclaw_enabled": p["openclaw_enabled"],
-                        "max_agents": p["max_agents"],
-                        "agent_cpu": p["agent_cpu"],
-                        "agent_ram": p["agent_ram"],
-                        "is_trialing": is_trialing,
-                        "updated_at": datetime.now(timezone.utc).isoformat()
-                    }).eq("id", account_id).execute()
-                    break
-                except Exception as db_err:
-                    if attempt == max_retries - 1:
-                        raise db_err
-                    await asyncio.sleep(2 ** attempt)
+            # SECURITY: serialize tier-upgrade writes for this account.
+            # A Whop webhook and a user-initiated checkout flow can both
+            # try to update `accounts.tier` for the same account within
+            # milliseconds of each other. Without this lock, last-writer-wins
+            # loses one of the two updates.
+            #
+            # Blocking acquire: this is a webhook handler — by the time
+            # we've verified the HMAC signature, we want this write to
+            # succeed deterministically. Worst case is a 50-100ms wait.
+            from app.core.locks import get_lock_backend
+            locks = get_lock_backend()
+            tier_lock = await locks.tier_upgrade(account_id)
+            async with tier_lock:
+                # Wrap the database sync in a retry loop
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        supabase.table("accounts").update({
+                            "tier": active_tier,
+                            "monthly_limit": p["monthly_limit"],
+                            "rpm_limit": p["rpm_limit"],
+                            "tokens_5h_limit": p["tokens_5h_limit"],
+                            "tokens_7d_limit": p["tokens_7d_limit"],
+                            "openclaw_enabled": p["openclaw_enabled"],
+                            "max_agents": p["max_agents"],
+                            "agent_cpu": p["agent_cpu"],
+                            "agent_ram": p["agent_ram"],
+                            "is_trialing": is_trialing,
+                            "updated_at": datetime.now(timezone.utc).isoformat()
+                        }).eq("id", account_id).execute()
+                        break
+                    except Exception as db_err:
+                        if attempt == max_retries - 1:
+                            raise db_err
+                        await asyncio.sleep(2 ** attempt)
 
             # Evict account caches immediately
             evict_account_caches(account_id)
