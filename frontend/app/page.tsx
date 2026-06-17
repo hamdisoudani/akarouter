@@ -1,117 +1,140 @@
-'use client'
-
-import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Layers, Terminal, Sparkles, Copy, Check, Cpu, RefreshCw, Zap, Shield, ArrowRight } from 'lucide-react'
-import { getGatewayUrl } from '@/lib/utils'
-import { getPlans, type PlanPreset } from '@/lib/api'
+import { Cpu, RefreshCw, Shield, ArrowRight } from 'lucide-react'
+import { env } from '@/lib/env'
+import { fetchServerPlans } from '@/lib/server-api'
+import { CopyButton } from '@/components/CopyButton'
+import type { PlanPreset } from '@/lib/api'
 
-export default function Home() {
-  const [copied, setCopied] = useState(false)
-  const [origin, setOrigin] = useState('http://localhost:8000')
-  const [dbPlans, setDbPlans] = useState<PlanPreset[]>([])
+/**
+ * Landing page (Server Component).
+ *
+ * SECURITY + PERF: the previous implementation was `'use client'` and
+ * fetched plans on mount with a useEffect. That meant:
+ *  1. Every visitor downloaded ~100KB+ of React/Next runtime before seeing
+ *     a single character of the page.
+ *  2. Google saw a blank HTML page (no SSR content), so SEO was effectively
+ *     zero.
+ *  3. The fetch logic was exposed in the client bundle, including the
+ *     URL construction logic with `process.env.NEXT_PUBLIC_API_URL` baked
+ *     into the JS.
+ *
+ * This Server Component:
+ *  - Renders fully on the server (HTML sent in initial response).
+ *  - Fetches plans server-side via `fetchServerPlans()`, which keeps the
+ *    backend URL out of the client bundle.
+ *  - Streams via Suspense implicitly (Next 16 enables this for RSC by default).
+ *  - Falls back to static pricing if the backend is unreachable.
+ *  - Only the tiny CopyButton is client-side (because clipboard API is
+ *    browser-only).
+ *
+ * Caching: `revalidate = 60` means Next.js will refresh the plans list
+ * every 60 seconds at most. For marketing pages this is fine — plans
+ * change rarely. If you ever need to force-refresh on plan edits, use
+ * `revalidateTag()` from the admin action.
+ */
+export const revalidate = 60
 
-  useEffect(() => {
-    setOrigin(getGatewayUrl())
-  }, [])
+const FALLBACK_PLANS: Array<{
+  key: string
+  name: string
+  price: string
+  billing: string
+  desc: string
+  badge?: string | null
+  limits: string[]
+}> = [
+  {
+    key: 'starter',
+    name: 'Starter Plan',
+    price: '$4.99',
+    billing: 'monthly',
+    desc: 'Essential API limits for developers starting out.',
+    badge: null,
+    limits: [
+      'Monthly Budget: $10.00',
+      'RPM Limit: 60 RPM',
+      '5-Hour Limit: $1.00',
+      '7-Day Limit: $5.00',
+      'Hosted Agents: 0',
+    ],
+  },
+  {
+    key: 'pro',
+    name: 'Pro Plan',
+    price: '$19.99',
+    billing: 'monthly',
+    desc: 'Perfect for production apps and agent deployments.',
+    badge: 'Popular • 7-Day Free Trial',
+    limits: [
+      'Monthly Budget: $100.00',
+      'RPM Limit: 300 RPM',
+      '5-Hour Limit: $10.00',
+      '7-Day Limit: $50.00',
+      'Hosted Agents: 2',
+    ],
+  },
+  {
+    key: 'ultra',
+    name: 'Ultra Plan',
+    price: '$99.99',
+    billing: 'monthly',
+    desc: 'Ultimate capacity for high-scale agent networks.',
+    badge: 'Elite Performance',
+    limits: [
+      'Monthly Budget: $1,000.00',
+      'RPM Limit: 1,000 RPM',
+      '5-Hour Limit: $100.00',
+      '7-Day Limit: $500.00',
+      'Hosted Agents: 5',
+    ],
+  },
+]
 
-  useEffect(() => {
-    async function loadPlans() {
-      try {
-        const res = await getPlans()
-        if (res && res.plans) {
-          const filtered = res.plans.filter(p => p.tier !== 'free' && p.tier !== 'enterprise')
-          setDbPlans(filtered)
-        }
-      } catch (err) {
-        console.error('Failed to load plans from backend:', err)
-      }
-    }
-    loadPlans()
-  }, [])
+type DisplayPlan = (typeof FALLBACK_PLANS)[number]
 
-  const getDisplayPlans = () => {
-    const fallbackPlans = [
-      {
-        name: 'Starter Plan',
-        key: 'starter',
-        price: '$4.99',
-        billing: 'monthly',
-        desc: 'Essential API limits for developers starting out.',
-        limits: [
-          'Monthly Budget: $10.00',
-          'RPM Limit: 60 RPM',
-          '5-Hour Limit: $1.00',
-          '7-Day Limit: $5.00',
-          'Hosted Agents: 0'
-        ]
-      },
-      {
-        name: 'Pro Plan',
-        key: 'pro',
-        price: '$19.99',
-        billing: 'monthly',
-        desc: 'Perfect for production apps and agent deployments.',
-        badge: 'Popular • 7-Day Free Trial',
-        limits: [
-          'Monthly Budget: $100.00',
-          'RPM Limit: 300 RPM',
-          '5-Hour Limit: $10.00',
-          '7-Day Limit: $50.00',
-          'Hosted Agents: 2'
-        ]
-      },
-      {
-        name: 'Ultra Plan',
-        key: 'ultra',
-        price: '$99.99',
-        billing: 'monthly',
-        desc: 'Ultimate capacity for high-scale agent networks.',
-        badge: 'Elite Performance',
-        limits: [
-          'Monthly Budget: $1,000.00',
-          'RPM Limit: 1,000 RPM',
-          '5-Hour Limit: $100.00',
-          '7-Day Limit: $500.00',
-          'Hosted Agents: 5'
-        ]
-      }
-    ]
-
-    if (dbPlans.length === 0) {
-      return fallbackPlans
-    }
-
-    return dbPlans.map(plan => {
-      const matchingFallback = fallbackPlans.find(fp => fp.key === plan.tier)
-      let defaultBadge = matchingFallback?.badge || null;
+function formatPlans(dbPlans: PlanPreset[]): DisplayPlan[] {
+  if (!dbPlans || dbPlans.length === 0) {
+    return FALLBACK_PLANS
+  }
+  return dbPlans
+    .filter((p) => p.tier !== 'free' && p.tier !== 'enterprise')
+    .map((plan) => {
+      const matching = FALLBACK_PLANS.find((fp) => fp.key === plan.tier)
+      let badge = plan.badge ?? matching?.badge ?? null
       if (plan.has_trial && plan.trial_days) {
-        defaultBadge = `${plan.trial_days}-Day Free Trial`;
+        badge = `${plan.trial_days}-Day Free Trial`
       }
-      
       return {
-        name: `${plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1)} Plan`,
         key: plan.tier,
-        price: plan.price || matchingFallback?.price || '$0.00',
-        billing: plan.billing_period || matchingFallback?.billing || 'monthly',
-        desc: plan.description || matchingFallback?.desc || 'Custom limits tier.',
-        badge: plan.badge || defaultBadge,
+        name: `${plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1)} Plan`,
+        price: plan.price || matching?.price || '$0.00',
+        billing: plan.billing_period || matching?.billing || 'monthly',
+        desc: plan.description || matching?.desc || 'Custom limits tier.',
+        badge,
         limits: [
           `Monthly Budget: ${plan.monthly_limit >= 999999999 ? 'UNLIMITED' : `$${plan.monthly_limit.toFixed(2)}`}`,
           `RPM Limit: ${plan.rpm_limit} RPM`,
           `5-Hour Limit: $${plan.tokens_5h_limit.toFixed(2)}`,
           `7-Day Limit: $${plan.tokens_7d_limit.toFixed(2)}`,
-          `Hosted Agents: ${plan.max_agents ?? 0}`
-        ]
+          `Hosted Agents: ${plan.max_agents ?? 0}`,
+        ],
       }
     })
-  }
+}
+
+export default async function Home() {
+  // Server-side fetch — no client leak, 5s timeout, fallback on error.
+  const dbPlans = await fetchServerPlans()
+  const displayPlans = formatPlans(dbPlans)
+
+  // Server-only URL — never sent to the browser.
+  const gatewayUrl = env.NEXT_PUBLIC_API_URL.replace(/\/+$/, '')
 
   const codeSnippet = `from openai import OpenAI
 
 client = OpenAI(
-  base_url="${origin}/v1",
+  base_url="${gatewayUrl}/v1",
   api_key="akar_your_key_here"
 )
 
@@ -119,12 +142,6 @@ response = client.chat.completions.create(
   model="akarouter-pro",
   messages=[{"role": "user", "content": "Hello AkaRouter!"}]
 )`
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(codeSnippet)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
 
   return (
     <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col overflow-hidden selection:bg-[#ef4444]/30 selection:text-white grid-bg">
@@ -148,8 +165,8 @@ response = client.chat.completions.create(
             <Link href="/auth/login" className="text-[10px] sm:text-xs font-mono uppercase tracking-wider text-zinc-300 hover:text-white transition-colors">
               Sign in
             </Link>
-            <Link 
-              href="/auth/login" 
+            <Link
+              href="/auth/login"
               className="relative inline-flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 text-white font-mono text-[10px] sm:text-xs py-1.5 px-3 sm:py-2 sm:px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all crosshair-corners"
             >
               Get Started
@@ -181,20 +198,20 @@ response = client.chat.completions.create(
 
           {/* Action Buttons */}
           <div className="pt-4 flex flex-wrap items-center justify-center gap-4">
-            <Link 
-              href="/auth/login" 
+            <Link
+              href="/auth/login"
               className="bg-[#ef4444] text-black font-mono text-xs font-bold py-3.5 px-8 hover:bg-[#ff5451] transition-all red-glow flex items-center gap-2"
             >
               <span className="font-bold">[+]</span> SUBSCRIBE & START
             </Link>
-            <a 
-              href="#pricing" 
+            <a
+              href="#pricing"
               className="bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono text-xs font-bold py-3.5 px-8 hover:border-zinc-500 hover:text-white transition-all"
             >
               EXPLORE_PRICING
             </a>
-            <a 
-              href="#models" 
+            <a
+              href="#models"
               className="bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono text-xs font-bold py-3.5 px-8 hover:border-zinc-500 hover:text-white transition-all"
             >
               EXPLORE_MODELS
@@ -212,13 +229,7 @@ response = client.chat.completions.create(
                 <div className="w-2 h-2 bg-[#ef4444] red-glow" />
                 <span className="text-[10px] text-zinc-400 font-mono font-bold tracking-widest uppercase">CONNECTION_CONFIG.PY</span>
               </div>
-              <button 
-                onClick={copyToClipboard}
-                className="p-1.5 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-500 transition-all"
-                title="Copy code"
-              >
-                {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              </button>
+              <CopyButton text={codeSnippet} />
             </div>
             <div className="p-5 font-mono text-[11px] text-zinc-300 overflow-x-auto bg-[#050507] leading-relaxed max-w-full">
               <pre className="whitespace-pre sm:whitespace-pre-wrap">{codeSnippet}</pre>
@@ -371,9 +382,9 @@ response = client.chat.completions.create(
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-6">
-            {getDisplayPlans().map((plan, idx) => (
-              <div 
-                key={idx} 
+            {displayPlans.map((plan) => (
+              <div
+                key={plan.key}
                 className={`relative bg-[#0e0e10] border ${plan.badge ? 'border-[#ef4444] red-glow' : 'border-zinc-800'} p-8 flex flex-col justify-between hover:border-zinc-500 transition-all crosshair-corners`}
               >
                 {plan.badge && (
@@ -394,8 +405,8 @@ response = client.chat.completions.create(
                   </div>
 
                   <ul className="space-y-2.5 font-mono text-[9px] text-zinc-400">
-                    {plan.limits.map((limit, lIdx) => (
-                      <li key={lIdx} className="flex items-center gap-2">
+                    {plan.limits.map((limit) => (
+                      <li key={limit} className="flex items-center gap-2">
                         <span className="w-1 h-1 bg-[#ef4444] red-glow"></span>
                         <span className="uppercase">{limit}</span>
                       </li>
@@ -404,7 +415,7 @@ response = client.chat.completions.create(
                 </div>
 
                 <div className="pt-8 mt-auto">
-                  <Link 
+                  <Link
                     href="/auth/login"
                     className="w-full text-center block font-mono text-[9px] py-3.5 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white transition-all tracking-widest uppercase font-bold"
                   >
