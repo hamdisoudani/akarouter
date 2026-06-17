@@ -1,6 +1,11 @@
+import { env } from './env'
+
+// On the server: talk to the real backend. On the client: talk to the
+// Next.js rewrite at /api/* (which proxies to the backend and hides the
+// real backend URL from the browser).
 const API_BASE = typeof window !== 'undefined'
   ? '/api'
-  : (process.env.NEXT_PUBLIC_API_URL || 'https://akarouter-production.up.railway.app')
+  : env.NEXT_PUBLIC_API_URL
 
 export interface ModelsResponse {
   object: string
