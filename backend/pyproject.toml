@@ -4,22 +4,58 @@ version = "0.1.0"
 description = "AKAROUTER multi-account AI proxy"
 readme = "README.md"
 requires-python = ">=3.11"
+
+# Pinned to exact versions for reproducible builds.
+#
+# Why exact pins (==) and not floors (>=):
+#   - A floor of "fastapi>=0.111" allows ANY 0.111.x, 0.112.x, 0.200.x...
+#     major upgrades, breaking changes, and CVEs. Today you build with
+#     fastapi 0.136.3; tomorrow `pip install -r requirements.txt` could
+#     give you 0.150.0 with a new auth API and the build fails in CI but
+#     ships to prod first.
+#   - An exact pin guarantees the same code in dev, CI, and prod.
+#   - Upgrade path: `pip install --upgrade fastapi`, run tests, regen
+#     pins. We never bump automatically.
+#
+# SECURITY: `cryptography` is an explicit top-level dep (not transitive)
+# because app/core/router.py: Fernet for at-rest encryption of hosted
+# agent API keys. We MUST own the version — if a future daytona version
+# drops the cryptography dep, our at-rest encryption silently breaks
+# at install time. Pin explicitly.
+#
+# Last regenerated: 2026-06-17
+# To regenerate:
+#   1. Update with `pip install -U <pkg>` in a venv
+#   2. Run `pip freeze | grep -E "..."` to capture new versions
+#   3. Verify tests pass
+#   4. Commit the new pins
 dependencies = [
-    "fastapi>=0.111.0",
-    "uvicorn[standard]>=0.30.0",
-    "pydantic>=2.7.0",
-    "pydantic-settings>=2.2.0",
-    "httpx>=0.27.0",
-    "supabase>=2.3.5",
-    "daytona>=0.186.0",
+    "fastapi==0.136.3",
+    "uvicorn[standard]==0.49.0",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.14.1",
+    "httpx==0.28.1",
+    "supabase==2.31.0",
+    "daytona==0.183.0",
+    "cryptography==46.0.5",  # explicit: powers Fernet at-rest encryption
 ]
 
 [project.optional-dependencies]
+# Dev-only deps. NOT installed in the production image (the Dockerfile
+# installs only requirements.txt; the dev extras are for local dev and
+# CI).
 dev = [
-    "ruff>=0.4.0",
-    "mypy>=1.10.0",
-    "pytest>=8.2.0",
-    "pytest-asyncio>=0.23.0",
+    "ruff==0.4.4",
+    "mypy==1.10.2",
+    "pytest==8.2.2",
+    "pytest-asyncio==0.23.7",
+]
+
+# Security testing tools. Run in CI but never in the prod image.
+security = [
+    "pip-audit==2.7.3",  # known-vulnerable dep scanner
+    "bandit==1.7.9",     # AST-based security lint
+    "detect-secrets==1.5.0",  # pre-commit hook
 ]
 
 [tool.ruff]

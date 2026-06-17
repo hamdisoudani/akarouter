@@ -1,11 +1,25 @@
-fastapi>=0.111.0
-uvicorn[standard]>=0.30.0
-pydantic>=2.7.0
-pydantic-settings>=2.2.0
-httpx>=0.27.0
-supabase>=2.3.5
-pyjwt>=2.8.0
-cryptography>=42.0.0
-python-dotenv>=1.0.1
-psycopg2-binary>=2.9.9
-daytona>=0.186.0
+# AkaRouter Backend — production dependencies
+#
+# This file is the source of truth for the production image. The
+# Dockerfile does `pip install -r requirements.txt` and nothing else.
+#
+# Pinned to exact versions for reproducible builds (see pyproject.toml
+# for the rationale).
+#
+# To upgrade:
+#   1. Test the upgrade in a venv: `pip install -U <pkg>`
+#   2. Run `pip freeze | grep <pkg>` to get the new version
+#   3. Update the pin below
+#   4. Run `pytest tests/` and `ruff check .`
+#   5. Commit
+#
+# Last regenerated: 2026-06-17
+
+fastapi==0.136.3
+uvicorn[standard]==0.49.0
+pydantic==2.13.4
+pydantic-settings==2.14.1
+httpx==0.28.1
+supabase==2.31.0
+daytona==0.183.0
+cryptography==46.0.5
