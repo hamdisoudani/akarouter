@@ -17,9 +17,14 @@
 -- Idempotent: safe to run multiple times. CREATE OR REPLACE.
 
 -- 1. Blocking lock: waits until the lock is available, returns void.
+-- SECURITY: SET search_path = pg_catalog, public prevents schema-hijack
+-- attacks. Without this, an attacker with CREATE permission on a writable
+-- schema could shadow built-ins (e.g., a malicious `pg_advisory_xact_lock`
+-- in a public schema search path). Same for the try-lock variant below.
 CREATE OR REPLACE FUNCTION public.pg_advisory_xact_lock_int(p_ns int, p_key int)
 RETURNS void
 LANGUAGE plpgsql
+SET search_path = pg_catalog, public
 AS $$
 BEGIN
   -- Two-arg form: namespace + key. Both must fit in int4.
@@ -31,6 +36,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.pg_try_advisory_xact_lock_int(p_ns int, p_key int)
 RETURNS boolean
 LANGUAGE plpgsql
+SET search_path = pg_catalog, public
 AS $$
 BEGIN
   RETURN pg_try_advisory_xact_lock(p_ns::int, p_key::int);
