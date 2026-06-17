@@ -513,8 +513,17 @@ def get_jwt_cache(token: str) -> Optional[dict[str, Any]]:
     return None
 
 
-def set_jwt_cache(token: str, user_info: dict[str, Any], ttl: float = 60.0) -> None:
-    """Cache verified JWT user info with a given TTL."""
+def set_jwt_cache(token: str, user_info: dict[str, Any], ttl: float = 10.0) -> None:
+    """
+    Cache verified Supabase JWT user info.
+
+    SECURITY: TTL reduced from 60s to 10s. With a 60s cache, role/status/suspension
+    changes by an admin would not propagate for up to 60s, leaving banned users
+    authenticated. Tier/limit changes are still propagated immediately via
+    evict_account_caches() which is called from the Whop webhook handler and admin
+    endpoints. 10s gives us reasonable perf (most calls re-use cache) while bounding
+    the privilege-escalation window after a role/status change.
+    """
     with _lock:
         _jwt_cache[token] = (user_info, time.time() + ttl)
 

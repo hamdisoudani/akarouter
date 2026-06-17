@@ -27,10 +27,19 @@ def _verify_admin(authorization: Optional[str]) -> bool:
         return False
     token = parts[1].strip()
     
-    # Dev-only: accept service role key directly (NEVER use in production)
-    if settings.app_env == "development" and token == settings.supabase_service_role_key:
-        return True
-        
+    # SECURITY: The dev backdoor that accepted the Supabase service-role key as an admin
+    # bearer token has been REMOVED. Service-role keys are god-mode for the entire Supabase
+    # project (bypasses RLS, can read/write any table, can mint admin JWTs). One leak or one
+    # mis-set AKAROUTER_APP_ENV would have made every /admin/* endpoint accessible with that
+    # key. For local development, set AKAROUTER_ADMIN_DEV_TOKEN to a high-entropy random
+    # string and use that as the Authorization: Bearer header. The dev token is checked
+    # ONLY when app_env == "development" AND is independent of any database credentials.
+    if settings.app_env == "development" and settings.admin_dev_token:
+        # Constant-time comparison to avoid timing attacks
+        import hmac as _hmac
+        if _hmac.compare_digest(token, settings.admin_dev_token):
+            return True
+
     # Verify Supabase JWT and check for admin role
     if token.startswith("eyJ"):
         try:
@@ -39,7 +48,7 @@ def _verify_admin(authorization: Optional[str]) -> bool:
                 return True
         except Exception as exc:
             logger.error("Admin verification error: %s", exc)
-            
+
     return False
 
 

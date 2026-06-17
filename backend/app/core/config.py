@@ -13,8 +13,17 @@ class Settings(BaseSettings):
     )
 
     # App
-    app_env: str = "development"
+    # SECURITY: default to "production" so a missing env var fails CLOSED.
+    # Setting this to "development" re-enables dev-only backdoors (e.g. service-role-key
+    # accepted as admin bearer token in _verify_admin). Never set this to anything other
+    # than "production" or "staging" in any non-local environment.
+    app_env: str = "production"
     port: int = 8000
+
+    # SECURITY: separate dev-only admin token. Only honored when app_env == "development".
+    # Use `python -c "import secrets; print(secrets.token_urlsafe(48))"` to generate one.
+    # DO NOT reuse the Supabase service-role key here. DO NOT set this in any non-dev env.
+    admin_dev_token: str = ""
 
     # Supabase
     supabase_url: str = ""
