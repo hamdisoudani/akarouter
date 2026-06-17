@@ -190,6 +190,17 @@ async def revoke_my_key(key_id: str, request: Request):
     # key still works. Evicting collapses the window to sub-millisecond.
     evict_api_key_cache(key_hash)
 
+    # Audit: log the revocation. The DB trigger on api_keys also fires automatically,
+    # but we log explicitly here for metadata that the trigger doesn't have (request IP, UA).
+    from app.core.audit import audit
+    audit(
+        action="key.revoke",
+        target_type="api_key",
+        target_id=key_id,
+        metadata={"account_id": str(account_id), "key_hash_prefix": key_hash[:8] if key_hash else None},
+        request=request,
+    )
+
     return {"ok": True}
 
 
