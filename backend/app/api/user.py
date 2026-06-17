@@ -11,6 +11,10 @@ from pydantic import BaseModel
 from app.core.supabase import get_supabase
 from app.core.router import generate_api_key
 from app.core.config import settings
+from app.core.rate_limit_middleware import (
+    enforce_ip_rate_limit,
+    rate_limit_429,
+)
 from app.core.recaptcha import verify_recaptcha
 from app.core.cache import (
     check_and_increment_activation_rate_limit,
@@ -78,6 +82,16 @@ class CreateKeyRequest(BaseModel):
 @router.post("/keys")
 async def create_my_key(request: Request, body: CreateKeyRequest):
     """Create a new API key for the currently authenticated user."""
+    # SECURITY: per-IP rate limit on key creation. The token-budget
+    # limiter in cache.py is per-account and protects budget. This
+    # limit is per-IP and protects against an attacker with access to
+    # many accounts (or a single compromised Supabase session) from
+    # minting hundreds of API keys and burning through key-creation
+    # rows. Capped at 5 req/min/IP.
+    rl = await enforce_ip_rate_limit(request, endpoint="user.create_key")
+    if not rl.allowed:
+        raise rate_limit_429(rl)
+
     account_id = _get_user_id(request)
     
     # Block pending activation accounts
@@ -126,7 +140,15 @@ async def activate_user_account(body: ActivateAccountRequest, request: Request):
     supabase_auth = getattr(request.state, "supabase_user", None)
     if not supabase_auth:
         raise HTTPException(status_code=401, detail="Not authenticated")
-        
+
+    # SECURITY: per-IP rate limit. The cache.py activation rate limiter
+    # is per-account; this is per-IP. An attacker with access to many
+    # accounts could otherwise burn through invitation codes. Capped
+    # at 5 req/min/IP.
+    rl = await enforce_ip_rate_limit(request, endpoint="user.activate")
+    if not rl.allowed:
+        raise rate_limit_429(rl)
+
     account_id = supabase_auth.get("account_id")
     email = supabase_auth.get("email")
     
@@ -172,6 +194,15 @@ async def activate_user_account(body: ActivateAccountRequest, request: Request):
 @router.delete("/keys/{key_id}")
 async def revoke_my_key(key_id: str, request: Request):
     """Revoke one of your API keys."""
+    # SECURITY: per-IP rate limit on key revocation. The previous code
+    # had no throttle here — a compromised Supabase session could
+    # bulk-revoke an account's keys to lock the user out (denial of
+    # service) or to mask which key is stolen (revoke all the good
+    # ones, attacker keeps the one they have). Capped at 5 req/min/IP.
+    rl = await enforce_ip_rate_limit(request, endpoint="user.revoke_key")
+    if not rl.allowed:
+        raise rate_limit_429(rl)
+
     account_id = _get_user_id(request)
     supabase = get_supabase()
 
@@ -189,6 +220,20 @@ async def revoke_my_key(key_id: str, request: Request):
     # action like key revocation, that's a 30-second window during which a stolen
     # key still works. Evicting collapses the window to sub-millisecond.
     evict_api_key_cache(key_hash)
+
+    # SECURITY: reset the rate-limit bucket for this key. After revocation
+    # the key is dead, but a leaked key that hit the rate limit before
+    # the user noticed wouldn't be cleared automatically. Resetting
+    # collapses the bucket immediately, so when (or if) the user mints
+    # a new key with the same id, it starts at zero usage. (New keys
+    # have new ids in practice, so this is defense in depth.)
+    from app.core.rate_limit import get_rate_limiter
+    limiter = get_rate_limiter(request)
+    if limiter is not None:
+        try:
+            await limiter.reset(f"chat.api_key:{key_id}", key_id)
+        except Exception:
+            pass  # fail-soft
 
     # Audit: log the revocation. The DB trigger on api_keys also fires automatically,
     # but we log explicitly here for metadata that the trigger doesn't have (request IP, UA).

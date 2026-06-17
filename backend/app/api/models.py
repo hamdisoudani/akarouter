@@ -2,6 +2,7 @@
 import logging
 from fastapi import APIRouter, Request
 from app.core.config import settings
+from app.core.rate_limit_middleware import enforce_ip_rate_limit, rate_limit_429
 from app.core.supabase import get_supabase
 
 logger = logging.getLogger(__name__)
@@ -11,6 +12,13 @@ router = APIRouter()
 @router.get("/v1/models")
 async def list_models(request: Request) -> dict:
     """List available models — AkaRouter branded names from model_mapping table."""
+    # SECURITY: per-IP rate limit. This endpoint is unauthenticated and
+    # exposes the model catalog, so an attacker can scrape it freely
+    # without throttling — capped at 30 req/min/IP.
+    rl = await enforce_ip_rate_limit(request, endpoint="v1.models")
+    if not rl.allowed:
+        raise rate_limit_429(rl)
+
     # Try DB first (allows dynamic updates from admin)
     try:
         supabase = get_supabase()
