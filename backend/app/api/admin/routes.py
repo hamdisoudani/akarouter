@@ -295,7 +295,17 @@ async def create_api_key(account_id: str, authorization: Optional[str] = Header(
 @router.post("/keys/{key_id}/revoke")
 async def revoke_api_key(key_id: str, authorization: Optional[str] = Header(None)):
     if not _verify_admin(authorization): raise HTTPException(status_code=401, detail="Admin access required")
-    get_supabase().table("api_keys").update({"is_active": False}).eq("id", key_id).execute()
+    supabase = get_supabase()
+    # Fetch key_hash first so we can evict the in-memory auth cache immediately.
+    # SECURITY: without this, a revoked key remains usable for up to 30s.
+    key_res = supabase.table("api_keys").select("key_hash, account_id").eq("id", key_id).execute()
+    supabase.table("api_keys").update({"is_active": False}).eq("id", key_id).execute()
+    if key_res.data:
+        from app.core.cache import evict_api_key_cache, evict_account_caches
+        evict_api_key_cache(key_res.data[0]["key_hash"])
+        # Also evict any account-scoped caches for safety
+        if key_res.data[0].get("account_id"):
+            evict_account_caches(key_res.data[0]["account_id"])
     return {"ok": True}
 
 

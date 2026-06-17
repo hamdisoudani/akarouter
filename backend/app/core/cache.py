@@ -132,6 +132,21 @@ def evict_jwt_cache(token: str) -> None:
             del _jwt_cache[token]
 
 
+def evict_api_key_cache(key_hash: str) -> None:
+    """
+    Evict a specific API key from the in-memory auth cache.
+
+    SECURITY: call this synchronously whenever a key is revoked, rotated, or
+    marked inactive. Without this, a revoked key remains usable until the
+    30-second TTL expires — for a security-critical action like key revocation,
+    that's a 30-second window during which a stolen key still works. Evicting
+    the entry collapses that window to sub-millisecond.
+    """
+    with _lock:
+        if key_hash in _api_key_cache:
+            del _api_key_cache[key_hash]
+
+
 def get_account_budget(account_id: str) -> Optional[dict[str, Any]]:
     """Retrieve the cached budget tracking for an account if not expired (TTL 30s)."""
     with _lock:
