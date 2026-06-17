@@ -14,7 +14,7 @@ async def list_models(request: Request) -> dict:
     # Try DB first (allows dynamic updates from admin)
     try:
         supabase = get_supabase()
-        result = supabase.table("model_mapping").select("alias, display_name, description, is_active, capabilities, input_cost_per_million, output_cost_per_million").execute()
+        result = supabase.table("model_mapping").select("alias, display_name, description, is_active, capabilities, input_cost_per_million, output_cost_per_million").eq("is_active", True).execute()
         if result.data:
             return {
                 "object": "list",
