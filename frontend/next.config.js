@@ -26,7 +26,7 @@ const securityHeaders = [
   // Disable dangerous browser features
   {
     key: 'Permissions-Policy',
-    value: 'camera=(), microphone=(), geolocation=(), interest-cohort=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()',
+    value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()',
   },
   // Cross-origin isolation (defense in depth against Spectre-style side channels)
   { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
