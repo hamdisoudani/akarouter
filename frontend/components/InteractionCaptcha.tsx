@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { loadRecaptchaScriptV3 } from '@/lib/recaptcha'
 
 interface InteractionCaptchaProps {
   /** reCAPTCHA action. Defaults to 'submit'. */
@@ -36,14 +37,19 @@ export function InteractionCaptcha({
     setError(null)
 
     try {
-      // Small safety check: grecaptcha must be on window
+      const siteKey =
+        process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ||
+        '6LcnqxUtAAAAAO9MYeFNsyL4JA-6PlAHKzoZoRCc'
+
+      // v3 script MUST be loaded with render=siteKey BEFORE execute()
+      // is called, otherwise Google rejects the token. We lazy-load on
+      // the first click so we don't track users who never interact.
+      await loadRecaptchaScriptV3(siteKey)
+
       if (typeof window === 'undefined' || !(window as any).grecaptcha) {
         throw new Error('reCAPTCHA is still loading. Please try again in a moment.')
       }
       const grecaptcha = (window as any).grecaptcha
-      const siteKey =
-        process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY ||
-        '6LcnqxUtAAAAAO9MYeFNsyL4JA-6PlAHKzoZoRCc'
 
       // This execute() is called only from this click handler (user gesture).
       // reCAPTCHA v3 establishes a session on explicit user interaction.
