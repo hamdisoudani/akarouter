@@ -279,7 +279,7 @@ response = client.chat.completions.create(
         </div>
       </section>
 
-      {/* Models Section */}
+      {/* Models Section — preview with link to full catalog */}
       <section id="models" className="border-t border-[#27272a] py-24 bg-[#09090b] px-6">
         <div className="max-w-6xl mx-auto space-y-8">
           <div className="text-center space-y-3">
@@ -288,6 +288,15 @@ response = client.chat.completions.create(
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-zinc-900 border border-zinc-800 text-[9px] font-mono text-zinc-400 uppercase tracking-wider">
               <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
               Per-Token & Per-Request Billing Active
+            </div>
+            <div className="pt-2">
+              <Link
+                href="/models"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-[#ef4444] hover:bg-[#ef4444]/5 text-zinc-300 hover:text-white font-mono text-[10px] uppercase tracking-wider transition-all"
+              >
+                Browse All Models
+                <ArrowRight className="w-3 h-3" />
+              </Link>
             </div>
           </div>
 

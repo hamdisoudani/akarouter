@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useApp } from '@/app/providers'
 import { createCheckoutSession, getPlans, type PlanPreset } from '@/lib/api'
-import { LogOut, RefreshCw } from 'lucide-react'
+import { LogOut, RefreshCw, Brain, Zap, DollarSign, ChevronRight } from 'lucide-react'
 
 export default function UpgradePage() {
   const router = useRouter()
@@ -31,6 +32,9 @@ export default function UpgradePage() {
     loadPlans()
   }, [])
 
+  // Derive which models are available per plan tier based on the request
+  // budget. Per-token models always included; per-request models unlock as
+  // the request ceiling grows.
   const getDisplayPlans = () => {
     const fallbackPlans = [
       {
@@ -86,16 +90,9 @@ export default function UpgradePage() {
 
     return dbPlans.map(plan => {
       const matchingFallback = fallbackPlans.find(fp => fp.key === plan.tier)
-      const limits = [
-        `Monthly Budget: $${plan.monthly_limit.toFixed(2)}`,
-        `RPM Limit: ${plan.rpm_limit} RPM`,
-        `5-Hour Limit: $${plan.tokens_5h_limit.toFixed(2)}`,
-        `7-Day Limit: $${plan.tokens_7d_limit.toFixed(2)}`,
-        `Hosted Agents: ${plan.max_agents ?? 0}`
-      ]
-      if (typeof plan.monthly_requests_limit === 'number') {
-        limits.push(`Monthly Requests: ${plan.monthly_requests_limit.toLocaleString()}`)
-      }
+      const monthlyRequests = typeof plan.monthly_requests_limit === 'number' ? plan.monthly_requests_limit : null
+      const perRequestCost = typeof plan.per_request_cost_cents === 'number' ? plan.per_request_cost_cents : null
+      const includedModels = deriveIncludedModels(plan.tier, monthlyRequests)
       return {
         name: matchingFallback?.name || `${plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1)} Plan`,
         key: plan.tier,
@@ -103,7 +100,17 @@ export default function UpgradePage() {
         billing: matchingFallback?.billing || 'monthly',
         desc: matchingFallback?.desc || 'Custom limits tier.',
         badge: matchingFallback?.badge || null,
-        limits
+        limits: [
+          `Monthly Budget: $${plan.monthly_limit.toFixed(2)}`,
+          ...(monthlyRequests != null ? [`Monthly Requests: ${monthlyRequests.toLocaleString()}`] : []),
+          `RPM Limit: ${plan.rpm_limit} RPM`,
+          `5-Hour Cap: $${plan.tokens_5h_limit.toFixed(2)}`,
+          `7-Day Cap: $${plan.tokens_7d_limit.toFixed(2)}`,
+          `Hosted Agents: ${plan.max_agents ?? 0}`,
+        ],
+        monthlyRequests,
+        perRequestCost,
+        includedModels,
       }
     })
   }
@@ -219,11 +226,13 @@ export default function UpgradePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {getDisplayPlans().map((plan) => {
               const isLoading = checkoutLoading === plan.key;
+              const models = (plan as any).includedModels as { perToken: string[]; perRequest: string[] } | undefined;
+              const monthlyRequests = (plan as any).monthlyRequests as number | null | undefined;
 
               return (
-                <div 
-                  key={plan.key} 
-                  className="relative bg-[#050507] border border-zinc-900 p-6 flex flex-col justify-between transition-all hover:border-zinc-700 crosshair-corners"
+                <div
+                  key={plan.key}
+                  className="relative bg-[#050507] border border-zinc-900 p-6 flex flex-col transition-all hover:border-zinc-700 crosshair-corners"
                 >
                   {plan.badge && (
                     <div className="absolute top-0 right-6 -translate-y-1/2 bg-[#ef4444] text-white font-mono text-[8px] font-bold px-2 py-0.5 tracking-widest uppercase red-glow">
@@ -242,14 +251,69 @@ export default function UpgradePage() {
                       <span className="font-mono text-[9px] text-zinc-500 uppercase">/ {plan.billing}</span>
                     </div>
 
-                    <ul className="space-y-2 font-mono text-[9px] text-zinc-400">
-                      {plan.limits.map((limit, idx) => (
+                    {/* Headline meters: budget + requests */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="border border-zinc-900 bg-zinc-950/50 p-2.5">
+                        <div className="flex items-center gap-1 text-[8px] font-mono text-zinc-500 uppercase tracking-wider mb-1">
+                          <DollarSign className="w-2.5 h-2.5" /> Budget
+                        </div>
+                        <div className="font-mono text-xs text-emerald-400 font-bold">
+                          ${plan.limits.find(l => l.includes('Monthly Budget'))?.replace(/[^\d.]/g, '') || '—'}
+                        </div>
+                        <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider">per month</div>
+                      </div>
+                      <div className="border border-zinc-900 bg-zinc-950/50 p-2.5">
+                        <div className="flex items-center gap-1 text-[8px] font-mono text-zinc-500 uppercase tracking-wider mb-1">
+                          <Zap className="w-2.5 h-2.5" /> Requests
+                        </div>
+                        <div className="font-mono text-xs text-[#ef4444] font-bold">
+                          {monthlyRequests != null ? monthlyRequests.toLocaleString() : '∞'}
+                        </div>
+                        <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider">per month</div>
+                      </div>
+                    </div>
+
+                    {/* Limits list */}
+                    <ul className="space-y-1.5 font-mono text-[9px] text-zinc-400">
+                      {plan.limits.filter(l => !l.includes('Monthly Budget')).map((limit, idx) => (
                         <li key={idx} className="flex items-center gap-2">
-                          <span className="w-1 h-1 bg-[#ef4444] red-glow"></span>
+                          <span className="w-1 h-1 bg-[#ef4444] red-glow shrink-0"></span>
                           <span className="uppercase">{limit}</span>
                         </li>
                       ))}
                     </ul>
+
+                    {/* Included models */}
+                    {models && (
+                      <div className="space-y-2 pt-3 border-t border-zinc-900">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-wider">INCLUDED_MODELS</span>
+                          <Link href="/models" className="text-[8px] font-mono text-[#ef4444] hover:underline uppercase tracking-wider">
+                            Browse all →
+                          </Link>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {models.perToken.slice(0, 3).map((id) => (
+                            <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono border border-emerald-500/30 bg-emerald-500/5 text-emerald-400">
+                              <Brain className="w-2.5 h-2.5" />
+                              {id}
+                            </span>
+                          ))}
+                          {models.perRequest.slice(0, 4).map((id) => (
+                            <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono border border-[#ef4444]/30 bg-[#ef4444]/5 text-[#ef4444]">
+                              <Zap className="w-2.5 h-2.5" />
+                              {id}
+                            </span>
+                          ))}
+                          {models.perRequest.length > 4 && (
+                            <span className="text-[8px] font-mono text-zinc-500">+{models.perRequest.length - 4} more</span>
+                          )}
+                        </div>
+                        <p className="text-[8px] text-zinc-600 font-mono leading-relaxed">
+                          All per-token models included. Per-request models deduct from your monthly request quota.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-6 mt-auto">
@@ -258,10 +322,10 @@ export default function UpgradePage() {
                       onClick={() => handleCheckout(plan.key)}
                       className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white font-mono text-[9px] py-3 transition-all tracking-widest uppercase font-bold"
                     >
-                      {isLoading 
-                        ? 'INITIALIZING...' 
-                        : plan.key === 'pro' 
-                          ? 'START FREE TRIAL' 
+                      {isLoading
+                        ? 'INITIALIZING...'
+                        : plan.key === 'pro'
+                          ? 'START FREE TRIAL'
                           : 'SUBSCRIBE NOW'}
                     </button>
                   </div>
@@ -279,4 +343,52 @@ export default function UpgradePage() {
       </main>
     </div>
   )
+}
+
+/**
+ * Derive the models accessible per plan tier based on the monthly_requests
+ * budget. Per-token models are always included. Per-request models unlock
+ * as the request ceiling grows. This is a UI hint, not a hard gate — the
+ * gateway enforces real limits.
+ */
+function deriveIncludedModels(
+  tier: string,
+  monthlyRequests: number | null,
+): { perToken: string[]; perRequest: string[] } {
+  const perToken = ['akarouter-flash', 'akarouter-pro', 'akarouter-large']
+
+  if (monthlyRequests == null) {
+    return { perToken, perRequest: [] }
+  }
+
+  // Tier-based model access (UI hint; matches the seeded monthly_requests_limit
+  // values: starter=500, pro=5000, ultra=50000)
+  const perRequestMap: Record<string, string[]> = {
+    starter: ['akarouter-mini'],
+    pro: ['akarouter-mini', 'akarouter-haiku', 'akarouter-sonnet', 'akarouter-gpt54'],
+    ultra: [
+      'akarouter-mini',
+      'akarouter-haiku',
+      'akarouter-sonnet',
+      'akarouter-gpt54',
+      'akarouter-gemini31',
+      'akarouter-gpt55',
+      'akarouter-opus',
+    ],
+    enterprise: [
+      'akarouter-mini',
+      'akarouter-haiku',
+      'akarouter-sonnet',
+      'akarouter-gpt54',
+      'akarouter-gemini31',
+      'akarouter-gpt55',
+      'akarouter-opus',
+      'akarouter-gpt53-codex',
+    ],
+  }
+
+  return {
+    perToken,
+    perRequest: perRequestMap[tier] ?? [],
+  }
 }
