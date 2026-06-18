@@ -245,19 +245,18 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // SECURITY: for /admin paths, additionally require the user have a
-  // non-'user' role. This check uses the JWT claims (which Supabase signs),
-  // not a cookie-name match.
-  if (pathname.startsWith('/admin')) {
-    const role =
-      (user.app_metadata?.role as string | undefined) ||
-      (user.user_metadata?.role as string | undefined) ||
-      'user'
-    if (role !== 'admin') {
-      // Don't leak that the path exists — redirect to dashboard with 302.
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
-  }
+  // SECURITY NOTE: role/authorization checks for /admin happen at the
+  // PAGE and API level (admin/page.tsx checks `contextUser.role === 'admin'`
+  // and the backend's `_verify_admin` checks `accounts.role`). We do NOT
+  // gate /admin at the edge because the source of truth for role lives in
+  // our own `accounts` table, not in Supabase JWT claims. JWT claims
+  // (`app_metadata.role` / `user_metadata.role`) are only populated when
+  // the user is provisioned via custom JWT claims, and we do not write to
+  // them from our app — the `accounts.role` field is the canonical role.
+  // The edge proxy only verifies AUTHENTICATION (is there a valid session?);
+  // it does not verify AUTHORIZATION. The admin page is responsible for
+  // redirecting non-admins, and the backend's /admin/* endpoints reject
+  // non-admin tokens with 401.
 
   return response
 }

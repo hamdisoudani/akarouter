@@ -23,7 +23,9 @@ import {
   X,
   Layers,
   FileText,
-  Cpu
+  Cpu,
+  Brain,
+  Zap
 } from 'lucide-react'
 import InteractionCaptcha from '@/components/InteractionCaptcha'
 
@@ -374,6 +376,20 @@ export default function UserDashboard() {
             <span className="tracking-widest font-mono uppercase text-[11px]">Usage</span>
           </Link>
 
+          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/models">
+            <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
+              <Brain className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
+            </span>
+            <span className="tracking-widest font-mono uppercase text-[11px]">Models</span>
+          </Link>
+
+          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/upgrade">
+            <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
+              <Zap className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
+            </span>
+            <span className="tracking-widest font-mono uppercase text-[11px]">Plans</span>
+          </Link>
+
           <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/agents">
             <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
               <Cpu className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
@@ -450,7 +466,7 @@ export default function UserDashboard() {
               <span className="tracking-widest font-mono uppercase text-xs">API Keys</span>
             </Link>
 
-            <Link 
+            <Link
               onClick={() => setMobileOpen(false)}
               className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
               href="/usage"
@@ -459,6 +475,28 @@ export default function UserDashboard() {
                 <Layers className="w-3.5 h-3.5 text-zinc-450" />
               </span>
               <span className="tracking-widest font-mono uppercase text-xs">Usage</span>
+            </Link>
+
+            <Link
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+              href="/models"
+            >
+              <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                <Brain className="w-3.5 h-3.5 text-zinc-450" />
+              </span>
+              <span className="tracking-widest font-mono uppercase text-xs">Models</span>
+            </Link>
+
+            <Link
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
+              href="/upgrade"
+            >
+              <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
+                <Zap className="w-3.5 h-3.5 text-zinc-450" />
+              </span>
+              <span className="tracking-widest font-mono uppercase text-xs">Plans</span>
             </Link>
 
             <Link 
@@ -678,53 +716,49 @@ export default function UserDashboard() {
                 <div className="space-y-4">
                   <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                     <div className="w-[3px] h-3 bg-[#ef4444] red-glow"></div>
-                    ROUTING_MODEL_REGISTRY
+                    MODEL_CATALOG
                   </h2>
-                  <div className="space-y-2">
+                  <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider leading-relaxed">
+                    {modelsList.length} models available across {new Set(modelsList.map(m => m.owned_by || 'unknown')).size} providers.
+                    Per-token and per-request billing supported.
+                  </p>
+
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                     {loading ? (
                       <p className="text-[10px] font-mono text-zinc-650 uppercase py-2 text-center animate-pulse">[SYNCHRONIZING_REGISTRY...]</p>
                     ) : modelsList.length === 0 ? (
                       <p className="text-[10px] font-mono text-zinc-650 uppercase py-2 text-center">[NO_ACTIVE_MODELS]</p>
                     ) : (
-                      modelsList.map((m) => (
-                        <div key={m.id} className={`flex justify-between items-center p-3 bg-[#050507] border ${m.is_active ? 'border-zinc-900' : 'border-[#ef4444]/20 opacity-60'} transition-all group`}>
-                          <div className="flex items-center gap-3">
-                            <span className={`w-1.5 h-1.5 ${m.is_active ? 'bg-emerald-400 status-pulse' : 'bg-[#ef4444]'}`} />
-                            <div className="flex flex-col">
-                              <span className="font-mono text-[11px] text-zinc-400 uppercase">{m.display_name || m.id}</span>
-                              <span className="font-mono text-[8px] text-zinc-600 uppercase tracking-tighter">{m.id}</span>
-                              
-                              {m.is_active && (
-                                <div className="flex flex-wrap items-center gap-1.5 mt-1.5 font-mono text-[8px]">
-                                  {m.context_length !== undefined && (
-                                    <span className="text-[#ef4444] bg-[#ef4444]/5 border border-[#ef4444]/15 px-1 py-0.2 uppercase font-semibold">
-                                      {m.context_length >= 1000000 
-                                        ? `${(m.context_length / 1000000).toFixed(0)}M` 
-                                        : `${(m.context_length / 1000).toFixed(0)}K`
-                                      } Context
-                                    </span>
-                                  )}
-                                  {m.input_cost_per_million !== undefined && m.output_cost_per_million !== undefined && (
-                                    <span className="text-emerald-400 bg-emerald-500/5 border border-emerald-500/10 px-1 py-0.2">
-                                      In: ${m.input_cost_per_million.toFixed(2)}/M | Out: ${m.output_cost_per_million.toFixed(2)}/M
-                                    </span>
-                                  )}
-                                  {m.capabilities && m.capabilities.length > 0 && (
-                                    <span className="text-zinc-500 bg-zinc-950 border border-zinc-900 px-1 py-0.2 uppercase">
-                                      {m.capabilities.join(' + ')}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
+                      modelsList.slice(0, 6).map((m) => {
+                        const isPerRequest = m.pricing_mode === 'per_request'
+                        return (
+                          <Link key={m.id} href={`/models/${m.id}`} className="flex justify-between items-center p-2.5 bg-[#050507] border border-zinc-900 hover:border-zinc-700 transition-all group">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className={`w-1.5 h-1.5 ${m.is_active ? 'bg-emerald-400 status-pulse' : 'bg-[#ef4444]'} shrink-0`} />
+                              <span className="font-mono text-[11px] text-zinc-300 group-hover:text-white uppercase truncate transition-colors">
+                                {m.display_name || m.id}
+                              </span>
                             </div>
-                          </div>
-                          <span className={`font-mono text-[9px] font-bold uppercase ${m.is_active ? 'text-emerald-450' : 'text-[#ef4444] red-glow-text'}`}>
-                            {m.is_active ? 'ACTIVE' : 'DISABLED'}
-                          </span>
-                        </div>
-                      ))
+                            <span className={`shrink-0 ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border ${
+                              isPerRequest
+                                ? 'border-[#ef4444]/30 bg-[#ef4444]/5 text-[#ef4444]'
+                                : 'border-emerald-500/30 bg-emerald-500/5 text-emerald-400'
+                            }`}>
+                              {isPerRequest ? '$' : 'T'}
+                              {isPerRequest ? `$${((m.cost_per_request_cents ?? 0) / 100).toFixed(2)}` : 'PER_M'}
+                            </span>
+                          </Link>
+                        )
+                      })
                     )}
                   </div>
+
+                  <Link
+                    href="/models"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 mt-2 bg-zinc-900 border border-zinc-800 hover:border-[#ef4444] hover:bg-[#ef4444]/5 text-zinc-300 hover:text-white font-mono text-[10px] uppercase tracking-wider transition-all"
+                  >
+                    Browse All {modelsList.length} Models →
+                  </Link>
                 </div>
               </div>
 
