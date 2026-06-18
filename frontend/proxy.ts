@@ -156,17 +156,24 @@ function isHtmlResponse(pathname: string): boolean {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Generate a per-request nonce and propagate it via a request header.
-  // Server components can read this via headers().get('x-nonce') if
-  // they need to set nonce on inline <script> tags.
+  // Generate a per-request nonce and propagate it to the render.
+  //
+  // Next.js extracts the nonce by parsing the Content-Security-Policy
+  // present on the *request* headers during server rendering, then
+  // stamps it onto its own framework/React inline <script> tags. So we
+  // must set the CSP on BOTH the request headers (so Next can read it)
+  // and the response headers (so the browser enforces it). We also
+  // expose x-nonce for server components that render their own inline
+  // scripts.
   const nonce = generateNonce()
-  const requestHeaders = new Headers(request.headers)
-  requestHeaders.set('x-nonce', nonce)
-
-  // Build a CSP for this request. We attach it to every HTML response
-  // — never to API JSON, never to static assets.
   const supabaseHost = supabaseHostFromUrl(env.NEXT_PUBLIC_SUPABASE_URL)
   const csp = isHtmlResponse(pathname) ? buildAppCSP(nonce, supabaseHost) : null
+
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-nonce', nonce)
+  if (csp) {
+    requestHeaders.set('Content-Security-Policy', csp)
+  }
 
   // For the public auth route, build a response we can attach CSP +
   // headers to.
