@@ -342,6 +342,7 @@ class CreatePlanRequest(BaseModel):
     badge: Optional[str] = ""
     has_trial: Optional[bool] = False
     trial_days: Optional[int] = 7
+    monthly_requests_limit: Optional[int] = None
 
 class UpdatePlanRequest(BaseModel):
     tier: Optional[str] = None
@@ -359,6 +360,7 @@ class UpdatePlanRequest(BaseModel):
     badge: Optional[str] = None
     has_trial: Optional[bool] = None
     trial_days: Optional[int] = None
+    monthly_requests_limit: Optional[int] = None
 
 class UpdateSettingsRequest(BaseModel):
     gateway_enabled: Optional[bool] = None
@@ -377,6 +379,8 @@ class UpdateModelRequest(BaseModel):
     is_active: Optional[bool] = None
     input_cost_per_million: Optional[float] = None
     output_cost_per_million: Optional[float] = None
+    pricing_mode: Optional[str] = None           # 'per_token' | 'per_request'
+    cost_per_request_cents: Optional[int] = None  # only meaningful when pricing_mode='per_request'
 
 def get_user_consumptions(account_ids: Optional[list[str]] = None) -> dict[str, dict]:
     """Retrieve aggregate consumption stats grouped by account_id, optionally filtered by account_ids."""
@@ -582,7 +586,7 @@ async def update_account_tier(account_id: str, tier: str, authorization: Optiona
         raise HTTPException(status_code=401, detail="Admin access required")
     supabase = get_supabase()
     
-    plan_res = supabase.table("plan_presets").select("monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, openclaw_enabled, max_agents, agent_cpu, agent_ram").eq("tier", tier).execute()
+    plan_res = supabase.table("plan_presets").select("monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, openclaw_enabled, max_agents, agent_cpu, agent_ram, monthly_requests_limit").eq("tier", tier).execute()
     limit = 1000
     rpm_limit = 60
     tokens_5h_limit = 1.0
@@ -591,6 +595,7 @@ async def update_account_tier(account_id: str, tier: str, authorization: Optiona
     max_agents = 0
     agent_cpu = 1
     agent_ram = 1
+    monthly_requests_limit = None
     
     if plan_res.data:
         plan = plan_res.data[0]
@@ -602,6 +607,7 @@ async def update_account_tier(account_id: str, tier: str, authorization: Optiona
         max_agents = plan.get("max_agents", 0)
         agent_cpu = plan.get("agent_cpu", 1)
         agent_ram = plan.get("agent_ram", 1)
+        monthly_requests_limit = plan.get("monthly_requests_limit")
     else:
         limits = {"free": 1000, "pro": 10000, "enterprise": 999999999}
         limit = limits.get(tier, 1000)
@@ -622,7 +628,7 @@ async def update_account_tier(account_id: str, tier: str, authorization: Optiona
             agent_cpu = 2
             agent_ram = 4
         
-    supabase.table("accounts").update({
+    update_payload = {
         "tier": tier, 
         "monthly_limit": limit,
         "rpm_limit": rpm_limit,
@@ -632,7 +638,11 @@ async def update_account_tier(account_id: str, tier: str, authorization: Optiona
         "max_agents": max_agents,
         "agent_cpu": agent_cpu,
         "agent_ram": agent_ram
-    }).eq("id", account_id).execute()
+    }
+    if monthly_requests_limit is not None:
+        update_payload["monthly_requests_limit"] = monthly_requests_limit
+
+    supabase.table("accounts").update(update_payload).eq("id", account_id).execute()
     
     # Evict local cache immediately
     from app.core.cache import evict_account_caches
@@ -700,6 +710,7 @@ async def create_plan(body: CreatePlanRequest, authorization: Optional[str] = He
         "badge": body.badge,
         "has_trial": body.has_trial,
         "trial_days": body.trial_days,
+        "monthly_requests_limit": body.monthly_requests_limit,
     }).execute()
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create plan preset")
@@ -751,6 +762,8 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         updates["has_trial"] = body.has_trial
     if body.trial_days is not None:
         updates["trial_days"] = body.trial_days
+    if body.monthly_requests_limit is not None:
+        updates["monthly_requests_limit"] = body.monthly_requests_limit
         
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -777,6 +790,8 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         account_updates["agent_cpu"] = body.agent_cpu
     if body.agent_ram is not None:
         account_updates["agent_ram"] = body.agent_ram
+    if body.monthly_requests_limit is not None:
+        account_updates["monthly_requests_limit"] = body.monthly_requests_limit
         
     if account_updates:
         try:
@@ -979,7 +994,15 @@ async def admin_update_model(alias: str, body: UpdateModelRequest, authorization
         updates["input_cost_per_million"] = body.input_cost_per_million
     if body.output_cost_per_million is not None:
         updates["output_cost_per_million"] = body.output_cost_per_million
-        
+    if body.pricing_mode is not None:
+        if body.pricing_mode not in ("per_token", "per_request"):
+            raise HTTPException(status_code=400, detail="pricing_mode must be 'per_token' or 'per_request'")
+        updates["pricing_mode"] = body.pricing_mode
+    if body.cost_per_request_cents is not None:
+        if body.cost_per_request_cents < 0:
+            raise HTTPException(status_code=400, detail="cost_per_request_cents must be >= 0")
+        updates["cost_per_request_cents"] = body.cost_per_request_cents
+
     # Check if model mapping exists in DB
     check_res = supabase.table("model_mapping").select("alias").eq("alias", alias).execute()
     if not check_res.data:
@@ -994,6 +1017,10 @@ async def admin_update_model(alias: str, body: UpdateModelRequest, authorization
             insert_data["input_cost_per_million"] = body.input_cost_per_million
         if body.output_cost_per_million is not None:
             insert_data["output_cost_per_million"] = body.output_cost_per_million
+        if body.pricing_mode is not None:
+            insert_data["pricing_mode"] = body.pricing_mode
+        if body.cost_per_request_cents is not None:
+            insert_data["cost_per_request_cents"] = body.cost_per_request_cents
         supabase.table("model_mapping").insert(insert_data).execute()
     else:
         if updates:
@@ -1175,3 +1202,153 @@ async def admin_test_daytona_key(key_id: str, authorization: Optional[str] = Hea
     except Exception as e:
         logger.error(f"Daytona test connection failed for key {key_id}: {e}", exc_info=True)
         return {"ok": False, "status": "failed", "message": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Provider Endpoints (vsllm-style single-URL API-key providers)
+# ---------------------------------------------------------------------------
+
+class CreateProviderEndpointRequest(BaseModel):
+    name: str
+    base_url: str
+    api_key: str                          # plaintext — encrypted before storage
+    auth_header: Optional[str] = "Authorization"
+    auth_scheme: Optional[str] = "Bearer"
+    model_aliases: Optional[list[str]] = []
+    default_pricing_mode: Optional[str] = "per_request"
+    default_cost_per_request_cents: Optional[int] = None
+    health_status: Optional[str] = "active"
+    max_concurrent: Optional[int] = 50
+    weight: Optional[float] = 1.0
+
+class UpdateProviderEndpointRequest(BaseModel):
+    name: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None         # re-encrypt on change
+    auth_header: Optional[str] = None
+    auth_scheme: Optional[str] = None
+    model_aliases: Optional[list[str]] = None
+    default_pricing_mode: Optional[str] = None
+    default_cost_per_request_cents: Optional[int] = None
+    health_status: Optional[str] = None
+    max_concurrent: Optional[int] = None
+    weight: Optional[float] = None
+
+def _encrypt_provider_api_key(raw_key: str) -> str:
+    from cryptography.fernet import Fernet
+    secret = settings.agent_key_encryption_secret
+    f = Fernet(secret.encode())
+    return f.encrypt(raw_key.encode()).decode()
+
+
+@router.get("/provider-endpoints")
+async def list_provider_endpoints(authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    res = supabase.table("provider_endpoints").select("*").order("created_at", desc=True).execute()
+    # Strip api_key_encrypted from the response (never expose to admin UI)
+    for row in (res.data or []):
+        row.pop("api_key_encrypted", None)
+    return {"provider_endpoints": res.data or []}
+
+
+@router.post("/provider-endpoints")
+async def create_provider_endpoint(body: CreateProviderEndpointRequest, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+
+    if body.default_pricing_mode not in ("per_token", "per_request"):
+        raise HTTPException(status_code=400, detail="default_pricing_mode must be 'per_token' or 'per_request'")
+    if body.health_status not in ("active", "degraded", "disabled"):
+        raise HTTPException(status_code=400, detail="health_status must be active, degraded, or disabled")
+
+    supabase = get_supabase()
+    exist = supabase.table("provider_endpoints").select("id").eq("name", body.name).execute()
+    if exist.data:
+        raise HTTPException(status_code=400, detail=f"Provider endpoint with name '{body.name}' already exists")
+
+    insert = {
+        "name": body.name,
+        "base_url": body.base_url.rstrip("/"),
+        "api_key_encrypted": _encrypt_provider_api_key(body.api_key),
+        "auth_header": body.auth_header or "Authorization",
+        "auth_scheme": body.auth_scheme or "Bearer",
+        "model_aliases": body.model_aliases or [],
+        "default_pricing_mode": body.default_pricing_mode,
+        "default_cost_per_request_cents": body.default_cost_per_request_cents,
+        "health_status": body.health_status,
+        "max_concurrent": body.max_concurrent or 50,
+        "weight": body.weight if body.weight is not None else 1.0,
+    }
+    res = supabase.table("provider_endpoints").insert(insert).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create provider endpoint")
+    row = res.data[0]
+    row.pop("api_key_encrypted", None)
+    return {"ok": True, "provider_endpoint": row}
+
+
+@router.patch("/provider-endpoints/{endpoint_id}")
+async def update_provider_endpoint(endpoint_id: str, body: UpdateProviderEndpointRequest, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+
+    check = supabase.table("provider_endpoints").select("id").eq("id", endpoint_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Provider endpoint not found")
+
+    updates = {}
+    if body.name is not None:
+        conflict = supabase.table("provider_endpoints").select("id").eq("name", body.name).neq("id", endpoint_id).execute()
+        if conflict.data:
+            raise HTTPException(status_code=400, detail=f"Provider endpoint with name '{body.name}' already exists")
+        updates["name"] = body.name
+    if body.base_url is not None:
+        updates["base_url"] = body.base_url.rstrip("/")
+    if body.api_key is not None:
+        updates["api_key_encrypted"] = _encrypt_provider_api_key(body.api_key)
+    if body.auth_header is not None:
+        updates["auth_header"] = body.auth_header
+    if body.auth_scheme is not None:
+        updates["auth_scheme"] = body.auth_scheme
+    if body.model_aliases is not None:
+        updates["model_aliases"] = body.model_aliases
+    if body.default_pricing_mode is not None:
+        if body.default_pricing_mode not in ("per_token", "per_request"):
+            raise HTTPException(status_code=400, detail="default_pricing_mode must be 'per_token' or 'per_request'")
+        updates["default_pricing_mode"] = body.default_pricing_mode
+    if body.default_cost_per_request_cents is not None:
+        updates["default_cost_per_request_cents"] = body.default_cost_per_request_cents
+    if body.health_status is not None:
+        if body.health_status not in ("active", "degraded", "disabled"):
+            raise HTTPException(status_code=400, detail="health_status must be active, degraded, or disabled")
+        updates["health_status"] = body.health_status
+    if body.max_concurrent is not None:
+        updates["max_concurrent"] = body.max_concurrent
+    if body.weight is not None:
+        updates["weight"] = body.weight
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    updates["updated_at"] = "NOW()"
+    res = supabase.table("provider_endpoints").update(updates).eq("id", endpoint_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to update provider endpoint")
+    row = res.data[0]
+    row.pop("api_key_encrypted", None)
+    return {"ok": True, "provider_endpoint": row}
+
+
+@router.delete("/provider-endpoints/{endpoint_id}")
+async def delete_provider_endpoint(endpoint_id: str, authorization: Optional[str] = Header(None)):
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    check = supabase.table("provider_endpoints").select("id").eq("id", endpoint_id).execute()
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Provider endpoint not found")
+    supabase.table("provider_endpoints").delete().eq("id", endpoint_id).execute()
+    return {"ok": True}

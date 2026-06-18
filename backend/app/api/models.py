@@ -22,7 +22,7 @@ async def list_models(request: Request) -> dict:
     # Try DB first (allows dynamic updates from admin)
     try:
         supabase = get_supabase()
-        result = supabase.table("model_mapping").select("alias, display_name, description, is_active, capabilities, input_cost_per_million, output_cost_per_million").eq("is_active", True).execute()
+        result = supabase.table("model_mapping").select("alias, display_name, description, is_active, capabilities, input_cost_per_million, output_cost_per_million, pricing_mode, cost_per_request_cents").eq("is_active", True).execute()
         if result.data:
             return {
                 "object": "list",
@@ -37,6 +37,8 @@ async def list_models(request: Request) -> dict:
                         "capabilities": row.get("capabilities") or ["text"],
                         "input_cost_per_million": row.get("input_cost_per_million", 0.10),
                         "output_cost_per_million": row.get("output_cost_per_million", 0.30),
+                        "pricing_mode": row.get("pricing_mode", "per_token"),
+                        "cost_per_request_cents": row.get("cost_per_request_cents"),
                         "context_length": (
                             256000 if row["alias"] == "akarouter-pro" else 1000000
                         ),
@@ -60,6 +62,8 @@ async def list_models(request: Request) -> dict:
                 "capabilities": ["text", "vision"] if alias == "akarouter-pro" else ["text"],
                 "input_cost_per_million": settings.model_pricing.get(alias, {}).get("input_cost_per_million", 0.10),
                 "output_cost_per_million": settings.model_pricing.get(alias, {}).get("output_cost_per_million", 0.30),
+                "pricing_mode": "per_token",
+                "cost_per_request_cents": None,
                 "context_length": (
                     256000 if alias == "akarouter-pro" else 1000000
                 ),
