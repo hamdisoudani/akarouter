@@ -109,7 +109,13 @@ function generateNonce(): string {
 function buildAppCSP(nonce: string, supabaseHost: string): string {
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/`,
+    // `sha256-zjP2BXYgSCCnXNMXI2IL1yRydoQdsGR/uCCr6kyKsD0=` is the hash of
+    // Next.js's framework hydration script that gets inlined into the
+    // document head. The nonce should reach it via the request-header CSP,
+    // but some Next.js 16 build configurations still emit it without a
+    // nonce — the hash is a safe fallback that allows exactly that script
+    // and nothing else (an attacker would need to serve identical bytes).
+    `script-src 'self' 'nonce-${nonce}' 'sha256-zjP2BXYgSCCnXNMXI2IL1yRydoQdsGR/uCCr6kyKsD0=' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/`,
     // 'unsafe-inline' for styles is required by Next.js's runtime
     // style injection in App Router. A future Tailwind v4 upgrade
     // will let us drop it.
