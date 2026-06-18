@@ -13,14 +13,26 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.core.config import settings
-from app.core.router import select_provider, release_provider, log_request
+from app.core.router import select_provider, release_provider, select_endpoint, release_endpoint, log_request
 from app.core.rate_limit_middleware import enforce_tier_rate_limit, rate_limit_429
 from app.core.supabase import get_supabase
 from app.core.http_client import get_http_client
-from app.core.cache import is_model_active
+from app.core.cache import is_model_active, get_model_metadata
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Decrypt provider endpoint API keys (Fernet)
+def _decrypt_api_key(encrypted: str) -> str:
+    from cryptography.fernet import Fernet
+    key = settings.agent_key_encryption_secret.encode()
+    return Fernet(key).decrypt(encrypted.encode()).decode()
+
+def _build_endpoint_headers(api_key_encrypted: str) -> dict:
+    return {
+        "Authorization": f"Bearer {_decrypt_api_key(api_key_encrypted)}",
+        "Content-Type": "application/json",
+    }
 
 # SECURITY: maximum body size for /v1/chat/completions. The previous code used
 # req.json() with no size cap, allowing an attacker to POST a 100MB body and
@@ -224,23 +236,45 @@ async def proxy_chat(req: Request):
     if total_chars > 1_000_000:  # ~250k tokens worst case
         raise HTTPException(status_code=413, detail="Total prompt content too large")
 
-    # Pick provider
-    provider = await select_provider(upstream_model)
-    if not provider:
-        raise HTTPException(status_code=400, detail=f"No provider available for model '{model_alias}'")
+    # Pick routing target: per-request endpoint vs OAuth provider pool
+    meta = get_model_metadata(model_alias)
+    pricing_mode = meta.get("pricing_mode") or "per_token"
+    use_endpoint = False
+    endpoint = None
+    if pricing_mode == "per_request":
+        endpoint = await select_endpoint(model_alias)
+        if not endpoint:
+            logger.warning(f"No endpoint for per_request model {model_alias}; falling back to OAuth")
+        else:
+            use_endpoint = True
 
-    # Check if token needs refresh
-    if provider.get("token_expires_at"):
-        try:
-            exp = datetime.fromisoformat(provider["token_expires_at"].replace("Z", "+00:00"))
-            if exp.timestamp() - time.time() < settings.token_refresh_skew:
-                # Token expired, try refresh
-                refreshed = await _try_refresh(provider)
-                if not refreshed:
-                    await release_provider(provider["id"], False, "Token expired and refresh failed")
-                    raise HTTPException(status_code=502, detail="Token refresh failed")
-        except (ValueError, TypeError):
-            pass
+    if use_endpoint:
+        provider = {
+            "id": endpoint["endpoint_id"],
+            "name": endpoint["name"],
+            "url": endpoint["url"],
+            "api_key_encrypted": endpoint["api_key_encrypted"],
+            "rate_limit_req_min": endpoint.get("rate_limit_req_min"),
+        }
+    else:
+        provider = await select_provider(upstream_model)
+        if not provider:
+            raise HTTPException(status_code=400, detail=f"No provider available for model '{model_alias}'")
+
+    # Build upstream URL and auth
+    if use_endpoint:
+        upstream_url = f"{endpoint['url'].rstrip('/')}/chat/completions"
+        upstream_headers = _build_endpoint_headers(endpoint["api_key_encrypted"])
+        provider_id = endpoint["endpoint_id"]
+        release_fn = lambda ok, err=None: release_endpoint(endpoint["endpoint_id"])
+    else:
+        upstream_url = f"{settings.nous_api_base}/chat/completions"
+        upstream_headers = {
+            "Authorization": f"Bearer {provider['access_token']}",
+            "Content-Type": "application/json",
+        }
+        provider_id = provider["id"]
+        release_fn = lambda ok, err=None: release_provider(provider["id"], ok, err)
 
     # Get auth info from middleware
     auth_info = getattr(req.state, "auth", None)
@@ -277,11 +311,8 @@ async def proxy_chat(req: Request):
         try:
             req_obj = client.build_request(
                 "POST",
-                f"{settings.nous_api_base}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {provider['access_token']}",
-                    "Content-Type": "application/json",
-                },
+                upstream_url,
+                headers=upstream_headers,
                 json=body_dict,
             )
             response = await client.send(req_obj, stream=True)
@@ -308,9 +339,9 @@ async def proxy_chat(req: Request):
 
                 cleaned_msg = sanitize_error_msg(upstream_error)
                 latency = int((time.time() - started) * 1000)
-                await release_provider(provider["id"], False, f"Streaming status error: {cleaned_msg}")
+                await release_fn(False, f"Streaming status error: {cleaned_msg}")
                 await log_request(
-                    account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+                    account_id=account_id, api_key_id=api_key_id, provider_id=provider_id,
                     model=model_alias, upstream_model=upstream_model,
                     status_code=response.status_code, latency_ms=latency, error_message=f"StreamStatusError: {cleaned_msg}"
                 )
@@ -322,25 +353,25 @@ async def proxy_chat(req: Request):
             raise
         except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
             latency = int((time.time() - started) * 1000)
-            await release_provider(provider["id"], False, "Connection failed to upstream")
+            await release_fn(False, "Connection failed to upstream")
             await log_request(
-                account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+                account_id=account_id, api_key_id=api_key_id, provider_id=provider_id,
                 model=model_alias, upstream_model=upstream_model,
                 status_code=502, latency_ms=latency, error_message="ConnectError (Stream)"
             )
             raise HTTPException(status_code=502, detail="Upstream gateway timeout or connection failure")
         except httpx.RequestError as exc:
             latency = int((time.time() - started) * 1000)
-            await release_provider(provider["id"], False, str(exc))
+            await release_fn(False, str(exc))
             await log_request(
-                account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+                account_id=account_id, api_key_id=api_key_id, provider_id=provider_id,
                 model=model_alias, upstream_model=upstream_model,
                 status_code=502, latency_ms=latency, error_message=f"RequestError (Stream): {exc}"
             )
             raise HTTPException(status_code=502, detail="Upstream request failed")
         except Exception as exc:
             latency = int((time.time() - started) * 1000)
-            await release_provider(provider["id"], False, str(exc))
+            await release_fn(False, str(exc))
             raise HTTPException(status_code=500, detail=f"Internal proxy error: {sanitize_error_msg(str(exc))}")
 
         async def stream_generator():
@@ -357,7 +388,7 @@ async def proxy_chat(req: Request):
             finally:
                 await response.aclose()
                 latency = int((time.time() - started) * 1000)
-                await release_provider(provider["id"], success)
+                await release_fn(success)
                 
                 # Determine tokens
                 if extractor.has_usage and extractor.prompt_tokens > 0:
@@ -370,7 +401,7 @@ async def proxy_chat(req: Request):
                 total_tokens = prompt_tokens + completion_tokens
                 
                 await log_request(
-                    account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+                    account_id=account_id, api_key_id=api_key_id, provider_id=provider_id,
                     model=model_alias, upstream_model=upstream_model,
                     status_code=200 if success else 502, latency_ms=latency,
                     prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
@@ -382,7 +413,8 @@ async def proxy_chat(req: Request):
     # Non-streaming request
     started = time.time()
     try:
-        response = await _upstream(provider, body_dict)
+        endpoint_base = upstream_url.rsplit('/chat/completions', 1)[0] if use_endpoint else None
+        response = await _upstream(provider, body_dict, base_url=endpoint_base)
     except httpx.HTTPStatusError as exc:
         latency = int((time.time() - started) * 1000)
         upstream_error = ""
@@ -402,9 +434,9 @@ async def proxy_chat(req: Request):
             upstream_error = f"Status {exc.response.status_code}"
 
         cleaned_msg = sanitize_error_msg(upstream_error)
-        await release_provider(provider["id"], False, f"HTTP status error: {cleaned_msg}")
+        await release_fn(False, f"HTTP status error: {cleaned_msg}")
         await log_request(
-            account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+            account_id=account_id, api_key_id=api_key_id, provider_id=provider_id,
             model=model_alias, upstream_model=upstream_model,
             status_code=exc.response.status_code, latency_ms=latency, error_message=f"HTTPStatusError: {cleaned_msg}"
         )
@@ -414,34 +446,34 @@ async def proxy_chat(req: Request):
         )
     except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
         latency = int((time.time() - started) * 1000)
-        await release_provider(provider["id"], False, "Connection failed to upstream")
+        await release_fn(False, "Connection failed to upstream")
         await log_request(
-            account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+            account_id=account_id, api_key_id=api_key_id, provider_id=provider_id,
             model=model_alias, upstream_model=upstream_model,
             status_code=502, latency_ms=latency, error_message="ConnectError"
         )
         raise HTTPException(status_code=502, detail="Upstream gateway timeout or connection failure")
     except httpx.RequestError as exc:
         latency = int((time.time() - started) * 1000)
-        await release_provider(provider["id"], False, str(exc))
+        await release_fn(False, str(exc))
         await log_request(
-            account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+            account_id=account_id, api_key_id=api_key_id, provider_id=provider_id,
             model=model_alias, upstream_model=upstream_model,
             status_code=502, latency_ms=latency, error_message=f"RequestError: {exc}"
         )
         raise HTTPException(status_code=502, detail="Upstream request failed")
     except Exception as exc:
         latency = int((time.time() - started) * 1000)
-        await release_provider(provider["id"], False, str(exc))
+        await release_fn(False, str(exc))
         await log_request(
-            account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+            account_id=account_id, api_key_id=api_key_id, provider_id=provider_id,
             model=model_alias, upstream_model=upstream_model,
             status_code=500, latency_ms=latency, error_message=str(exc)
         )
         raise HTTPException(status_code=500, detail=f"Internal proxy error: {sanitize_error_msg(str(exc))}")
 
     latency = int((time.time() - started) * 1000)
-    await release_provider(provider["id"], True)
+    await release_fn(True)
 
     # Extract token usage from response
     usage = response.get("usage", {}) if response else {}
@@ -450,7 +482,7 @@ async def proxy_chat(req: Request):
     total_tokens = usage.get("total_tokens", 0)
 
     await log_request(
-        account_id=account_id, api_key_id=api_key_id, provider_id=provider["id"],
+        account_id=account_id, api_key_id=api_key_id, provider_id=provider_id,
         model=model_alias, upstream_model=upstream_model,
         status_code=200, latency_ms=latency,
         prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
@@ -463,12 +495,16 @@ async def proxy_chat(req: Request):
     return response
 
 
-async def _upstream(provider: dict, body: dict) -> dict:
+async def _upstream(provider: dict, body: dict, base_url: str | None = None) -> dict:
     client = get_http_client()
+    url = (base_url or settings.nous_api_base).rstrip('/') + '/chat/completions'
+    auth_header = {}
+    if base_url is None:
+        auth_header = {"Authorization": f"Bearer {provider['access_token']}"}
     response = await client.post(
-        f"{settings.nous_api_base}/chat/completions",
+        url,
         headers={
-            "Authorization": f"Bearer {provider['access_token']}",
+            **auth_header,
             "Content-Type": "application/json",
         },
         json=body,
@@ -478,7 +514,7 @@ async def _upstream(provider: dict, body: dict) -> dict:
         return response.json()
     except Exception as exc:
         text_preview = response.text[:500] if response.text else "<empty response>"
-        logger.error(f"Failed to parse JSON response from upstream {settings.nous_api_base}: {exc}. Response text: {text_preview}")
+        logger.error(f"Failed to parse JSON response from upstream {url}: {exc}. Response text: {text_preview}")
         raise ValueError(f"Upstream returned invalid JSON response: {text_preview}")
 
 
