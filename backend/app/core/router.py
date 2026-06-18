@@ -11,9 +11,11 @@ from app.core.config import settings
 from app.core.supabase import get_supabase
 from app.core.cache import (
     get_api_key_cache, set_api_key_cache, should_update_last_used_at,
-    check_and_increment_rpm, get_account_budget, calculate_account_budget, get_active_providers_cache, set_active_providers_cache,
-    get_in_flight, inc_in_flight, buffer_request_log, buffer_account_usage,
-    increment_account_budget, get_model_metadata
+    check_and_increment_rpm, get_account_budget, calculate_account_budget,
+    get_active_providers_cache, set_active_providers_cache,
+    get_in_flight, inc_in_flight, buffer_request_log,
+    buffer_account_usage, increment_account_budget, get_model_metadata,
+    get_request_quota, increment_request_quota, evict_request_quota_cache
 )
 from app.core.locks import get_lock_backend
 
@@ -84,6 +86,8 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
             "tokens_5h_limit": float(account.get("tokens_5h_limit") if account.get("tokens_5h_limit") is not None else 1.0),
             "tokens_7d_limit": float(account.get("tokens_7d_limit") if account.get("tokens_7d_limit") is not None else 5.0),
             "monthly_limit": float(account.get("monthly_limit") if account.get("monthly_limit") is not None else 10.0),
+            "monthly_requests": account.get("monthly_requests") or 0,
+            "monthly_requests_limit": account.get("monthly_requests_limit"),
             "budget_reset_at": account.get("budget_reset_at"),
             "status": account.get("status") or "active",
             "suspended_reason": account.get("suspended_reason") or "",
@@ -160,6 +164,58 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
             if budget["consumed_month"] >= monthly_limit:
                 logger.warning(f"Monthly token budget exceeded for account: {account_id} ({budget['consumed_month']} >= {monthly_limit})")
                 raise BudgetLimitException("Monthly token budget exceeded")
+
+            # Enforce per-request monthly cap (independent from token budgets)
+            monthly_requests_limit = auth_metadata.get("monthly_requests_limit")
+            if monthly_requests_limit:
+                used = auth_metadata.get("monthly_requests") or 0
+                if used >= monthly_requests_limit:
+                    logger.warning(f"Monthly request limit exceeded for account: {account_id} ({used} >= {monthly_requests_limit})")
+                    raise BudgetLimitException("Monthly request limit exceeded")
+
+async def select_endpoint(model: str) -> Optional[dict]:
+    """Select a direct provider_endpoint for a model when pricing_mode is per-request."""
+    try:
+        supabase = get_supabase()
+        meta = get_model_metadata(model)
+        mode = meta.get("pricing_mode") or "per_token"
+        if mode != "per_request":
+            return None
+
+        endpoint_id = meta.get("provider_endpoint_id")
+        if not endpoint_id:
+            logger.warning(f"per_request model {model} has no provider_endpoint_id; falling back to OAuth pool")
+            return None
+
+        res = (
+            supabase.table("provider_endpoints")
+            .select("id, name, url, models, is_active, api_key_encrypted, rate_limit_req_min")
+            .eq("id", endpoint_id)
+            .eq("is_active", True)
+            .single()
+            .execute()
+        )
+        if not res.data:
+            logger.warning(f"provider_endpoint {endpoint_id} for model {model} not active")
+            return None
+
+        row = res.data
+        return {
+            "endpoint_id": row["id"],
+            "name": row["name"],
+            "url": row["url"],
+            "models": row.get("models") or [],
+            "api_key_encrypted": row.get("api_key_encrypted"),
+            "rate_limit_req_min": row.get("rate_limit_req_min"),
+        }
+    except Exception as e:
+        logger.error(f"Failed to select endpoint for {model}: {e}")
+        return None
+
+
+async def release_endpoint(endpoint_id: str) -> None:
+    """Placeholder for per-endpoint concurrency tracking."""
+    return None
 
     return auth_metadata
 
@@ -304,26 +360,32 @@ async def log_request(
     error_message=None, ip_address=None, user_agent=None
 ):
     """Log a request to memory buffer for deferred batch insertions."""
-    # Only calculate cost for successful requests (< 400)
-    if status_code is not None and status_code < 400:
+    is_success = status_code is not None and status_code < 400
+
+    # Calculate cost: per-request uses flat cost_per_request_cents; per-token uses token rates
+    if is_success:
         meta = get_model_metadata(model)
-        input_cost_rate = meta.get("input_cost_per_million")
-        output_cost_rate = meta.get("output_cost_per_million")
-        
-        # Fallback to settings.model_pricing if not configured in DB
-        if input_cost_rate is None or output_cost_rate is None:
-            pricing = settings.model_pricing.get(model, settings.model_pricing["default"])
-            if input_cost_rate is None:
-                input_cost_rate = pricing.get("input_cost_per_million", 0.10)
-            if output_cost_rate is None:
-                output_cost_rate = pricing.get("output_cost_per_million", 0.30)
-                
-        input_cost = (prompt_tokens / 1_000_000.0) * input_cost_rate
-        output_cost = (completion_tokens / 1_000_000.0) * output_cost_rate
-        cost = input_cost + output_cost
+        pricing_mode = meta.get("pricing_mode") or "per_token"
+
+        if pricing_mode == "per_request":
+            cost_cents = meta.get("cost_per_request_cents")
+            cost = (float(cost_cents) / 100.0) if cost_cents is not None else 0.0
+        else:
+            input_cost_rate = meta.get("input_cost_per_million")
+            output_cost_rate = meta.get("output_cost_per_million")
+            if input_cost_rate is None or output_cost_rate is None:
+                pricing = settings.model_pricing.get(model, settings.model_pricing["default"])
+                if input_cost_rate is None:
+                    input_cost_rate = pricing.get("input_cost_per_million", 0.10)
+                if output_cost_rate is None:
+                    output_cost_rate = pricing.get("output_cost_per_million", 0.30)
+            input_cost = (prompt_tokens / 1_000_000.0) * float(input_cost_rate)
+            output_cost = (completion_tokens / 1_000_000.0) * float(output_cost_rate)
+            cost = input_cost + output_cost
     else:
         cost = 0.0
-    
+        pricing_mode = "per_token"
+
     log_data = {
         "account_id": account_id,
         "api_key_id": api_key_id,
@@ -336,15 +398,15 @@ async def log_request(
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
         "total_tokens": total_tokens,
+        "requests_counted": 1 if is_success else 0,
         "ip_address": ip_address,
         "user_agent": user_agent,
         "cost": cost,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    # Buffer the telemetry log
     buffer_request_log(log_data)
 
-    # Buffer the account requests increment metrics and cached sliding budget only on success (< 400)
-    if account_id and status_code is not None and status_code < 400:
+    if account_id and is_success:
         buffer_account_usage(account_id)
         increment_account_budget(account_id, cost)
+        increment_request_quota(account_id, 1)

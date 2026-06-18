@@ -322,6 +322,99 @@ async def calculate_account_budget(account_id: str, budget_reset_at: Optional[st
     }
 
 
+# Account-level request quota tracking (for per-request billing)
+# account_id -> {"consumed_month": int, "created_at": float, "last_reset": float}
+_account_request_quotas: dict[str, dict[str, Any]] = {}
+
+
+def get_request_quota(account_id: str) -> dict[str, Any]:
+    """Get cached request quota for an account, or calculate from DB if stale."""
+    now = time.time()
+    with _lock:
+        if account_id in _account_request_quotas:
+            data = _account_request_quotas[account_id]
+            if now - data.get("last_reset", 0) < 30.0:
+                return {"consumed_month": data["consumed_month"], "stale": False}
+
+    # Rebuild from DB: count request_logs since budget_reset_at
+    try:
+        supabase = get_supabase()
+        account_res = (
+            supabase.table("accounts")
+            .select("budget_reset_at, monthly_requests")
+            .eq("id", account_id)
+            .single()
+            .execute()
+        )
+        reset_at = account_res.data.get("budget_reset_at") if account_res.data else None
+
+        query = supabase.table("request_logs").select("id, requests_counted", count="exact", head=True)
+        if reset_at:
+            query = query.gte("created_at", reset_at)
+        qres = query.execute()
+        counted = qres.count if qres.count is not None else 0
+
+        with _lock:
+            _account_request_quotas[account_id] = {
+                "consumed_month": counted,
+                "created_at": now,
+                "last_reset": now,
+            }
+    except Exception as e:
+        logger.error(f"Failed to calculate request quota for {account_id}: {e}")
+        with _lock:
+            cached = _account_request_quotas.get(account_id, {}).get("consumed_month", 0)
+        return {"consumed_month": cached, "stale": True}
+
+    return {"consumed_month": counted, "stale": False}
+
+
+def increment_request_quota(account_id: str, requests_counted: int = 1) -> None:
+    """Atomically increment the cached request quota and buffer DB update."""
+    with _lock:
+        if account_id not in _account_request_quotas:
+            _account_request_quotas[account_id] = {
+                "consumed_month": 0,
+                "created_at": time.time(),
+                "last_reset": time.time(),
+            }
+        _account_request_quotas[account_id]["consumed_month"] += requests_counted
+        _account_request_quotas[account_id]["last_reset"] = 0  # force re-fetch from DB on next check
+
+    # Buffer DB increment (batch flush keeps this cheap)
+    try:
+        _increment_request_quota_db(account_id, requests_counted)
+    except Exception as e:
+        logger.warning(f"Failed to buffer request quota DB write for {account_id}: {e}")
+
+
+def _increment_request_quota_db(account_id: str, delta: int) -> None:
+    """Fire-and-forget DB increment for request count."""
+    supabase = get_supabase()
+    res = (
+        supabase.table("accounts")
+        .select("monthly_requests, monthly_requests_limit")
+        .eq("id", account_id)
+        .single()
+        .execute()
+    )
+    current = (res.data.get("monthly_requests") or 0) if res.data else 0
+    new_val = current + delta
+    (
+        supabase.table("accounts")
+        .update({"monthly_requests": new_val})
+        .eq("id", account_id)
+        .execute()
+    )
+
+
+def evict_request_quota_cache(account_id: str) -> None:
+    """Evict request quota cache for an account (call after plan/tier change)."""
+    with _lock:
+        if account_id in _account_request_quotas:
+            del _account_request_quotas[account_id]
+
+
 def increment_account_budget(account_id: str, cost: float) -> None:
     """Atomically increment the cached budget for an account."""
     with _lock:
