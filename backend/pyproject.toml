@@ -38,6 +38,7 @@ dependencies = [
     "supabase==2.31.0",
     "daytona==0.183.0",
     "cryptography==46.0.5",  # explicit: powers Fernet at-rest encryption
+    "psycopg2-binary==2.9.10",  # explicit: admin routes use direct psycopg2 for schema inspection
 ]
 
 [project.optional-dependencies]
