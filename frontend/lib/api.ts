@@ -20,6 +20,8 @@ export interface ModelsResponse {
     input_cost_per_million?: number
     output_cost_per_million?: number
     context_length?: number
+    pricing_mode?: 'per_token' | 'per_request'
+    cost_per_request_cents?: number | null
   }>
 }
 
@@ -212,6 +214,9 @@ export interface PlanPreset {
   max_agents?: number
   agent_cpu?: number
   agent_ram?: number
+  monthly_requests_limit?: number
+  per_request_cost_cents?: number
+  pricing_mode?: 'per_token' | 'per_request' | 'mixed'
   price?: string
   billing_period?: string
   description?: string

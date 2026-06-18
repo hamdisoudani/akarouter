@@ -2,8 +2,9 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Cpu, RefreshCw, Shield, ArrowRight } from 'lucide-react'
 import { env } from '@/lib/env'
-import { fetchServerPlans } from '@/lib/server-api'
+import { fetchServerPlans, fetchServerModels } from '@/lib/server-api'
 import { CopyButton } from '@/components/CopyButton'
+import { ModelCatalog } from '@/components/ModelCatalog'
 import type { PlanPreset } from '@/lib/api'
 
 /**
@@ -127,6 +128,10 @@ export default async function Home() {
   // Server-side fetch — no client leak, 5s timeout, fallback on error.
   const dbPlans = await fetchServerPlans()
   const displayPlans = formatPlans(dbPlans)
+
+  // Fetch models for the OpenRouter-style catalog. Falls back to [] on
+  // backend errors so the page still renders.
+  const models = await fetchServerModels()
 
   // Server-only URL — never sent to the browser.
   const gatewayUrl = env.NEXT_PUBLIC_API_URL.replace(/\/+$/, '')
@@ -276,7 +281,7 @@ response = client.chat.completions.create(
 
       {/* Models Section */}
       <section id="models" className="border-t border-[#27272a] py-24 bg-[#09090b] px-6">
-        <div className="max-w-6xl mx-auto space-y-12">
+        <div className="max-w-6xl mx-auto space-y-8">
           <div className="text-center space-y-3">
             <h3 className="text-2xl font-bold font-mono tracking-wider uppercase text-white">AVAILABLE MODELS</h3>
             <p className="text-xs text-zinc-500 font-mono uppercase tracking-widest">All models accessible through a single API key. Supports per-token and per-request billing.</p>
@@ -286,51 +291,7 @@ response = client.chat.completions.create(
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Existing per-token models */}
-            {[
-              { alias: 'akarouter-flash', upstream: 'nvidia/nemotron-3-ultra:free', context: '1M', pricing: 'IN: $0.05/M | OUT: $0.15/M', mode: 'per-token', label: 'Fast' },
-              { alias: 'akarouter-large', upstream: 'openrouter/owl-alpha', context: '1M', pricing: 'IN: $0.10/M | OUT: $0.40/M', mode: 'per-token', label: '1M Context' },
-              { alias: 'akarouter-pro', upstream: 'stepfun/step-3.7-flash:free', context: '256K', pricing: 'IN: $0.20/M | OUT: $0.80/M', mode: 'per-token', label: 'Default' },
-            ].map((m) => (
-              <div key={m.alias} className="p-5 bg-[#0a0a0c] border border-zinc-900 hover:border-zinc-700 transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-mono text-[11px] text-white font-bold uppercase tracking-wider">{m.alias}</h4>
-                  <span className="px-2 py-0.5 border border-zinc-850 bg-zinc-900 text-[8px] font-mono text-zinc-400 uppercase">{m.label}</span>
-                </div>
-                <p className="text-[9px] text-zinc-500 font-mono mb-3">{m.upstream}</p>
-                <div className="space-y-1 font-mono text-[9px] text-zinc-500">
-                  <div>[CONTEXT]: {m.context}</div>
-                  <div>[PRICING]: {m.pricing}</div>
-                  <div>[BILLING]: <span className="text-zinc-400">{m.mode}</span></div>
-                </div>
-              </div>
-            ))}
-
-            {/* New per-request models */}
-            {[
-              { alias: 'akarouter-minimax-m3', upstream: 'minimax/MiniMax-M3', pricing: '¥0.0001/call (~$0.00001)', mode: 'per-request' },
-              { alias: 'akarouter-haiku-4-5', upstream: 'anthropic/claude-haiku-4-5', pricing: '¥0.002/call (~$0.0003)', mode: 'per-request' },
-              { alias: 'akarouter-sonnet-4-6', upstream: 'anthropic/claude-sonnet-4-6', pricing: '¥0.005/call (~$0.0007)', mode: 'per-request' },
-              { alias: 'akarouter-gpt-5-4', upstream: 'openai/gpt-5.4', pricing: '¥0.010/call (~$0.0014)', mode: 'per-request' },
-              { alias: 'akarouter-gemini-3-1-pro', upstream: 'google/gemini-3.1-pro', pricing: '¥0.010/call (~$0.0014)', mode: 'per-request' },
-              { alias: 'akarouter-gpt-5-5', upstream: 'openai/gpt-5.5', pricing: '¥0.020/call (~$0.0028)', mode: 'per-request' },
-              { alias: 'akarouter-opus-4-8', upstream: 'anthropic/claude-opus-4-8', pricing: '¥0.025/call (~$0.0035)', mode: 'per-request' },
-              { alias: 'akarouter-gpt-5-3-codex', upstream: 'openai/gpt-5.3-codex-spark', pricing: '¥0.050/call (~$0.007)', mode: 'per-request' },
-            ].map((m) => (
-              <div key={m.alias} className="p-5 bg-[#0e0e10] border border-[#ef4444]/20 hover:border-[#ef4444]/50 transition-all">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-mono text-[11px] text-white font-bold uppercase tracking-wider">{m.alias}</h4>
-                  <span className="px-2 py-0.5 border border-[#ef4444]/30 bg-[#ef4444]/10 text-[8px] font-mono text-[#ef4444] uppercase">Per-Request</span>
-                </div>
-                <p className="text-[9px] text-zinc-500 font-mono mb-3">{m.upstream}</p>
-                <div className="space-y-1 font-mono text-[9px] text-zinc-500">
-                  <div>[PRICING]: <span className="text-zinc-300">{m.pricing}</span></div>
-                  <div>[BILLING]: <span className="text-[#ef4444]">{m.mode}</span></div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ModelCatalog models={models} />
         </div>
       </section>
 

@@ -18,7 +18,7 @@
 
 import 'server-only'
 import { env } from './env'
-import type { PlanPreset } from './api'
+import type { PlanPreset, ModelsResponse } from './api'
 
 const SERVER_API_BASE = env.NEXT_PUBLIC_API_URL.replace(/\/+$/, '')
 
@@ -94,6 +94,23 @@ export async function fetchServerPlans(): Promise<PlanPreset[]> {
     return res.plans ?? []
   } catch (err) {
     console.error('[server-api] failed to fetch plans:', (err as Error).message)
+    return []
+  }
+}
+
+/**
+ * Fetch all available models from the backend, used by the landing page
+ * to render an OpenRouter-style model catalog.
+ *
+ * Returns an empty list if the backend is unreachable so the page can
+ * still render with fallback data.
+ */
+export async function fetchServerModels(): Promise<ModelsResponse['data']> {
+  try {
+    const res = await serverFetch<ModelsResponse>('/v1/models')
+    return res.data ?? []
+  } catch (err) {
+    console.error('[server-api] failed to fetch models:', (err as Error).message)
     return []
   }
 }
