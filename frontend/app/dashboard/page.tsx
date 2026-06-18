@@ -11,6 +11,7 @@ import {
   activateAccount,
   type ModelAnalytics,
 } from '@/lib/api'
+import { z } from 'zod'
 import { 
   Terminal,
   Shield,
@@ -24,6 +25,12 @@ import {
   FileText,
   Cpu
 } from 'lucide-react'
+import InteractionCaptcha from '@/components/InteractionCaptcha'
+
+const ActivateAccountSchema = z.object({
+  code: z.string().min(1, 'Invitation code is required').max(100),
+  captchaToken: z.string().min(1, 'Human verification is required'),
+})
 
 
 export default function UserDashboard() {
@@ -40,6 +47,7 @@ export default function UserDashboard() {
   const [activationLoading, setActivationLoading] = useState(false)
   const [activationError, setActivationError] = useState('')
   const [activationSuccess, setActivationSuccess] = useState('')
+  const [activationCaptcha, setActivationCaptcha] = useState<string | null>(null)
 
   const executeRecaptcha = (action: string): Promise<string> => {
     const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '6LcnqxUtAAAAAO9MYeFNsyL4JA-6PlAHKzoZoRCc'
@@ -60,8 +68,9 @@ export default function UserDashboard() {
 
   const handleActivate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!activationCode.trim()) {
-      setActivationError('Please enter an invitation code')
+    const parsed = ActivateAccountSchema.safeParse({ code: activationCode, captchaToken: activationCaptcha ?? '' })
+    if (!parsed.success) {
+      setActivationError(parsed.error.issues[0]?.message || 'Invalid submission')
       return
     }
     setActivationLoading(true)
@@ -69,8 +78,7 @@ export default function UserDashboard() {
     setActivationSuccess('')
     
     try {
-      const recaptchaToken = await executeRecaptcha('activate')
-      const res = await activateAccount(token, activationCode.trim(), recaptchaToken)
+      const res = await activateAccount(token, parsed.data.code.trim(), parsed.data.captchaToken)
       if (res.ok) {
         setActivationSuccess('Account activated successfully! Reloading...')
         setTimeout(async () => {
@@ -302,9 +310,15 @@ export default function UserDashboard() {
               </div>
             )}
 
+            <InteractionCaptcha
+              action="activate"
+              boxed
+              onVerified={(token) => setActivationCaptcha(token)}
+            />
+
             <button 
               type="submit"
-              disabled={activationLoading}
+              disabled={activationLoading || !activationCaptcha}
               className="w-full bg-[#ef4444] hover:bg-[#ef4444]/90 disabled:bg-zinc-800 disabled:border-zinc-700 disabled:text-zinc-500 text-white font-mono font-bold text-xs py-3 tracking-widest uppercase transition-all crosshair-corners red-glow"
             >
               {activationLoading ? 'ACTIVATING SYSTEM...' : 'SUBMIT ACTIVATION CODE'}
