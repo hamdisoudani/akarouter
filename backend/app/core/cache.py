@@ -565,7 +565,7 @@ def get_model_metadata(model_alias: str) -> dict[str, Any]:
         supabase = get_supabase()
         res = (
             supabase.table("model_mapping")
-            .select("is_active, input_cost_per_million, output_cost_per_million")
+            .select("is_active, input_cost_per_million, output_cost_per_million, pricing_mode, cost_per_request_cents")
             .eq("alias", model_alias)
             .execute()
         )
@@ -575,12 +575,16 @@ def get_model_metadata(model_alias: str) -> dict[str, Any]:
                 "is_active": row.get("is_active") if row.get("is_active") is not None else True,
                 "input_cost_per_million": row.get("input_cost_per_million"),
                 "output_cost_per_million": row.get("output_cost_per_million"),
+                "pricing_mode": row.get("pricing_mode") or "per_token",
+                "cost_per_request_cents": row.get("cost_per_request_cents"),
             }
         else:
             val = {
                 "is_active": True,
                 "input_cost_per_million": None,
                 "output_cost_per_million": None,
+                "pricing_mode": "per_token",
+                "cost_per_request_cents": None,
             }
         
         with _lock:
@@ -592,6 +596,8 @@ def get_model_metadata(model_alias: str) -> dict[str, Any]:
             "is_active": True,
             "input_cost_per_million": None,
             "output_cost_per_million": None,
+            "pricing_mode": "per_token",
+            "cost_per_request_cents": None,
         }
 
 

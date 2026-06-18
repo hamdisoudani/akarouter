@@ -174,7 +174,8 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
                     raise BudgetLimitException("Monthly request limit exceeded")
 
 async def select_endpoint(model: str) -> Optional[dict]:
-    """Select a direct provider_endpoint for a model when pricing_mode is per-request."""
+    """Select a direct provider_endpoint for a model when pricing_mode is per-request.
+    Resolves via the upstream_model matched against provider_endpoints.model_aliases array."""
     try:
         supabase = get_supabase()
         meta = get_model_metadata(model)
@@ -182,31 +183,38 @@ async def select_endpoint(model: str) -> Optional[dict]:
         if mode != "per_request":
             return None
 
-        endpoint_id = meta.get("provider_endpoint_id")
-        if not endpoint_id:
-            logger.warning(f"per_request model {model} has no provider_endpoint_id; falling back to OAuth pool")
+        # Look up the alias in the DB to get the canonical upstream_model string
+        meta_row = (
+            supabase.table("model_mapping")
+            .select("upstream_model")
+            .eq("alias", model)
+            .execute()
+        )
+        if not meta_row.data:
+            logger.warning(f"per_request model {model} not found in model_mapping")
             return None
+        upstream_model = meta_row.data[0]["upstream_model"]
 
+        # Match against active provider_endpoints whose model_aliases contains this upstream model
         res = (
             supabase.table("provider_endpoints")
-            .select("id, name, url, models, is_active, api_key_encrypted, rate_limit_req_min")
-            .eq("id", endpoint_id)
-            .eq("is_active", True)
-            .single()
+            .select("id, name, base_url, model_aliases, default_pricing_mode, default_cost_per_request_cents, health_status, max_concurrent, api_key_encrypted")
+            .contains("model_aliases", [upstream_model])
+            .eq("health_status", "active")
             .execute()
         )
         if not res.data:
-            logger.warning(f"provider_endpoint {endpoint_id} for model {model} not active")
+            logger.warning(f"No active provider_endpoint for {model} (upstream={upstream_model})")
             return None
 
-        row = res.data
+        row = res.data[0]
         return {
             "endpoint_id": row["id"],
             "name": row["name"],
-            "url": row["url"],
-            "models": row.get("models") or [],
+            "url": row["base_url"],
+            "models": row.get("model_aliases") or [],
             "api_key_encrypted": row.get("api_key_encrypted"),
-            "rate_limit_req_min": row.get("rate_limit_req_min"),
+            "max_concurrent": row.get("max_concurrent"),
         }
     except Exception as e:
         logger.error(f"Failed to select endpoint for {model}: {e}")
