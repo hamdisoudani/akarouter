@@ -115,15 +115,15 @@ function buildAppCSP(nonce: string, supabaseHost: string): string {
     // but some Next.js 16 build configurations still emit it without a
     // nonce — the hash is a safe fallback that allows exactly that script
     // and nothing else (an attacker would need to serve identical bytes).
-    `script-src 'self' 'nonce-${nonce}' 'sha256-zjP2BXYgSCCnXNMXI2IL1yRydoQdsGR/uCCr6kyKsD0=' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/`,
+    `script-src 'self' 'nonce-${nonce}' 'sha256-zjP2BXYgSCCnXNMXI2IL1yRydoQdsGR/uCCr6kyKsD0=' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://www.gstatic.com https://www.google.com`,
     // 'unsafe-inline' for styles is required by Next.js's runtime
     // style injection in App Router. A future Tailwind v4 upgrade
     // will let us drop it.
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://www.google.com/recaptcha/`,
-    "frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com https://accounts.google.com",
+    `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://www.google.com`,
+    "frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com https://accounts.google.com https://www.google.com",
     "frame-ancestors 'none'",
     "form-action 'self' https://accounts.google.com",
     "base-uri 'self'",
