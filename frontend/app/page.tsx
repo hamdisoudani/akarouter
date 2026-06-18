@@ -276,101 +276,65 @@ response = client.chat.completions.create(
 
       {/* Models Section */}
       <section id="models" className="border-t border-[#27272a] py-24 bg-[#09090b] px-6">
-        <div className="max-w-4xl mx-auto space-y-12">
+        <div className="max-w-6xl mx-auto space-y-12">
           <div className="text-center space-y-3">
-            <h3 className="text-2xl font-bold font-mono tracking-wider uppercase text-white">ACTIVE ROUTING TARGETS</h3>
-            <p className="text-xs text-zinc-500 font-mono uppercase tracking-widest">Standard endpoints mapped dynamically to their highest performing model configurations.</p>
+            <h3 className="text-2xl font-bold font-mono tracking-wider uppercase text-white">AVAILABLE MODELS</h3>
+            <p className="text-xs text-zinc-500 font-mono uppercase tracking-widest">All models accessible through a single API key. Supports per-token and per-request billing.</p>
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-zinc-900 border border-zinc-800 text-[9px] font-mono text-zinc-400 uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+              Per-Token & Per-Request Billing Active
+            </div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-0 border border-[#27272a]">
-            {/* Flash Card */}
-            <div className="p-8 hover:bg-zinc-950/20 border-b md:border-b-0 md:border-r border-[#27272a] transition-all flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 border border-zinc-800 bg-zinc-900 flex items-center justify-center text-zinc-400 font-mono text-xs font-bold">
-                      FSH
-                    </div>
-                    <div>
-                      <h4 className="font-semibold font-mono text-white text-xs uppercase tracking-wider">akarouter-flash</h4>
-                      <p className="text-[9px] text-zinc-500 font-mono">Tier: Low-latency Completion</p>
-                    </div>
-                  </div>
-                  <span className="px-2 py-0.5 border border-zinc-850 bg-zinc-900 text-[9px] font-mono text-zinc-550 uppercase tracking-wider">Fast</span>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Existing per-token models */}
+            {[
+              { alias: 'akarouter-flash', upstream: 'nvidia/nemotron-3-ultra:free', context: '1M', pricing: 'IN: $0.05/M | OUT: $0.15/M', mode: 'per-token', label: 'Fast' },
+              { alias: 'akarouter-large', upstream: 'openrouter/owl-alpha', context: '1M', pricing: 'IN: $0.10/M | OUT: $0.40/M', mode: 'per-token', label: '1M Context' },
+              { alias: 'akarouter-pro', upstream: 'stepfun/step-3.7-flash:free', context: '256K', pricing: 'IN: $0.20/M | OUT: $0.80/M', mode: 'per-token', label: 'Default' },
+            ].map((m) => (
+              <div key={m.alias} className="p-5 bg-[#0a0a0c] border border-zinc-900 hover:border-zinc-700 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-mono text-[11px] text-white font-bold uppercase tracking-wider">{m.alias}</h4>
+                  <span className="px-2 py-0.5 border border-zinc-850 bg-zinc-900 text-[8px] font-mono text-zinc-400 uppercase">{m.label}</span>
                 </div>
-                <p className="text-xs text-zinc-400 font-mono leading-relaxed">Low-latency, highly concurrent completions ideal for summarization, real-time agents, and high-throughput text workloads.</p>
-                <div className="mt-4 space-y-1 font-mono text-[9px] text-zinc-500">
-                  <div>[CONTEXT]: 1,000,000 TOKENS (1M)</div>
-                  <div>[PRICING]: IN: $0.05/M | OUT: $0.15/M</div>
+                <p className="text-[9px] text-zinc-500 font-mono mb-3">{m.upstream}</p>
+                <div className="space-y-1 font-mono text-[9px] text-zinc-500">
+                  <div>[CONTEXT]: {m.context}</div>
+                  <div>[PRICING]: {m.pricing}</div>
+                  <div>[BILLING]: <span className="text-zinc-400">{m.mode}</span></div>
                 </div>
               </div>
-              <div className="mt-6">
-                <span className="inline-flex items-center gap-1 text-[9px] text-zinc-500 font-mono uppercase tracking-wider bg-zinc-950 border border-zinc-900 px-2.5 py-1">
-                  Text-Only LLM
-                </span>
-              </div>
-            </div>
+            ))}
 
-            {/* Large Card */}
-            <div className="p-8 hover:bg-zinc-950/20 border-b md:border-b-0 md:border-r border-[#27272a] transition-all flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 border border-zinc-800 bg-zinc-900 flex items-center justify-center text-emerald-450 font-mono text-xs font-bold">
-                      LRG
-                    </div>
-                    <div>
-                      <h4 className="font-semibold font-mono text-white text-xs uppercase tracking-wider">akarouter-large</h4>
-                      <p className="text-[9px] text-zinc-500 font-mono">Tier: Long-Context Agentic</p>
-                    </div>
-                  </div>
-                  <span className="px-2 py-0.5 border border-emerald-950 bg-emerald-500/5 text-[9px] font-mono text-emerald-450 uppercase tracking-wider">1M Context</span>
+            {/* New per-request models */}
+            {[
+              { alias: 'akarouter-minimax-m3', upstream: 'minimax/MiniMax-M3', pricing: '¥0.0001/call (~$0.00001)', mode: 'per-request' },
+              { alias: 'akarouter-haiku-4-5', upstream: 'anthropic/claude-haiku-4-5', pricing: '¥0.002/call (~$0.0003)', mode: 'per-request' },
+              { alias: 'akarouter-sonnet-4-6', upstream: 'anthropic/claude-sonnet-4-6', pricing: '¥0.005/call (~$0.0007)', mode: 'per-request' },
+              { alias: 'akarouter-gpt-5-4', upstream: 'openai/gpt-5.4', pricing: '¥0.010/call (~$0.0014)', mode: 'per-request' },
+              { alias: 'akarouter-gemini-3-1-pro', upstream: 'google/gemini-3.1-pro', pricing: '¥0.010/call (~$0.0014)', mode: 'per-request' },
+              { alias: 'akarouter-gpt-5-5', upstream: 'openai/gpt-5.5', pricing: '¥0.020/call (~$0.0028)', mode: 'per-request' },
+              { alias: 'akarouter-opus-4-8', upstream: 'anthropic/claude-opus-4-8', pricing: '¥0.025/call (~$0.0035)', mode: 'per-request' },
+              { alias: 'akarouter-gpt-5-3-codex', upstream: 'openai/gpt-5.3-codex-spark', pricing: '¥0.050/call (~$0.007)', mode: 'per-request' },
+            ].map((m) => (
+              <div key={m.alias} className="p-5 bg-[#0e0e10] border border-[#ef4444]/20 hover:border-[#ef4444]/50 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-mono text-[11px] text-white font-bold uppercase tracking-wider">{m.alias}</h4>
+                  <span className="px-2 py-0.5 border border-[#ef4444]/30 bg-[#ef4444]/10 text-[8px] font-mono text-[#ef4444] uppercase">Per-Request</span>
                 </div>
-                <p className="text-xs text-zinc-400 font-mono leading-relaxed">Massive context window optimized for agentic tool use, multi-file code editing, and executing complex workflows.</p>
-                <div className="mt-4 space-y-1 font-mono text-[9px] text-zinc-500">
-                  <div>[CONTEXT]: 1,048,756 TOKENS (1M)</div>
-                  <div>[PRICING]: IN: $0.10/M | OUT: $0.40/M</div>
-                </div>
-              </div>
-              <div className="mt-6">
-                <span className="inline-flex items-center gap-1 text-[9px] text-emerald-450 font-mono uppercase tracking-wider bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1">
-                  Agentic-Optimized
-                </span>
-              </div>
-            </div>
-
-            {/* Pro Card */}
-            <div className="p-8 hover:bg-zinc-950/20 transition-all flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 border border-zinc-800 bg-zinc-900 flex items-center justify-center text-[#ef4444] font-mono text-xs font-bold red-glow">
-                      PRO
-                    </div>
-                    <div>
-                      <h4 className="font-semibold font-mono text-white text-xs uppercase tracking-wider">akarouter-pro</h4>
-                      <p className="text-[9px] text-zinc-500 font-mono">Tier: Intelligence & Vision</p>
-                    </div>
-                  </div>
-                  <span className="px-2 py-0.5 border border-[#ef4444]/30 bg-[#ef4444]/10 text-[9px] font-mono text-[#ef4444] uppercase tracking-wider">Default</span>
-                </div>
-                <p className="text-xs text-zinc-400 font-mono leading-relaxed">High intelligence multimodal LLM optimized for deep reasoning, chain-of-thought analysis, visual understanding, and coding.</p>
-                <div className="mt-4 space-y-1 font-mono text-[9px] text-zinc-500">
-                  <div>[CONTEXT]: 256,000 TOKENS (256K)</div>
-                  <div>[PRICING]: IN: $0.20/M | OUT: $0.80/M</div>
+                <p className="text-[9px] text-zinc-500 font-mono mb-3">{m.upstream}</p>
+                <div className="space-y-1 font-mono text-[9px] text-zinc-500">
+                  <div>[PRICING]: <span className="text-zinc-300">{m.pricing}</span></div>
+                  <div>[BILLING]: <span className="text-[#ef4444]">{m.mode}</span></div>
                 </div>
               </div>
-              <div className="mt-6">
-                <span className="inline-flex items-center gap-1 text-[9px] text-[#ef4444] font-mono uppercase tracking-wider bg-[#ef4444]/10 border border-[#ef4444]/20 px-2.5 py-1 red-glow-text">
-                  ✓ Reasoning & Vision (Images)
-                </span>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing Section */}
+      {/* Pricing + Billing Modes Status */}
       <section id="pricing" className="border-t border-[#27272a] py-20 bg-[#09090b] relative micro-grid">
         <div className="max-w-6xl mx-auto px-6 space-y-12">
           <div className="text-center space-y-4 flex flex-col items-center">

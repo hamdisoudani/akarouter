@@ -86,6 +86,16 @@ export default function UpgradePage() {
 
     return dbPlans.map(plan => {
       const matchingFallback = fallbackPlans.find(fp => fp.key === plan.tier)
+      const limits = [
+        `Monthly Budget: $${plan.monthly_limit.toFixed(2)}`,
+        `RPM Limit: ${plan.rpm_limit} RPM`,
+        `5-Hour Limit: $${plan.tokens_5h_limit.toFixed(2)}`,
+        `7-Day Limit: $${plan.tokens_7d_limit.toFixed(2)}`,
+        `Hosted Agents: ${plan.max_agents ?? 0}`
+      ]
+      if (typeof plan.monthly_requests_limit === 'number') {
+        limits.push(`Monthly Requests: ${plan.monthly_requests_limit.toLocaleString()}`)
+      }
       return {
         name: matchingFallback?.name || `${plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1)} Plan`,
         key: plan.tier,
@@ -93,13 +103,7 @@ export default function UpgradePage() {
         billing: matchingFallback?.billing || 'monthly',
         desc: matchingFallback?.desc || 'Custom limits tier.',
         badge: matchingFallback?.badge || null,
-        limits: [
-          `Monthly Budget: $${plan.monthly_limit.toFixed(2)}`,
-          `RPM Limit: ${plan.rpm_limit} RPM`,
-          `5-Hour Limit: $${plan.tokens_5h_limit.toFixed(2)}`,
-          `7-Day Limit: $${plan.tokens_7d_limit.toFixed(2)}`,
-          `Hosted Agents: ${plan.max_agents ?? 0}`
-        ]
+        limits
       }
     })
   }
