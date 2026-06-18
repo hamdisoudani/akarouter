@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Script from 'next/script'
 import './globals.css'
 import { AppProvider } from './providers'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -11,10 +10,22 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  // SECURITY: use the validated env object. If the var is missing or wrong,
-  // the app fails to start with a clear error — no more silent fallback to
-  // a hard-coded reCAPTCHA key.
-  const siteKey = env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY
+  // SECURITY: the reCAPTCHA site key is validated by lib/env.ts and
+  // required at build time. We DON'T load the reCAPTCHA v3 invisible
+  // script globally here — that approach:
+  //   - tracked every page load for every user (privacy)
+  //   - ran invisibly without user opt-in
+  //   - could fail silently if the script was blocked
+  // Instead, reCAPTCHA v2 (interactive "I am not a robot" checkbox) is
+  // loaded ON DEMAND by <RecaptchaWidget /> when a protected form is
+  // rendered. The user explicitly consents to the challenge on the
+  // forms that need it (account activation, key generation, admin
+  // actions). See lib/recaptcha.ts and components/RecaptchaWidget.tsx.
+  //
+  // The siteKey is referenced here to keep env validation working
+  // (lib/env.ts will refuse to start if it's missing) but it is not
+  // used at the layout level.
+  void env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -24,10 +35,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </AppProvider>
         </ThemeProvider>
-        <Script 
-          src={`https://www.google.com/recaptcha/api.js?render=${siteKey}`} 
-          strategy="afterInteractive" 
-        />
       </body>
     </html>
   )

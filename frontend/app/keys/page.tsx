@@ -12,6 +12,7 @@ import {
   revokeKey,
   type ApiKey,
 } from '@/lib/api'
+import { z } from 'zod'
 import { 
   User, 
   LogOut, 
@@ -27,6 +28,12 @@ import {
   FileText,
   Cpu
 } from 'lucide-react'
+import InteractionCaptcha from '@/components/InteractionCaptcha'
+
+const CreateKeySchema = z.object({
+  keyName: z.string().max(100).optional(),
+  captchaToken: z.string().min(1, 'Human verification is required'),
+})
 
 
 export default function ApiKeysPage() {
@@ -50,22 +57,7 @@ export default function ApiKeysPage() {
     setOrigin(getGatewayUrl())
   }, [])
 
-  const executeRecaptcha = (action: string): Promise<string> => {
-    const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '6LcnqxUtAAAAAO9MYeFNsyL4JA-6PlAHKzoZoRCc'
-    return new Promise((resolve, reject) => {
-      if (typeof window === 'undefined' || !(window as any).grecaptcha) {
-        reject(new Error('reCAPTCHA script not loaded yet. Please wait a moment.'))
-        return
-      }
-      const grecaptcha = (window as any).grecaptcha
-      grecaptcha.ready(() => {
-        grecaptcha
-          .execute(siteKey, { action })
-          .then((token: string) => resolve(token))
-          .catch((err: any) => reject(err))
-      })
-    })
-  }
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
 
   const loadData = useCallback(async (accessToken: string) => {
     try {
@@ -94,14 +86,19 @@ export default function ApiKeysPage() {
 
   const handleCreateKey = async () => {
     if (!token) return
+    const parsed = CreateKeySchema.safeParse({ keyName: newKeyName, captchaToken: captchaToken ?? '' })
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message || 'Invalid form data')
+      return
+    }
     setError('')
     setCreatedKey(null)
     setCopiedCreatedKey(false)
     try {
-      const recaptchaToken = await executeRecaptcha('create_key')
-      const result = await createKey(token, newKeyName || 'default', recaptchaToken)
+      const result = await createKey(token, parsed.data.keyName || 'default', parsed.data.captchaToken)
       setCreatedKey(result.api_key)
       setNewKeyName('')
+      setCaptchaToken(null)
       const keysData = await getMyKeys(token)
       setKeys(keysData.keys)
     } catch (err: any) {
@@ -363,7 +360,7 @@ response = client.chat.completions.create(
                       <p className="text-[10px] font-mono text-zinc-500 uppercase">Generate secure bearer tokens to connect to your routed models.</p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-3">
                       <input
                         type="text"
                         value={newKeyName}
@@ -371,12 +368,20 @@ response = client.chat.completions.create(
                         placeholder="Key label (e.g. dev, prod)"
                         className="border border-zinc-800 bg-[#050507] px-4 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-[#ef4444]/50 transition-colors w-40 font-mono"
                       />
-                      <button
-                        onClick={handleCreateKey}
-                        className="bg-zinc-900 border border-zinc-850 hover:border-[#ef4444] hover:bg-[#ef4444]/5 text-white font-mono text-xs font-bold py-2 px-4 transition-all"
-                      >
-                        [+] CREATE
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        <InteractionCaptcha
+                          action="create_key"
+                          boxed
+                          onVerified={(token) => setCaptchaToken(token)}
+                        />
+                        <button
+                          onClick={handleCreateKey}
+                          disabled={!captchaToken}
+                          className="bg-zinc-900 border border-zinc-850 hover:border-[#ef4444] hover:bg-[#ef4444]/5 text-white font-mono text-xs font-bold py-2 px-4 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          [+] CREATE
+                        </button>
+                      </div>
                     </div>
                   </div>
 
