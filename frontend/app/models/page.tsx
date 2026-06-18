@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { fetchServerModels } from '@/lib/server-api'
 import { ModelsBrowser } from '@/components/ModelsBrowser'
+import { TopNav } from '@/components/TopNav'
 
 export const metadata: Metadata = {
   title: 'Models — AkaRouter',
@@ -23,28 +24,7 @@ export default async function ModelsPage() {
   return (
     <div className="min-h-screen bg-[#09090b] text-[#e5e1e4] grid-bg">
       {/* Top nav */}
-      <header className="sticky top-0 z-50 border-b border-[#27272a] bg-[#09090b]/85 backdrop-blur-xl micro-grid">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="relative w-20 h-9 sm:w-24 sm:h-10 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
-              <img src="/logo.png" alt="AkaRouter" className="object-contain scale-[2.5] w-full h-full" />
-            </div>
-            <span className="hidden sm:inline-block font-mono text-[10px] tracking-[0.2em] text-zinc-400 uppercase font-bold border-l border-zinc-800 pl-3 leading-none">
-              Model Catalog
-            </span>
-          </Link>
-          <nav className="flex items-center gap-3 sm:gap-6 text-[10px] sm:text-xs font-mono uppercase tracking-wider">
-            <Link href="/upgrade" className="text-zinc-400 hover:text-white transition-colors">Pricing</Link>
-            <Link href="/docs" className="text-zinc-400 hover:text-white transition-colors hidden sm:block">Docs</Link>
-            <Link
-              href="/auth/login"
-              className="bg-zinc-900 border border-zinc-800 text-white font-mono py-1.5 px-3 sm:py-2 sm:px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all"
-            >
-              Sign in
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <TopNav />
 
       {/* Hero */}
       <section className="border-b border-[#27272a] py-16 sm:py-20 px-6 bg-[#0a0a0c]/60">

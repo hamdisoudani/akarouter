@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { KeyRound, Layers } from 'lucide-react'
 
@@ -55,6 +56,12 @@ export default function LoginPage() {
       <div className="absolute bottom-1/4 left-1/3 w-[300px] h-[300px] bg-[#ef4444]/2 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="w-full max-w-md z-10">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 mb-4 font-mono text-[10px] uppercase tracking-wider text-zinc-500 hover:text-white transition-colors"
+        >
+          ← Back to home
+        </Link>
         <div className="bg-[#0e0e10] border border-[#27272a] p-8 md:p-10 crosshair-corners relative">
           <div className="absolute inset-0 opacity-[0.05] micro-grid pointer-events-none" />
           

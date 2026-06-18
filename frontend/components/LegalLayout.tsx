@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { TopNav } from '@/components/TopNav'
 
 /**
  * Shared layout for legal pages (privacy, terms, cookies).
@@ -24,19 +25,7 @@ export function LegalLayout({
   return (
     <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-white grid-bg">
       {/* Top Header */}
-      <header className="flex justify-between items-center w-full px-6 py-4 bg-[#09090b] border-b border-zinc-900 sticky top-0 z-10 micro-grid">
-        <div className="flex font-mono text-[11px] text-zinc-400 items-center gap-4">
-          <div className="w-[2px] h-4 bg-[#ef4444]"></div>
-          <span className="tracking-[0.2em] uppercase font-bold text-zinc-300">LEGALIZATION_MATRIX</span>
-        </div>
-        <Link
-          href="/"
-          className="flex items-center gap-2 border border-zinc-800 bg-[#0e0e10] px-3 py-1.5 font-mono text-[11px] text-zinc-400 hover:text-white hover:border-[#ef4444] transition-all"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>RETURN_HOME</span>
-        </Link>
-      </header>
+      <TopNav />
 
       {/* Content Canvas */}
       <main className="flex-1 max-w-4xl mx-auto w-full p-6 md:py-16 space-y-8 z-10">

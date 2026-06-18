@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useApp } from '@/app/providers'
+import { ModelConfigCard } from '@/components/ModelConfigCard'
 import { 
   adminGetAccounts,
   adminUpdateAccount,
@@ -1945,10 +1946,10 @@ export default function AdminDashboard() {
                   <div className="space-y-1">
                     <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                       <Cpu className="w-4 h-4 text-[#ef4444]" />
-                      MODEL_ACTIVATION_MATRIX
+                      MODEL_PRICING_CONFIG
                     </h2>
                     <p className="text-[10px] font-mono text-zinc-500 uppercase">
-                      Enable or disable inference models. Disabled models will return 400 Bad Request if called and show as inactive on user dashboards.
+                      Toggle activation, switch billing mode (per-token / per-request), and edit pricing per model. Changes take effect immediately and evict the cache.
                     </p>
                   </div>
 
@@ -1957,94 +1958,17 @@ export default function AdminDashboard() {
                       <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center">[SYNCHRONIZING_MODELS_LIST_WITH_SETTINGS_FALLBACK...]</p>
                     ) : (
                       adminModels.map((m) => (
-                        <div key={m.alias} className="flex flex-col gap-4 p-4 bg-zinc-950 border border-zinc-900 hover:border-zinc-850 transition-all group">
-                          <div className="flex justify-between items-center">
-                            <div className="flex flex-col gap-1">
-                              <span className="font-mono text-xs font-bold text-white uppercase">{m.alias}</span>
-                              <span className="font-mono text-[9px] text-zinc-500 uppercase">{m.upstream_model}</span>
-                            </div>
-                            
-                            <div className="flex items-center gap-4">
-                              <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
-                                m.is_active
-                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                                  : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444] red-glow-text'
-                              }`}>
-                                {m.is_active ? 'ACTIVE' : 'DISABLED'}
-                              </span>
-
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await adminUpdateModel(token, m.alias, { is_active: !m.is_active });
-                                    setAdminModels(prev =>
-                                      prev.map(item =>
-                                        item.alias === m.alias ? { ...item, is_active: !m.is_active } : item
-                                      )
-                                    );
-                                  } catch (err: any) {
-                                    setError(err.message);
-                                  }
-                                }}
-                                className={`px-3 py-1 font-mono text-[10px] font-bold border transition-all ${
-                                  m.is_active
-                                    ? 'border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] hover:bg-[#ef4444]/20 hover:text-red-350'
-                                    : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-350'
-                                }`}
-                              >
-                                {m.is_active ? 'DISABLE' : 'ENABLE'}
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="border-t border-zinc-900/60 pt-3 grid grid-cols-2 gap-4 font-mono text-[10px]">
-                            <div className="space-y-1">
-                              <label className="text-zinc-500 uppercase text-[8px] tracking-wider">Input Cost / 1M ($)</label>
-                              <input
-                                type="number"
-                                step="0.001"
-                                defaultValue={m.input_cost_per_million ?? 0.10}
-                                id={`input-cost-${m.alias}`}
-                                className="w-full bg-zinc-900 border border-zinc-850 px-2 py-1 text-white text-xs focus:outline-none focus:border-[#ef4444]"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-zinc-500 uppercase text-[8px] tracking-wider">Output Cost / 1M ($)</label>
-                              <div className="flex gap-2">
-                                <input
-                                  type="number"
-                                  step="0.001"
-                                  defaultValue={m.output_cost_per_million ?? 0.30}
-                                  id={`output-cost-${m.alias}`}
-                                  className="w-full bg-zinc-900 border border-zinc-850 px-2 py-1 text-white text-xs focus:outline-none focus:border-[#ef4444]"
-                                />
-                                <button
-                                  onClick={async () => {
-                                    const inputVal = Number((document.getElementById(`input-cost-${m.alias}`) as HTMLInputElement)?.value);
-                                    const outputVal = Number((document.getElementById(`output-cost-${m.alias}`) as HTMLInputElement)?.value);
-                                    try {
-                                      await adminUpdateModel(token, m.alias, {
-                                        input_cost_per_million: inputVal,
-                                        output_cost_per_million: outputVal,
-                                      });
-                                      setAdminModels(prev =>
-                                        prev.map(item =>
-                                          item.alias === m.alias ? { ...item, input_cost_per_million: inputVal, output_cost_per_million: outputVal } : item
-                                        )
-                                      );
-                                      alert(`Pricing updated for ${m.alias}!`);
-                                    } catch (err: any) {
-                                      setError(err.message);
-                                    }
-                                  }}
-                                  className="px-2 py-1 bg-zinc-900 border border-zinc-805 text-[#ef4444] font-bold text-[9px] hover:border-[#ef4444] transition-all"
-                                >
-                                  SAVE
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        <ModelConfigCard
+                          key={m.alias}
+                          model={m}
+                          token={token}
+                          onUpdated={(next) => {
+                            setAdminModels((prev) =>
+                              prev.map((item) => (item.alias === next.alias ? next : item))
+                            )
+                          }}
+                          onError={(msg) => setError(msg)}
+                        />
                       ))
                     )}
                   </div>

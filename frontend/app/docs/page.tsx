@@ -375,15 +375,30 @@ claude`
           </div>
 
           <div className="hidden md:flex font-mono text-[11px] text-zinc-400 items-center gap-4">
+            <Link href="/models" className="text-zinc-400 hover:text-white transition-colors uppercase tracking-wider">Models</Link>
+            <Link href="/upgrade" className="text-zinc-400 hover:text-white transition-colors uppercase tracking-wider">Pricing</Link>
             <div className="w-[2px] h-4 bg-[#ef4444]"></div>
             <span className="tracking-[0.2em] uppercase font-bold text-zinc-300">INTEGRATION MANUALS & API DOCS</span>
           </div>
 
           <div className="flex items-center gap-4 font-mono text-[11px]">
-            <div className="hidden sm:flex items-center gap-2 border border-zinc-800 bg-[#0e0e10] px-3 py-1.5 text-zinc-400">
-              <span className="text-zinc-600">[USER]:</span>
-              <span className="text-white font-semibold">{user ? user.email : 'CONNECTING...'}</span>
-            </div>
+            {user ? (
+              <Link
+                href="/dashboard"
+                className="hidden sm:flex items-center gap-2 border border-zinc-800 bg-[#0e0e10] px-3 py-1.5 text-zinc-400 hover:text-white hover:border-[#ef4444] transition-all"
+              >
+                <span className="text-zinc-600">[USER]:</span>
+                <span className="text-white font-semibold">Dashboard →</span>
+              </Link>
+            ) : (
+              <Link
+                href="/auth/login"
+                className="hidden sm:flex items-center gap-2 border border-zinc-800 bg-[#0e0e10] px-3 py-1.5 text-zinc-400 hover:text-white hover:border-[#ef4444] transition-all"
+              >
+                <span className="text-zinc-600">[USER]:</span>
+                <span className="text-white font-semibold">Sign in →</span>
+              </Link>
+            )}
           </div>
         </header>
 

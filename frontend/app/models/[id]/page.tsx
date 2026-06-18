@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { fetchServerModels } from '@/lib/server-api'
 import { ChevronLeft, Brain, Code2, Eye, Cpu, Zap, DollarSign, Globe, Copy } from 'lucide-react'
 import { CodeBlock } from '@/components/CodeBlock'
+import { TopNav } from '@/components/TopNav'
 
 export const revalidate = 60
 
@@ -91,17 +92,17 @@ console.log(response.choices[0].message.content);`,
   return (
     <div className="min-h-screen bg-[#09090b] text-[#e5e1e4] grid-bg">
       {/* Top nav */}
-      <header className="sticky top-0 z-50 border-b border-[#27272a] bg-[#09090b]/85 backdrop-blur-xl micro-grid">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <TopNav />
+
+      {/* Back link + breadcrumb */}
+      <div className="border-b border-[#27272a] bg-[#0a0a0c]/60">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-12 flex items-center">
           <Link href="/models" className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors text-[10px] sm:text-xs font-mono uppercase tracking-wider">
             <ChevronLeft className="w-4 h-4" />
             All models
           </Link>
-          <Link href="/upgrade" className="text-[10px] sm:text-xs font-mono uppercase tracking-wider text-zinc-300 hover:text-white">
-            View Plans →
-          </Link>
         </div>
-      </header>
+      </div>
 
       {/* Hero */}
       <section className="border-b border-[#27272a] py-10 sm:py-14 px-6 bg-[#0a0a0c]/60">

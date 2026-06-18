@@ -418,6 +418,8 @@ export interface AdminModelMapping {
   is_active: boolean
   input_cost_per_million: number | null
   output_cost_per_million: number | null
+  pricing_mode?: 'per_token' | 'per_request' | null
+  cost_per_request_cents?: number | null
 }
 
 export async function adminGetSettings(token: string): Promise<{ settings: Record<string, string> }> {
@@ -453,12 +455,14 @@ export async function adminGetModels(token: string): Promise<{ models: AdminMode
 }
 
 export async function adminUpdateModel(
-  token: string, 
-  alias: string, 
-  data: { 
-    is_active?: boolean; 
-    input_cost_per_million?: number | null; 
-    output_cost_per_million?: number | null; 
+  token: string,
+  alias: string,
+  data: {
+    is_active?: boolean;
+    input_cost_per_million?: number | null;
+    output_cost_per_million?: number | null;
+    pricing_mode?: 'per_token' | 'per_request';
+    cost_per_request_cents?: number | null;
   }
 ): Promise<{ ok: boolean; alias: string; updates: any }> {
   const res = await fetch(`${API_BASE}/admin/models/${alias}`, {
