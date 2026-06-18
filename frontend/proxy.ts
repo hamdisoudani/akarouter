@@ -105,8 +105,15 @@ function generateNonce(): string {
  * `supabaseHost` is the specific Supabase project host (e.g.,
  * "abcdefgh.supabase.co") pinned at build time from
  * NEXT_PUBLIC_SUPABASE_URL. NO `*.supabase.co` wildcard.
+ *
+ * `apiHost` is the origin of our own backend (e.g. "api.akarouter.dev")
+ * extracted from NEXT_PUBLIC_API_URL. It's the only cross-origin
+ * `connect-src` target the browser needs to reach — admin pages
+ * (and any other future client-side fetches that opt out of the
+ * `/api/*` proxy) hit this host directly. We do NOT wildcard:
+ * the host is pinned at build time like Supabase.
  */
-function buildAppCSP(nonce: string, supabaseHost: string): string {
+function buildAppCSP(nonce: string, supabaseHost: string, apiHost: string): string {
   return [
     "default-src 'self'",
     // `sha256-zjP2BXYgSCCnXNMXI2IL1yRydoQdsGR/uCCr6kyKsD0=` is the hash of
@@ -122,7 +129,12 @@ function buildAppCSP(nonce: string, supabaseHost: string): string {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://www.google.com`,
+    // `connect-src` is the *only* directive that allows cross-origin
+    // XHR/fetch targets. We list the exact host of (1) Supabase
+    // REST + Realtime, (2) our own backend API, (3) reCAPTCHA. NO
+    // wildcards. If the app needs to call a new backend host, it
+    // must be added here AND in NEXT_PUBLIC_API_URL.
+    `connect-src 'self' https://${supabaseHost} wss://${supabaseHost} https://${apiHost} https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/ https://www.google.com`,
     "frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com https://accounts.google.com https://www.google.com",
     "frame-ancestors 'none'",
     "form-action 'self' https://accounts.google.com",
@@ -143,6 +155,22 @@ function supabaseHostFromUrl(url: string | undefined): string {
     return new URL(url).host
   } catch {
     return 'invalid.supabase.co'
+  }
+}
+
+/**
+ * Extract the host (e.g. "api.akarouter.dev") from a backend
+ * API URL. Same pattern as supabaseHostFromUrl — pinned at
+ * build time from NEXT_PUBLIC_API_URL. Defaults to a safe
+ * placeholder so a misconfigured env still produces a parseable
+ * (if useless) CSP rather than throwing at the edge.
+ */
+function apiHostFromUrl(url: string | undefined): string {
+  if (!url) return 'invalid.api.local'
+  try {
+    return new URL(url).host
+  } catch {
+    return 'invalid.api.local'
   }
 }
 
@@ -173,7 +201,8 @@ export async function proxy(request: NextRequest) {
   // scripts.
   const nonce = generateNonce()
   const supabaseHost = supabaseHostFromUrl(env.NEXT_PUBLIC_SUPABASE_URL)
-  const csp = isHtmlResponse(pathname) ? buildAppCSP(nonce, supabaseHost) : null
+  const apiHost = apiHostFromUrl(env.NEXT_PUBLIC_API_URL)
+  const csp = isHtmlResponse(pathname) ? buildAppCSP(nonce, supabaseHost, apiHost) : null
 
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)

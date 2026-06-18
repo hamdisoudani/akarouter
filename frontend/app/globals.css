@@ -170,3 +170,13 @@
 .glow-rose {
   box-shadow: 0 0 20px -5px rgba(239, 68, 68, 0.15);
 }
+
+/* NProgress bar — override blue default with our red brand color */
+#nprogress .bar {
+  background: linear-gradient(to right, #ef4444, #f87171, #ef4444) !important;
+  height: 2px !important;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+#nprogress .peg {
+  box-shadow: 0 0 10px #ef4444, 0 0 5px #ef4444 !important;
+}

@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
 import { connection } from 'next/server'
+import { Suspense } from 'react'
 import './globals.css'
 import { AppProvider } from './providers'
 import { ThemeProvider } from '@/components/theme-provider'
+import { ProgressBar } from '@/components/ProgressBar'
 import { env } from '@/lib/env'
 
 export const metadata: Metadata = {
@@ -38,6 +40,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+          <Suspense fallback={null}>
+            <ProgressBar />
+          </Suspense>
           <AppProvider>
             {children}
           </AppProvider>
