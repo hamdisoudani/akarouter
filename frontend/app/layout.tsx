@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { connection } from 'next/server'
 import './globals.css'
 import { AppProvider } from './providers'
 import { ThemeProvider } from '@/components/theme-provider'
@@ -9,7 +10,13 @@ export const metadata: Metadata = {
   description: 'OpenAI-compatible AI inference gateway. One key, every model.',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Force dynamic rendering so the per-request CSP nonce from proxy.ts is
+  // applied to Next/React inline scripts instead of being blocked. Nonces
+  // only work with dynamic rendering; awaiting connection() opts every
+  // request into it (see Next.js CSP guide).
+  await connection()
+
   // SECURITY: the reCAPTCHA site key is validated by lib/env.ts and
   // required at build time. We DON'T load the reCAPTCHA v3 invisible
   // script globally here — that approach:
