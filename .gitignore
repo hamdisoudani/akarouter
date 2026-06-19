@@ -21,3 +21,6 @@ backend/token.json
 # Kept on disk for context, never committed.
 /audit/
 /.archive/
+
+# Dev screenshots (debug only)
+screenshot-*.png
