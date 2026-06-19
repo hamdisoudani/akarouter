@@ -235,7 +235,7 @@ async def startup():
     # SECURITY: fail-closed in production if the Fernet encryption secret is missing or
     # the wrong length. An empty secret either crashes Fernet at first use (good) or, in
     # edge cases, derives a deterministic key from empty bytes (bad). Force the failure
-    # to surface at startup, not on the first deploy_hosted_agent request.
+    # to surface at startup, not on the first encrypt call.
     if not settings.agent_key_encryption_secret or len(settings.agent_key_encryption_secret) < 32:
         if settings.app_env == "production":
             raise RuntimeError(
@@ -245,7 +245,7 @@ async def startup():
             )
         logger.warning(
             "AKAROUTER_AGENT_KEY_ENCRYPTION_SECRET is missing or weak. "
-            "Hosted agent key encryption will FAIL on first use. Set it before deploying to production."
+            "Provider endpoint API key encryption will FAIL on first use. Set it before deploying to production."
         )
 
     # SECURITY: in production, refuse to start without a webhook secret.

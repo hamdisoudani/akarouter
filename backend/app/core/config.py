@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     refresh_lock_ttl: Optional[int] = None
     max_concurrent_per_account: Optional[int] = None
 
+    # Encryption key for storing raw API keys (must be a 32-byte url-safe base64 key for Fernet)
+    # REQUIRED in production — app will fail to encrypt/decrypt if empty
+    agent_key_encryption_secret: str = ""
+
     # Whop Integration Settings
     whop_api_key: str = ""
     whop_webhook_secret: str = ""
