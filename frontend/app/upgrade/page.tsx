@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useApp } from '@/app/providers'
-import { createCheckoutSession, getModels, getPlans, type ModelEntry, type PlanPreset } from '@/lib/api'
+import { createCheckoutSession, getModels, getPlans, type PlanPreset } from '@/lib/api'
 import { LogOut, RefreshCw, Brain, Zap, DollarSign, ChevronRight } from 'lucide-react'
 
 export default function UpgradePage() {

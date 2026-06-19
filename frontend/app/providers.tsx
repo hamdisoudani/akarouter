@@ -109,9 +109,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setUser(null)
           setUsage(null)
           lastFetchedTokenRef.current = ''
-          const publicPaths = ['/', '/auth/login', '/auth/callback']
-          if (!publicPaths.some(p => pathname === p || pathname.startsWith(p + '/'))) {
-            router.push('/auth/login')
+          // Public pages: anyone can browse (marketing site).
+          // /models and /models/[id] MUST be public so prospects can see specs/pricing
+          // before signing up. Locked pages are gated inside their own client component
+          // by calling requireAuth() — see e.g. /keys, /dashboard, /usage, /agents, /upgrade.
+          const publicPaths = [
+            '/',
+            '/auth/login',
+            '/auth/callback',
+            '/models',
+            '/privacy',
+            '/terms',
+            '/cookies',
+            '/docs',
+          ]
+          const isPublic =
+            publicPaths.includes(pathname) ||
+            pathname.startsWith('/models/') ||
+            pathname.startsWith('/docs/') ||
+            pathname.startsWith('/privacy') ||
+            pathname.startsWith('/terms') ||
+            pathname.startsWith('/cookies') ||
+            pathname.startsWith('/auth/')
+          if (!isPublic) {
+            router.push(`/auth/login?next=${encodeURIComponent(pathname)}`)
           }
         }
       } catch (err: any) {

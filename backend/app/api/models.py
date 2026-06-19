@@ -22,7 +22,14 @@ async def list_models(request: Request) -> dict:
     # Try DB first (allows dynamic updates from admin)
     try:
         supabase = get_supabase()
-        result = supabase.table("model_mapping").select("alias, display_name, provider_name, description, is_active, capabilities, input_cost_per_million, output_cost_per_million, pricing_mode, cost_per_request_cents, is_free_provider").eq("is_active", True).execute()
+        result = supabase.table("model_mapping").select(
+            "alias, display_name, provider_name, description, is_active, capabilities, "
+            "input_cost_per_million, output_cost_per_million, pricing_mode, "
+            "cost_per_request_cents, is_free_provider, "
+            "context_window_tokens, max_output_tokens, input_modalities, output_modalities, "
+            "knowledge_cutoff, released_date, supports_vision, supports_video, supports_audio, "
+            "supports_tool_use, supports_function_calling, supports_reasoning, specs_source"
+        ).eq("is_active", True).execute()
         if result.data:
             return {
                 "object": "list",
@@ -41,9 +48,21 @@ async def list_models(request: Request) -> dict:
                         "output_cost_per_million": row.get("output_cost_per_million", 0.30),
                         "pricing_mode": row.get("pricing_mode", "per_token"),
                         "cost_per_request_cents": row.get("cost_per_request_cents"),
-                        "context_length": (
-                            256000 if row["alias"] == "akarouter-pro" else 1000000
-                        ),
+                        # Authoritative specs from research (2026-06-19)
+                        "context_length": row.get("context_window_tokens") or 1000000,
+                        "max_output_tokens": row.get("max_output_tokens") or 8192,
+                        "input_modalities": row.get("input_modalities") or ["text"],
+                        "output_modalities": row.get("output_modalities") or ["text"],
+                        "knowledge_cutoff": row.get("knowledge_cutoff"),
+                        "released_date": row.get("released_date"),
+                        "supports": {
+                            "vision": bool(row.get("supports_vision")),
+                            "video": bool(row.get("supports_video")),
+                            "audio": bool(row.get("supports_audio")),
+                            "tool_use": bool(row.get("supports_tool_use")),
+                            "function_calling": bool(row.get("supports_function_calling")),
+                            "reasoning": bool(row.get("supports_reasoning")),
+                        },
                     }
                     for row in result.data
                 ],

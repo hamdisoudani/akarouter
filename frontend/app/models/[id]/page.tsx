@@ -222,9 +222,24 @@ console.log(response.choices[0].message.content);`,
               <SpecRow label="Model ID" value={m.id} mono />
               <SpecRow label="Display Name" value={m.display_name || '—'} />
               <SpecRow label="Provider" value="AkaRouter" />
+              <SpecRow label="Released" value={m.released_date || '—'} />
+              <SpecRow label="Knowledge Cutoff" value={m.knowledge_cutoff || '—'} />
               <SpecRow label="Pricing Mode" value={m.pricing_mode || 'per_token'} />
               <SpecRow label="Context Length" value={`${m.context_length?.toLocaleString() || '—'} tokens`} mono />
-              <SpecRow label="Capabilities" value={(m.capabilities || []).join(', ') || 'text'} />
+              <SpecRow label="Max Output" value={`${m.max_output_tokens?.toLocaleString() || '—'} tokens`} mono />
+              <SpecRow label="Input Modalities" value={(m.input_modalities || ['text']).join(', ')} />
+              <SpecRow label="Output Modalities" value={(m.output_modalities || ['text']).join(', ')} />
+              <SpecRow
+                label="Supports"
+                value={
+                  m.supports
+                    ? Object.entries(m.supports)
+                        .filter(([, v]) => v)
+                        .map(([k]) => k.replace(/_/g, ' '))
+                        .join(', ') || '—'
+                    : (m.capabilities || []).join(', ') || 'text'
+                }
+              />
               <SpecRow label="Status" value={m.is_active === false ? 'Deprecated' : 'Active'} />
             </div>
           </div>

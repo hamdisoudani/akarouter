@@ -51,11 +51,9 @@ export default function DocsPage() {
 
   useEffect(() => {
     if (!authLoading) {
-      if (!token) {
-        router.push('/auth/login')
-        return
-      }
-      if (user?.status === 'pending') {
+      // Docs is PUBLIC — anyone can read the API reference.
+      // Only redirect if user is logged in but pending (still needs to pick a plan).
+      if (token && user?.status === 'pending') {
         router.push('/dashboard')
         return
       }

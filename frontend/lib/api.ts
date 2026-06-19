@@ -22,6 +22,23 @@ export interface ModelsResponse {
     context_length?: number
     pricing_mode?: 'per_token' | 'per_request'
     cost_per_request_cents?: number | null
+    // Authoritative model specifications (populated from upstream docs)
+    provider_name?: string
+    is_free_provider?: boolean
+    max_output_tokens?: number
+    input_modalities?: string[]
+    output_modalities?: string[]
+    knowledge_cutoff?: string
+    released_date?: string
+    supports?: {
+      vision?: boolean
+      video?: boolean
+      audio?: boolean
+      tool_use?: boolean
+      function_calling?: boolean
+      reasoning?: boolean
+    }
+    specs_source?: string
   }>
 }
 
