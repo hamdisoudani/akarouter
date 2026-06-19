@@ -45,24 +45,9 @@ function formatPerTokenPrice(input?: number, output?: number) {
   return `${fmt(input)} in · ${fmt(output)} out / 1M tok`
 }
 
-function getProvider(model: CatalogModel) {
-  // Prefer the API-provided provider_name (e.g. "Anthropic", "NVIDIA via Nous Research")
-  const pn = (model.provider_name || '').toLowerCase()
-  if (pn.includes('anthropic')) return { name: 'Anthropic', color: 'text-orange-400 border-orange-500/30 bg-orange-500/10' }
-  if (pn.includes('openai')) return { name: 'OpenAI', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' }
-  if (pn.includes('google')) return { name: 'Google', color: 'text-blue-400 border-blue-500/30 bg-blue-500/10' }
-  if (pn.includes('minimax')) return { name: 'MiniMax', color: 'text-purple-400 border-purple-500/30 bg-purple-500/10' }
-  if (pn.includes('nvidia')) return { name: 'NVIDIA', color: 'text-green-400 border-green-500/30 bg-green-500/10' }
-  if (pn.includes('stepfun')) return { name: 'StepFun', color: 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10' }
-  if (pn.includes('nous') || pn.includes('open source')) return { name: 'Nous Research', color: 'text-zinc-300 border-zinc-500/30 bg-zinc-500/10' }
-  // Fallback: detect from id
-  const id = (model.display_name || model.id || '').toLowerCase()
-  if (id.includes('claude')) return { name: 'Anthropic', color: 'text-orange-400 border-orange-500/30 bg-orange-500/10' }
-  if (id.includes('gpt') || id.includes('codex')) return { name: 'OpenAI', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' }
-  if (id.includes('gemini')) return { name: 'Google', color: 'text-blue-400 border-blue-500/30 bg-blue-500/10' }
-  if (id.includes('minimax') || model.id.includes('minimax')) return { name: 'MiniMax', color: 'text-purple-400 border-purple-500/30 bg-purple-500/10' }
-  if (id.includes('nemotron') || id.includes('step') || id.includes('owl')) return { name: 'Open Source', color: 'text-zinc-300 border-zinc-500/30 bg-zinc-500/10' }
-  return { name: 'Other', color: 'text-zinc-300 border-zinc-500/30 bg-zinc-500/10' }
+function getProvider(_model: CatalogModel) {
+  // All models are AkaRouter-owned — single branding, no upstream leak
+  return { name: 'AkaRouter', color: 'text-zinc-300 border-zinc-500/30 bg-zinc-500/10' }
 }
 
 function getCapabilityIcon(cap: string) {
@@ -381,13 +366,7 @@ function ModelCard({ model }: { model: CatalogModel }) {
           <h4 className="font-mono text-xs text-white font-bold tracking-wider truncate group-hover:text-[#ef4444] transition-colors">
             {model.display_name || model.id}
           </h4>
-          {model.provider_name ? (
-            <p className="text-[9px] text-zinc-500 font-mono truncate mt-0.5" title={`Based on ${model.provider_name}`}>
-              by {model.provider_name}
-            </p>
-          ) : (
-            <p className="text-[9px] text-zinc-600 font-mono truncate mt-0.5">{model.id}</p>
-          )}
+          <p className="text-[9px] text-zinc-600 font-mono truncate mt-0.5">{model.id}</p>
         </div>
         <span
           className={`shrink-0 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border ${
@@ -459,11 +438,7 @@ function ModelRow({ model }: { model: CatalogModel }) {
           <h4 className="font-mono text-xs text-white font-bold tracking-wider group-hover:text-[#ef4444] transition-colors">
             {model.display_name || model.id}
           </h4>
-          {model.provider_name && (
-            <span className="text-[9px] text-zinc-500 font-mono" title={`Based on ${model.provider_name}`}>
-              by {model.provider_name}
-            </span>
-          )}
+          <span className="text-[9px] text-zinc-600 font-mono">{model.id}</span>
           <span
             className={`shrink-0 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border ${
               isFree
