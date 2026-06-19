@@ -25,7 +25,8 @@ import {
   FileText,
   Cpu,
   Brain,
-  Zap
+  Zap,
+  Sparkles
 } from 'lucide-react'
 import InteractionCaptcha from '@/components/InteractionCaptcha'
 
@@ -381,6 +382,13 @@ export default function UserDashboard() {
               <Brain className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
             </span>
             <span className="tracking-widest font-mono uppercase text-[11px]">Models</span>
+          </Link>
+
+          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/playground">
+            <span className="border border-zinc-800 p-1 group-hover:border-amber-500/60 transition-colors flex items-center justify-center">
+              <Sparkles className="w-3.5 h-3.5 text-zinc-400 group-hover:text-amber-400" />
+            </span>
+            <span className="tracking-widest font-mono uppercase text-[11px]">Playground</span>
           </Link>
 
           <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/upgrade">
