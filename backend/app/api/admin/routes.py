@@ -377,6 +377,7 @@ class UpdateModelRequest(BaseModel):
     output_cost_per_million: Optional[float] = None
     pricing_mode: Optional[str] = None           # 'per_token' | 'per_request'
     cost_per_request_cents: Optional[int] = None  # only meaningful when pricing_mode='per_request'
+    points_cost: Optional[int] = None             # per-call point cost (0-1000), admin-editable
 
 def get_user_consumptions(account_ids: Optional[list[str]] = None) -> dict[str, dict]:
     """Retrieve aggregate consumption stats grouped by account_id, optionally filtered by account_ids."""
@@ -977,6 +978,10 @@ async def admin_update_model(alias: str, body: UpdateModelRequest, authorization
         if body.cost_per_request_cents < 0:
             raise HTTPException(status_code=400, detail="cost_per_request_cents must be >= 0")
         updates["cost_per_request_cents"] = body.cost_per_request_cents
+    if body.points_cost is not None:
+        if body.points_cost < 0 or body.points_cost > 1000:
+            raise HTTPException(status_code=400, detail="points_cost must be between 0 and 1000")
+        updates["points_cost"] = body.points_cost
 
     # Check if model mapping exists in DB
     check_res = supabase.table("model_mapping").select("alias").eq("alias", alias).execute()
@@ -996,6 +1001,8 @@ async def admin_update_model(alias: str, body: UpdateModelRequest, authorization
             insert_data["pricing_mode"] = body.pricing_mode
         if body.cost_per_request_cents is not None:
             insert_data["cost_per_request_cents"] = body.cost_per_request_cents
+        if body.points_cost is not None:
+            insert_data["points_cost"] = body.points_cost
         supabase.table("model_mapping").insert(insert_data).execute()
     else:
         if updates:

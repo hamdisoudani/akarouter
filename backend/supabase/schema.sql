@@ -574,3 +574,20 @@ $$ LANGUAGE plpgsql SECURITY DEFINER
 --    FOR VALUES FROM ('2026-06-01 00:00:00+00') TO ('2026-07-01 00:00:00+00');
 -- 4. Copy data from request_logs_old to request_logs.
 
+
+-- ============================================
+-- 2026-06-19: Add points_cost to model_mapping
+-- ============================================
+-- Per-call point cost (admin-editable, default 5)
+-- M3 currently 1pt promotional, will join T2 (5pt) in future
+-- T1=2pt (cheap), T2=5pt (mid), T3=10pt (premium), legacy=15pt
+ALTER TABLE model_mapping ADD COLUMN IF NOT EXISTS points_cost INTEGER NOT NULL DEFAULT 5;
+ALTER TABLE model_mapping DROP CONSTRAINT IF EXISTS model_mapping_points_cost_check;
+ALTER TABLE model_mapping ADD CONSTRAINT model_mapping_points_cost_check CHECK (points_cost >= 0 AND points_cost <= 1000);
+COMMENT ON COLUMN model_mapping.points_cost IS 'Per-call point cost. Admin editable. M3 currently 1pt promotional.';
+
+-- Initial per-model points_cost values (seeded from vsllm × 2 per-call cost analysis)
+UPDATE model_mapping SET points_cost = 1 WHERE alias = 'akarouter-mini';
+UPDATE model_mapping SET points_cost = 2 WHERE alias IN ('akarouter-flash', 'akarouter-haiku');
+UPDATE model_mapping SET points_cost = 5 WHERE alias IN ('akarouter-pro', 'akarouter-large', 'akarouter-sonnet', 'akarouter-gpt54', 'akarouter-gemini31');
+UPDATE model_mapping SET points_cost = 10 WHERE alias IN ('akarouter-gpt53-codex', 'akarouter-opus', 'akarouter-gpt55');

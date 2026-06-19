@@ -16,6 +16,7 @@ interface CatalogModel {
   context_length?: number
   pricing_mode?: 'per_token' | 'per_request'
   cost_per_request_cents?: number | null
+  points_cost?: number
 }
 
 interface ModelCatalogProps {
@@ -248,6 +249,12 @@ export function ModelCatalog({ models }: ModelCatalogProps) {
                 {!isPerRequest && (
                   <div className="text-[8px] font-mono text-zinc-600 text-right">per 1M tokens</div>
                 )}
+                <div className="flex items-baseline justify-between pt-1 border-t border-zinc-900/50">
+                  <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider">POINTS</span>
+                  <span className="text-[10px] font-mono font-bold text-amber-500">
+                    {m.points_cost ?? 5} pts<span className="text-zinc-600 font-normal"> / call</span>
+                  </span>
+                </div>
               </div>
             </div>
           )

@@ -17,6 +17,7 @@ interface CatalogModel {
   context_length?: number
   pricing_mode?: 'per_token' | 'per_request'
   cost_per_request_cents?: number | null
+  points_cost?: number
 }
 
 interface ModelsBrowserProps {
@@ -412,6 +413,12 @@ function ModelCard({ model }: { model: CatalogModel }) {
           {isPerRequest
             ? formatPerRequestPrice(model.cost_per_request_cents)
             : formatPerTokenPrice(model.input_cost_per_million, model.output_cost_per_million)}
+        </span>
+      </div>
+      <div className="flex items-baseline justify-between">
+        <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider">POINTS</span>
+        <span className="text-[10px] font-mono font-bold text-amber-500">
+          {model.points_cost ?? 5} pts<span className="text-zinc-600 font-normal"> / call</span>
         </span>
       </div>
 

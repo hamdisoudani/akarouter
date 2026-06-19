@@ -225,6 +225,7 @@ console.log(response.choices[0].message.content);`,
               <SpecRow label="Released" value={m.released_date || '—'} />
               <SpecRow label="Knowledge Cutoff" value={m.knowledge_cutoff || '—'} />
               <SpecRow label="Pricing Mode" value={m.pricing_mode || 'per_token'} />
+              <SpecRow label="Points per Call" value={`${m.points_cost ?? 5} pts`} mono />
               <SpecRow label="Context Length" value={`${m.context_length?.toLocaleString() || '—'} tokens`} mono />
               <SpecRow label="Max Output" value={`${m.max_output_tokens?.toLocaleString() || '—'} tokens`} mono />
               <SpecRow label="Input Modalities" value={(m.input_modalities || ['text']).join(', ')} />

@@ -25,7 +25,7 @@ async def list_models(request: Request) -> dict:
         result = supabase.table("model_mapping").select(
             "alias, display_name, provider_name, description, is_active, capabilities, "
             "input_cost_per_million, output_cost_per_million, pricing_mode, "
-            "cost_per_request_cents, is_free_provider, "
+            "cost_per_request_cents, is_free_provider, points_cost, "
             "context_window_tokens, max_output_tokens, input_modalities, output_modalities, "
             "knowledge_cutoff, released_date, supports_vision, supports_video, supports_audio, "
             "supports_tool_use, supports_function_calling, supports_reasoning, specs_source"
@@ -48,6 +48,8 @@ async def list_models(request: Request) -> dict:
                         "output_cost_per_million": row.get("output_cost_per_million", 0.30),
                         "pricing_mode": row.get("pricing_mode", "per_token"),
                         "cost_per_request_cents": row.get("cost_per_request_cents"),
+                        # Per-call point cost (admin-editable, default 5)
+                        "points_cost": row.get("points_cost", 5),
                         # Authoritative specs from research (2026-06-19)
                         "context_length": row.get("context_window_tokens") or 1000000,
                         "max_output_tokens": row.get("max_output_tokens") or 8192,
@@ -87,6 +89,8 @@ async def list_models(request: Request) -> dict:
                 "output_cost_per_million": settings.model_pricing.get(alias, {}).get("output_cost_per_million", 0.30),
                 "pricing_mode": "per_token",
                 "cost_per_request_cents": None,
+                # Fallback per-call point cost (config-driven; can be overridden via DB)
+                "points_cost": settings.model_pricing.get(alias, {}).get("points_cost", 5),
                 "context_length": (
                     256000 if alias == "akarouter-pro" else 1000000
                 ),

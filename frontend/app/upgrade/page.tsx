@@ -65,7 +65,9 @@ export default function UpgradePage() {
           'RPM Limit: 60 RPM',
           '5-Hour Limit: $1.00',
           '7-Day Limit: $5.00',
-          'Hosted Agents: 0'
+          'T1 Calls: 60/mo',
+          'T2 Calls: 40/mo',
+          'T3 Calls: 15/mo'
         ]
       },
       {
@@ -80,7 +82,9 @@ export default function UpgradePage() {
           'RPM Limit: 300 RPM',
           '5-Hour Limit: $10.00',
           '7-Day Limit: $50.00',
-          'Hosted Agents: 2 (1GB RAM)'
+          'T1 Calls: 400/mo',
+          'T2 Calls: 250/mo',
+          'T3 Calls: 100/mo'
         ]
       },
       {
@@ -95,7 +99,9 @@ export default function UpgradePage() {
           'RPM Limit: 1,000 RPM',
           '5-Hour Limit: $100.00',
           '7-Day Limit: $500.00',
-          'Hosted Agents: 5 (4GB RAM)'
+          'T1 Calls: 1,500/mo',
+          'T2 Calls: 900/mo',
+          'T3 Calls: 400/mo'
         ]
       }
     ]

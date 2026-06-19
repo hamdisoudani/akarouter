@@ -40,13 +40,15 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
   const [inputCost, setInputCost] = useState<number | null>(model.input_cost_per_million ?? 0.10)
   const [outputCost, setOutputCost] = useState<number | null>(model.output_cost_per_million ?? 0.30)
   const [perReqCents, setPerReqCents] = useState<number>(model.cost_per_request_cents ?? 1)
+  const [pointsCost, setPointsCost] = useState<number>(model.points_cost ?? 5)
   const [saving, setSaving] = useState(false)
 
   const dirty =
     isActive !== model.is_active ||
     mode !== initialMode ||
     (mode === 'per_token' && (inputCost !== (model.input_cost_per_million ?? 0.10) || outputCost !== (model.output_cost_per_million ?? 0.30))) ||
-    (mode === 'per_request' && perReqCents !== (model.cost_per_request_cents ?? 1))
+    (mode === 'per_request' && perReqCents !== (model.cost_per_request_cents ?? 1)) ||
+    pointsCost !== (model.points_cost ?? 5)
 
   const handleSave = async () => {
     setSaving(true)
@@ -59,6 +61,7 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
         // per_request — backend expects cost_per_request_cents as int
         patch.cost_per_request_cents = Math.max(0, Math.round(perReqCents))
       }
+      patch.points_cost = Math.max(0, Math.min(1000, Math.round(pointsCost)))
       await adminUpdateModel(token, model.alias, patch)
       onUpdated({
         ...model,
@@ -67,6 +70,7 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
         input_cost_per_million: mode === 'per_token' ? inputCost : null,
         output_cost_per_million: mode === 'per_token' ? outputCost : null,
         cost_per_request_cents: mode === 'per_request' ? Math.max(0, Math.round(perReqCents)) : null,
+        points_cost: Math.max(0, Math.min(1000, Math.round(pointsCost))),
       })
     } catch (err: any) {
       onError(err?.message || 'Failed to save model config')
@@ -216,6 +220,34 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
           >
             {saving ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : <Save className="w-3 h-3 mx-auto" />}
           </button>
+        </div>
+      </div>
+
+      {/* Points cost row — independent of pricing_mode */}
+      <div className="border-t border-zinc-900/60 pt-4 grid grid-cols-1 md:grid-cols-12 gap-4 font-mono text-[10px]">
+        <div className="md:col-span-3 space-y-1">
+          <label className="text-zinc-500 uppercase text-[8px] tracking-wider">Points per call</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              step="1"
+              min="0"
+              max="1000"
+              value={pointsCost}
+              onChange={(e) => setPointsCost(Math.max(0, Math.min(1000, Number(e.target.value) || 0)))}
+              className="w-20 bg-zinc-900 border border-zinc-850 px-2 py-1.5 text-white text-xs focus:outline-none focus:border-amber-500/50"
+            />
+            <span className="text-amber-500 font-bold text-xs">pts</span>
+          </div>
+        </div>
+        <div className="md:col-span-9 text-zinc-500 text-[9px] leading-relaxed">
+          <p>
+            Charged per call against the user's monthly plan quotas (T1/T2/T3 cap system).
+            Adjust per-model to fine-tune margins — cheaper models cost fewer points.
+          </p>
+          <p className="mt-1 text-zinc-600">
+            Suggested: free-tier models = 1pt, cheap (Haiku) = 2pt, mid (Sonnet) = 5pt, premium (Opus/GPT-5.5) = 10–15pt.
+          </p>
         </div>
       </div>
     </div>

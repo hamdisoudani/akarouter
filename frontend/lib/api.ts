@@ -22,6 +22,7 @@ export interface ModelsResponse {
     context_length?: number
     pricing_mode?: 'per_token' | 'per_request'
     cost_per_request_cents?: number | null
+    points_cost?: number  // per-call point cost (admin-editable, 0-1000)
     // Authoritative model specifications (populated from upstream docs)
     provider_name?: string
     is_free_provider?: boolean
@@ -432,6 +433,7 @@ export interface AdminModelMapping {
   output_cost_per_million: number | null
   pricing_mode?: 'per_token' | 'per_request' | null
   cost_per_request_cents?: number | null
+  points_cost?: number | null
 }
 
 export async function adminGetSettings(token: string): Promise<{ settings: Record<string, string> }> {
@@ -475,6 +477,7 @@ export async function adminUpdateModel(
     output_cost_per_million?: number | null;
     pricing_mode?: 'per_token' | 'per_request';
     cost_per_request_cents?: number | null;
+    points_cost?: number | null;
   }
 ): Promise<{ ok: boolean; alias: string; updates: any }> {
   const res = await fetch(`${API_BASE}/admin/models/${alias}`, {
