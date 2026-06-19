@@ -325,7 +325,44 @@ async def proxy_chat(req: Request):
 
     # Charge points for this call (atomic via Postgres function). Raises 402/429 if blocked.
     # We deduct BEFORE the upstream call to prevent abuse, then refund on failure.
-    points_cost = int(meta.get("points_cost", 5))
+    #
+    # SECURITY: never default points_cost to a silent value. If the model
+    # record is missing or points_cost is NULL, we MUST fail loud — silently
+    # defaulting to 5 (or any other number) would let a stale cache, a
+    # missing row, or a typoed model_alias overcharge the user. The old
+    # behavior (int(meta.get("points_cost", 5))) was a 1-line way to lose
+    # money. Now we 503 with a clear "model configuration invalid" error.
+    raw_points_cost = meta.get("points_cost")
+    if raw_points_cost is None:
+        logger.error(
+            "REFUSING CHARGE: model %r has no points_cost in metadata cache "
+            "(pricing_mode=%r, meta keys=%s). Refusing to silently default.",
+            model_alias, pricing_mode, sorted(meta.keys()),
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Model configuration invalid (missing points_cost). Try again shortly.",
+        )
+    try:
+        points_cost = int(raw_points_cost)
+    except (TypeError, ValueError):
+        logger.error(
+            "REFUSING CHARGE: model %r points_cost is not an integer: %r",
+            model_alias, raw_points_cost,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Model configuration invalid (points_cost not numeric).",
+        )
+    if points_cost < 0:
+        logger.error(
+            "REFUSING CHARGE: model %r points_cost is negative: %d",
+            model_alias, points_cost,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Model configuration invalid (negative points_cost).",
+        )
     auth_info_early = getattr(req.state, "auth", None)
     account_id_early = auth_info_early["account_id"] if auth_info_early else None
     point_reservation = None
