@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useApp } from '@/app/providers'
-import { createCheckoutSession, getPlans, type PlanPreset } from '@/lib/api'
+import { createCheckoutSession, getModels, getPlans, type ModelEntry, type PlanPreset } from '@/lib/api'
 import { LogOut, RefreshCw, Brain, Zap, DollarSign, ChevronRight } from 'lucide-react'
 
 export default function UpgradePage() {
@@ -15,6 +15,7 @@ export default function UpgradePage() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [dbPlans, setDbPlans] = useState<PlanPreset[]>([])
+  const [modelLabel, setModelLabel] = useState<Record<string, string>>({})
 
   useEffect(() => {
     async function loadPlans() {
@@ -29,7 +30,22 @@ export default function UpgradePage() {
         console.error('Failed to load plans from backend:', err)
       }
     }
+    async function loadModels() {
+      try {
+        const res = await getModels()
+        if (res && res.data) {
+          const map: Record<string, string> = {}
+          for (const m of res.data) {
+            map[m.id] = m.display_name || m.id
+          }
+          setModelLabel(map)
+        }
+      } catch (err) {
+        // Non-fatal — fall back to alias
+      }
+    }
     loadPlans()
+    loadModels()
   }, [])
 
   // Derive which models are available per plan tier based on the request
@@ -296,13 +312,13 @@ export default function UpgradePage() {
                           {models.perToken.slice(0, 3).map((id) => (
                             <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono border border-emerald-500/30 bg-emerald-500/5 text-emerald-400">
                               <Brain className="w-2.5 h-2.5" />
-                              {id}
+                              {modelLabel[id] || id}
                             </span>
                           ))}
                           {models.perRequest.slice(0, 4).map((id) => (
                             <span key={id} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono border border-[#ef4444]/30 bg-[#ef4444]/5 text-[#ef4444]">
                               <Zap className="w-2.5 h-2.5" />
-                              {id}
+                              {modelLabel[id] || id}
                             </span>
                           ))}
                           {models.perRequest.length > 4 && (
