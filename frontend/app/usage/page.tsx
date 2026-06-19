@@ -235,10 +235,7 @@ export default function UsagePage() {
           `Monthly Budget: $${plan.monthly_limit.toFixed(2)}`,
           `RPM Limit: ${plan.rpm_limit} RPM`,
           `5-Hour Limit: $${plan.tokens_5h_limit.toFixed(2)}`,
-          `7-Day Limit: $${plan.tokens_7d_limit.toFixed(2)}`,
-          `T1 Calls: ${plan.t1_requests_limit ?? 0}`,
-          `T2 Calls: ${plan.t2_requests_limit ?? 0}`,
-          `T3 Calls: ${plan.t3_requests_limit ?? 0}`
+          `7-Day Limit: $${plan.tokens_7d_limit.toFixed(2)}`
         ]
       }
     })

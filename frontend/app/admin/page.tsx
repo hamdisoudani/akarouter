@@ -200,9 +200,6 @@ export default function AdminDashboard() {
   const [newPlanRpm, setNewPlanRpm] = useState(60)
   const [newPlan5h, setNewPlan5h] = useState(1.0)
   const [newPlan7d, setNewPlan7d] = useState(5.0)
-  const [newPlanT1, setNewPlanT1] = useState(0)
-  const [newPlanT2, setNewPlanT2] = useState(0)
-  const [newPlanT3, setNewPlanT3] = useState(0)
   const [newPlanPointAllowance, setNewPlanPointAllowance] = useState(0)
   const [newPlanDailyFree, setNewPlanDailyFree] = useState(0)
   const [newPlanPrice, setNewPlanPrice] = useState('$0')
@@ -216,9 +213,6 @@ export default function AdminDashboard() {
   const [editingPlanRpm, setEditingPlanRpm] = useState<number>(60)
   const [editingPlan5h, setEditingPlan5h] = useState<number>(1.0)
   const [editingPlan7d, setEditingPlan7d] = useState<number>(5.0)
-  const [editingPlanT1, setEditingPlanT1] = useState<number>(0)
-  const [editingPlanT2, setEditingPlanT2] = useState<number>(0)
-  const [editingPlanT3, setEditingPlanT3] = useState<number>(0)
   const [editingPlanPointAllowance, setEditingPlanPointAllowance] = useState<number>(0)
   const [editingPlanDailyFree, setEditingPlanDailyFree] = useState<number>(0)
   const [editingPlanPrice, setEditingPlanPrice] = useState('$0')
@@ -239,9 +233,6 @@ export default function AdminDashboard() {
   const [editingRpmLimit, setEditingRpmLimit] = useState<number>(60)
   const [editingTokens5hLimit, setEditingTokens5hLimit] = useState<number>(1.0)
   const [editingTokens7dLimit, setEditingTokens7dLimit] = useState<number>(5.0)
-  const [editingT1Limit, setEditingT1Limit] = useState<number>(0)
-  const [editingT2Limit, setEditingT2Limit] = useState<number>(0)
-  const [editingT3Limit, setEditingT3Limit] = useState<number>(0)
   const [editingRole, setEditingRole] = useState('user')
   const [editingStatus, setEditingStatus] = useState('active')
   const [editingSuspendedReason, setEditingSuspendedReason] = useState('')
@@ -442,15 +433,12 @@ export default function AdminDashboard() {
     if (!newPlanTier) return
     try {
       await adminCreatePlan(
-        token, 
-        newPlanTier.toLowerCase(), 
+        token,
+        newPlanTier.toLowerCase(),
         newPlanLimit,
         newPlanRpm,
         newPlan5h,
         newPlan7d,
-        newPlanT1,
-        newPlanT2,
-        newPlanT3,
         newPlanPrice,
         newPlanBillingPeriod,
         newPlanDescription,
@@ -465,9 +453,6 @@ export default function AdminDashboard() {
       setNewPlanRpm(60)
       setNewPlan5h(1.0)
       setNewPlan7d(5.0)
-      setNewPlanT1(0)
-      setNewPlanT2(0)
-      setNewPlanT3(0)
       setNewPlanPointAllowance(0)
       setNewPlanDailyFree(0)
       setNewPlanPrice('$0')
@@ -489,9 +474,6 @@ export default function AdminDashboard() {
         rpm_limit: editingPlanRpm,
         tokens_5h_limit: editingPlan5h,
         tokens_7d_limit: editingPlan7d,
-        t1_requests_limit: editingPlanT1,
-        t2_requests_limit: editingPlanT2,
-        t3_requests_limit: editingPlanT3,
         monthly_point_allowance: editingPlanPointAllowance,
         daily_free_requests_limit: editingPlanDailyFree,
         price: editingPlanPrice,
@@ -530,9 +512,6 @@ export default function AdminDashboard() {
     setEditingRpmLimit(acc.rpm_limit ?? 60)
     setEditingTokens5hLimit(acc.tokens_5h_limit ?? 1.0)
     setEditingTokens7dLimit(acc.tokens_7d_limit ?? 5.0)
-    setEditingT1Limit(acc.t1_requests_limit ?? 0)
-    setEditingT2Limit(acc.t2_requests_limit ?? 0)
-    setEditingT3Limit(acc.t3_requests_limit ?? 0)
   }
 
   const handleUpdateAccount = async (e: React.FormEvent) => {
@@ -550,9 +529,6 @@ export default function AdminDashboard() {
         rpm_limit: Number(editingRpmLimit),
         tokens_5h_limit: Number(editingTokens5hLimit),
         tokens_7d_limit: Number(editingTokens7dLimit),
-        t1_requests_limit: Number(editingT1Limit),
-        t2_requests_limit: Number(editingT2Limit),
-        t3_requests_limit: Number(editingT3Limit),
       })
       setEditingAccountId(null)
       await loadAccounts(searchQuery)
@@ -572,9 +548,6 @@ export default function AdminDashboard() {
       setEditingRpmLimit(matchedPlan.rpm_limit ?? 60)
       setEditingTokens5hLimit(matchedPlan.tokens_5h_limit ?? 1.0)
       setEditingTokens7dLimit(matchedPlan.tokens_7d_limit ?? 5.0)
-      setEditingT1Limit(matchedPlan.t1_requests_limit ?? 0)
-      setEditingT2Limit(matchedPlan.t2_requests_limit ?? 0)
-      setEditingT3Limit(matchedPlan.t3_requests_limit ?? 0)
     }
   }
 
@@ -1315,9 +1288,6 @@ export default function AdminDashboard() {
                             <th className="p-4">RPM Limit</th>
                             <th className="p-4">5H Budget</th>
                             <th className="p-4">7D Budget</th>
-                            <th className="p-4">T1 Calls</th>
-                            <th className="p-4">T2 Calls</th>
-                            <th className="p-4">T3 Calls</th>
                             <th className="p-4">Points/mo</th>
                             <th className="p-4">Daily Free</th>
                             <th className="p-4 text-right">Action</th>
@@ -1333,9 +1303,6 @@ export default function AdminDashboard() {
                                   <td className="p-4 text-zinc-300">{p.rpm_limit ?? 60} RPM</td>
                                   <td className="p-4 text-zinc-300">${(p.tokens_5h_limit ?? 1.0).toFixed(2)}</td>
                                   <td className="p-4 text-zinc-300">${(p.tokens_7d_limit ?? 5.0).toFixed(2)}</td>
-                                  <td className="p-4 text-zinc-300 font-bold">{(p.t1_requests_limit ?? 0).toLocaleString()}</td>
-                                  <td className="p-4 text-zinc-300 font-bold">{(p.t2_requests_limit ?? 0).toLocaleString()}</td>
-                                  <td className="p-4 text-zinc-300 font-bold">{(p.t3_requests_limit ?? 0).toLocaleString()}</td>
                                   <td className="p-4 text-amber-400 font-bold">{(p.monthly_point_allowance ?? 0).toLocaleString()}</td>
                                   <td className="p-4 text-amber-400 font-bold">{(p.daily_free_requests_limit ?? 0).toLocaleString()}</td>
                               <td className="p-4 text-right space-x-2">
@@ -1351,9 +1318,6 @@ export default function AdminDashboard() {
                                       setEditingPlanRpm(p.rpm_limit ?? 60);
                                       setEditingPlan5h(p.tokens_5h_limit ?? 1.0);
                                       setEditingPlan7d(p.tokens_7d_limit ?? 5.0);
-                                      setEditingPlanT1(p.t1_requests_limit ?? 0);
-                                      setEditingPlanT2(p.t2_requests_limit ?? 0);
-                                      setEditingPlanT3(p.t3_requests_limit ?? 0);
                                       setEditingPlanPointAllowance(p.monthly_point_allowance ?? 0);
                                       setEditingPlanDailyFree(p.daily_free_requests_limit ?? 0);
                                     }}
@@ -1452,43 +1416,10 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* Per-Tier Request Caps */}
+                    {/* Point System */}
                     <div className="border border-zinc-900 bg-[#050507]/40 p-4 rounded-sm space-y-3">
-                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider block">Monthly Request Caps per Tier</label>
+                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider block">Point System</label>
                       <div className="grid grid-cols-3 gap-2">
-                        <div className="space-y-1">
-                          <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T1 Calls/mo</label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={newPlanT1}
-                            onChange={e => setNewPlanT1(Math.max(0, Number(e.target.value)))}
-                            className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                            required
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T2 Calls/mo</label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={newPlanT2}
-                            onChange={e => setNewPlanT2(Math.max(0, Number(e.target.value)))}
-                            className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                            required
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T3 Calls/mo</label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={newPlanT3}
-                            onChange={e => setNewPlanT3(Math.max(0, Number(e.target.value)))}
-                            className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                            required
-                          />
-                        </div>
                         <div className="space-y-1">
                           <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Points/mo</label>
                           <input
@@ -1647,40 +1578,10 @@ export default function AdminDashboard() {
                           </div>
                         </div>
 
-                        {/* Per-Tier Request Caps (edit) */}
+                        {/* Point System (edit) */}
                         <div className="border border-zinc-900 bg-zinc-950 p-4 space-y-4">
-                          <h3 className="text-zinc-400 uppercase text-[10px] tracking-widest font-bold">Monthly Request Caps per Tier</h3>
+                          <h3 className="text-zinc-400 uppercase text-[10px] tracking-widest font-bold">Point System</h3>
                           <div className="grid grid-cols-3 gap-2">
-                            <div className="space-y-1">
-                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T1 Calls/mo</label>
-                              <input
-                                type="number"
-                                min="0"
-                                value={editingPlanT1}
-                                onChange={e => setEditingPlanT1(Math.max(0, Number(e.target.value)))}
-                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T2 Calls/mo</label>
-                              <input
-                                type="number"
-                                min="0"
-                                value={editingPlanT2}
-                                onChange={e => setEditingPlanT2(Math.max(0, Number(e.target.value)))}
-                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T3 Calls/mo</label>
-                              <input
-                                type="number"
-                                min="0"
-                                value={editingPlanT3}
-                                onChange={e => setEditingPlanT3(Math.max(0, Number(e.target.value)))}
-                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                              />
-                            </div>
                             <div className="space-y-1">
                               <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Points/mo</label>
                               <input
@@ -2097,36 +1998,7 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-zinc-900">
-                      <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T1 Calls/mo</label>
-                        <input
-                          type="number"
-                          value={editingT1Limit}
-                          onChange={e => setEditingT1Limit(Number(e.target.value))}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T2 Calls/mo</label>
-                        <input
-                          type="number"
-                          value={editingT2Limit}
-                          onChange={e => setEditingT2Limit(Number(e.target.value))}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T3 Calls/mo</label>
-                        <input
-                          type="number"
-                          value={editingT3Limit}
-                          onChange={e => setEditingT3Limit(Number(e.target.value))}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                        />
-                      </div>
-                    </div>
-
+                    
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Status</label>

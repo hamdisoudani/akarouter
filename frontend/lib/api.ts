@@ -170,9 +170,6 @@ export interface UserInfo {
   role: string
   tier: string
   status: string
-  t1_requests_limit?: number
-  t2_requests_limit?: number
-  t3_requests_limit?: number
   // Point system (NEW)
   monthly_points_remaining?: number
   monthly_points_limit?: number
@@ -278,10 +275,6 @@ export interface PlanPreset {
   rpm_limit: number
   tokens_5h_limit: number
   tokens_7d_limit: number
-  // Per-tier request caps (T1=cheap, T2=mid, T3=premium)
-  t1_requests_limit?: number
-  t2_requests_limit?: number
-  t3_requests_limit?: number
   monthly_requests_limit?: number
   per_request_cost_cents?: number
   pricing_mode?: 'per_token' | 'per_request' | 'mixed'
@@ -358,9 +351,6 @@ export async function adminUpdateAccount(
     rpm_limit?: number
     tokens_5h_limit?: number
     tokens_7d_limit?: number
-    t1_requests_limit?: number
-    t2_requests_limit?: number
-    t3_requests_limit?: number
   }
 ): Promise<{ ok: boolean; account: any }> {
   const res = await fetch(`${API_BASE}/admin/accounts/${accountId}`, {
@@ -393,9 +383,6 @@ export async function adminCreatePlan(
   rpmLimit?: number,
   tokens5hLimit?: number,
   tokens7dLimit?: number,
-  t1RequestsLimit?: number,
-  t2RequestsLimit?: number,
-  t3RequestsLimit?: number,
   price?: string,
   billingPeriod?: string,
   description?: string,
@@ -417,9 +404,6 @@ export async function adminCreatePlan(
       rpm_limit: rpmLimit ?? 60,
       tokens_5h_limit: tokens5hLimit ?? 1.0,
       tokens_7d_limit: tokens7dLimit ?? 5.0,
-      t1_requests_limit: t1RequestsLimit ?? 0,
-      t2_requests_limit: t2RequestsLimit ?? 0,
-      t3_requests_limit: t3RequestsLimit ?? 0,
       monthly_point_allowance: monthlyPointAllowance ?? 0,
       daily_free_requests_limit: dailyFreeRequestsLimit ?? 0,
       price: price ?? '$0',
@@ -446,9 +430,6 @@ export async function adminUpdatePlan(
     rpm_limit?: number;
     tokens_5h_limit?: number;
     tokens_7d_limit?: number;
-    t1_requests_limit?: number;
-    t2_requests_limit?: number;
-    t3_requests_limit?: number;
     monthly_point_allowance?: number;
     daily_free_requests_limit?: number;
     price?: string;

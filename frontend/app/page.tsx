@@ -71,9 +71,7 @@ const FALLBACK_PLANS: Array<{
       'RPM Limit: 60 RPM',
       '5-Hour Limit: $1.00',
       '7-Day Limit: $5.00',
-      'T1 Calls/mo: 60',
-      'T2 Calls/mo: 40',
-      'T3 Calls/mo: 15',
+      '150 points/mo',
     ],
   },
   {
@@ -88,9 +86,7 @@ const FALLBACK_PLANS: Array<{
       'RPM Limit: 60 RPM',
       '5-Hour Limit: $5.00',
       '7-Day Limit: $20.00',
-      'T1 Calls/mo: 400',
-      'T2 Calls/mo: 250',
-      'T3 Calls/mo: 100',
+      '2,500 points/mo',
     ],
   },
   {
@@ -105,9 +101,7 @@ const FALLBACK_PLANS: Array<{
       'RPM Limit: 1,000 RPM',
       '5-Hour Limit: $100.00',
       '7-Day Limit: $500.00',
-      'T1 Calls/mo: 1,500',
-      'T2 Calls/mo: 900',
-      'T3 Calls/mo: 400',
+      '21,000 points/mo',
     ],
   },
 ]
@@ -140,9 +134,6 @@ function formatPlans(dbPlans: PlanPreset[]): DisplayPlan[] {
           `7-Day Limit: $${plan.tokens_7d_limit.toFixed(2)}`,
           `Points/mo: ${(plan.monthly_point_allowance ?? 0).toLocaleString()}`,
           `Daily Free Req: ${(plan.daily_free_requests_limit ?? 0).toLocaleString()}`,
-          `T1 Calls/mo: ${(plan.t1_requests_limit ?? 0).toLocaleString()}`,
-          `T2 Calls/mo: ${(plan.t2_requests_limit ?? 0).toLocaleString()}`,
-          `T3 Calls/mo: ${(plan.t3_requests_limit ?? 0).toLocaleString()}`,
         ],
       }
     })

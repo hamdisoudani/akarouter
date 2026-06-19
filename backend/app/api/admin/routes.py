@@ -321,9 +321,6 @@ class UpdateAccountRequest(BaseModel):
     rpm_limit: Optional[int] = None
     tokens_5h_limit: Optional[float] = None
     tokens_7d_limit: Optional[float] = None
-    t1_requests_limit: Optional[int] = None
-    t2_requests_limit: Optional[int] = None
-    t3_requests_limit: Optional[int] = None
     monthly_point_allowance: Optional[int] = None
     daily_free_requests_limit: Optional[int] = None
 
@@ -333,9 +330,6 @@ class CreatePlanRequest(BaseModel):
     rpm_limit: Optional[int] = 60
     tokens_5h_limit: Optional[float] = 1.0
     tokens_7d_limit: Optional[float] = 5.0
-    t1_requests_limit: Optional[int] = 0
-    t2_requests_limit: Optional[int] = 0
-    t3_requests_limit: Optional[int] = 0
     monthly_point_allowance: Optional[int] = 0
     daily_free_requests_limit: Optional[int] = 0
     price: Optional[str] = "$0"
@@ -352,9 +346,6 @@ class UpdatePlanRequest(BaseModel):
     rpm_limit: Optional[int] = None
     tokens_5h_limit: Optional[float] = None
     tokens_7d_limit: Optional[float] = None
-    t1_requests_limit: Optional[int] = None
-    t2_requests_limit: Optional[int] = None
-    t3_requests_limit: Optional[int] = None
     monthly_point_allowance: Optional[int] = None
     daily_free_requests_limit: Optional[int] = None
     price: Optional[str] = None
@@ -561,12 +552,6 @@ async def update_account(account_id: str, body: UpdateAccountRequest, authorizat
         updates["tokens_5h_limit"] = body.tokens_5h_limit
     if body.tokens_7d_limit is not None:
         updates["tokens_7d_limit"] = body.tokens_7d_limit
-    if body.t1_requests_limit is not None:
-        updates["t1_requests_limit"] = body.t1_requests_limit
-    if body.t2_requests_limit is not None:
-        updates["t2_requests_limit"] = body.t2_requests_limit
-    if body.t3_requests_limit is not None:
-        updates["t3_requests_limit"] = body.t3_requests_limit
 
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -587,25 +572,19 @@ async def update_account_tier(account_id: str, tier: str, authorization: Optiona
         raise HTTPException(status_code=401, detail="Admin access required")
     supabase = get_supabase()
     
-    plan_res = supabase.table("plan_presets").select("monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, t1_requests_limit, t2_requests_limit, t3_requests_limit, monthly_requests_limit").eq("tier", tier).execute()
+    plan_res = supabase.table("plan_presets").select("monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, monthly_requests_limit").eq("tier", tier).execute()
     limit = 1000
     rpm_limit = 60
     tokens_5h_limit = 1.0
     tokens_7d_limit = 5.0
-    t1_requests_limit = 0
-    t2_requests_limit = 0
-    t3_requests_limit = 0
     monthly_requests_limit = None
-    
+
     if plan_res.data:
         plan = plan_res.data[0]
         limit = plan.get("monthly_limit", 1000)
         rpm_limit = plan.get("rpm_limit", 60)
         tokens_5h_limit = plan.get("tokens_5h_limit", 1.0)
         tokens_7d_limit = plan.get("tokens_7d_limit", 5.0)
-        t1_requests_limit = plan.get("t1_requests_limit", 0)
-        t2_requests_limit = plan.get("t2_requests_limit", 0)
-        t3_requests_limit = plan.get("t3_requests_limit", 0)
         monthly_requests_limit = plan.get("monthly_requests_limit")
     else:
         limits = {"free": 1000, "pro": 10000, "enterprise": 999999999}
@@ -614,26 +593,17 @@ async def update_account_tier(account_id: str, tier: str, authorization: Optiona
             rpm_limit = 300
             tokens_5h_limit = 10.0
             tokens_7d_limit = 50.0
-            t1_requests_limit = 400
-            t2_requests_limit = 250
-            t3_requests_limit = 100
         elif tier == "enterprise":
             rpm_limit = 3000
             tokens_5h_limit = 100.0
             tokens_7d_limit = 500.0
-            t1_requests_limit = 1500
-            t2_requests_limit = 900
-            t3_requests_limit = 400
-        
+
     update_payload = {
         "tier": tier,
         "monthly_limit": limit,
         "rpm_limit": rpm_limit,
         "tokens_5h_limit": tokens_5h_limit,
         "tokens_7d_limit": tokens_7d_limit,
-        "t1_requests_limit": t1_requests_limit,
-        "t2_requests_limit": t2_requests_limit,
-        "t3_requests_limit": t3_requests_limit
     }
     if monthly_requests_limit is not None:
         update_payload["monthly_requests_limit"] = monthly_requests_limit
@@ -696,9 +666,6 @@ async def create_plan(body: CreatePlanRequest, authorization: Optional[str] = He
         "rpm_limit": body.rpm_limit,
         "tokens_5h_limit": body.tokens_5h_limit,
         "tokens_7d_limit": body.tokens_7d_limit,
-        "t1_requests_limit": body.t1_requests_limit,
-        "t2_requests_limit": body.t2_requests_limit,
-        "t3_requests_limit": body.t3_requests_limit,
         "monthly_point_allowance": body.monthly_point_allowance,
         "daily_free_requests_limit": body.daily_free_requests_limit,
         "price": body.price,
@@ -739,12 +706,6 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         updates["tokens_5h_limit"] = body.tokens_5h_limit
     if body.tokens_7d_limit is not None:
         updates["tokens_7d_limit"] = body.tokens_7d_limit
-    if body.t1_requests_limit is not None:
-        updates["t1_requests_limit"] = body.t1_requests_limit
-    if body.t2_requests_limit is not None:
-        updates["t2_requests_limit"] = body.t2_requests_limit
-    if body.t3_requests_limit is not None:
-        updates["t3_requests_limit"] = body.t3_requests_limit
     if body.monthly_point_allowance is not None:
         updates["monthly_point_allowance"] = max(0, int(body.monthly_point_allowance))
     if body.daily_free_requests_limit is not None:
@@ -781,12 +742,6 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         account_updates["tokens_5h_limit"] = body.tokens_5h_limit
     if body.tokens_7d_limit is not None:
         account_updates["tokens_7d_limit"] = body.tokens_7d_limit
-    if body.t1_requests_limit is not None:
-        account_updates["t1_requests_limit"] = body.t1_requests_limit
-    if body.t2_requests_limit is not None:
-        account_updates["t2_requests_limit"] = body.t2_requests_limit
-    if body.t3_requests_limit is not None:
-        account_updates["t3_requests_limit"] = body.t3_requests_limit
     if body.monthly_point_allowance is not None:
         account_updates["monthly_points_limit"] = body.monthly_point_allowance
     if body.daily_free_requests_limit is not None:

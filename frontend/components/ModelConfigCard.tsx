@@ -242,7 +242,7 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
         </div>
         <div className="md:col-span-9 text-zinc-500 text-[9px] leading-relaxed">
           <p>
-            Charged per call against the user's monthly plan quotas (T1/T2/T3 cap system).
+            Charged per call against the user's monthly point balance.
             Adjust per-model to fine-tune margins — cheaper models cost fewer points.
           </p>
           <p className="mt-1 text-zinc-600">

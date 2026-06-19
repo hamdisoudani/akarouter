@@ -65,9 +65,7 @@ export default function UpgradePage() {
           'RPM Limit: 60 RPM',
           '5-Hour Limit: $1.00',
           '7-Day Limit: $5.00',
-          'T1 Calls: 60/mo',
-          'T2 Calls: 40/mo',
-          'T3 Calls: 15/mo'
+          '500 points/mo'
         ]
       },
       {
@@ -82,9 +80,7 @@ export default function UpgradePage() {
           'RPM Limit: 300 RPM',
           '5-Hour Limit: $10.00',
           '7-Day Limit: $50.00',
-          'T1 Calls: 400/mo',
-          'T2 Calls: 250/mo',
-          'T3 Calls: 100/mo'
+          '2,500 points/mo'
         ]
       },
       {
@@ -99,9 +95,7 @@ export default function UpgradePage() {
           'RPM Limit: 1,000 RPM',
           '5-Hour Limit: $100.00',
           '7-Day Limit: $500.00',
-          'T1 Calls: 1,500/mo',
-          'T2 Calls: 900/mo',
-          'T3 Calls: 400/mo'
+          '7,500 points/mo'
         ]
       }
     ]
@@ -128,9 +122,6 @@ export default function UpgradePage() {
           `RPM Limit: ${plan.rpm_limit} RPM`,
           `5-Hour Cap: $${plan.tokens_5h_limit.toFixed(2)}`,
           `7-Day Cap: $${plan.tokens_7d_limit.toFixed(2)}`,
-          `T1 Calls/mo: ${plan.t1_requests_limit?.toLocaleString() ?? 0}`,
-          `T2 Calls/mo: ${plan.t2_requests_limit?.toLocaleString() ?? 0}`,
-          `T3 Calls/mo: ${plan.t3_requests_limit?.toLocaleString() ?? 0}`,
         ],
         monthlyRequests,
         perRequestCost,

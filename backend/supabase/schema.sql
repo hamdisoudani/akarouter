@@ -202,10 +202,6 @@ CREATE TABLE IF NOT EXISTS plan_presets (
     rpm_limit BIGINT NOT NULL DEFAULT 60,
     tokens_5h_limit BIGINT NOT NULL DEFAULT 500000,
     tokens_7d_limit BIGINT NOT NULL DEFAULT 5000000,
-    -- Per-tier request caps (T1=cheap, T2=mid, T3=premium)
-    t1_requests_limit BIGINT NOT NULL DEFAULT 0,
-    t2_requests_limit BIGINT NOT NULL DEFAULT 0,
-    t3_requests_limit BIGINT NOT NULL DEFAULT 0,
     -- Point system (added 2026-06-19): monthly allowance + daily free-model cap
     monthly_point_allowance BIGINT NOT NULL DEFAULT 0 CHECK (monthly_point_allowance >= 0),
     daily_free_requests_limit BIGINT NOT NULL DEFAULT 0 CHECK (daily_free_requests_limit >= 0),
