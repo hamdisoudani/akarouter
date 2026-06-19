@@ -24,7 +24,7 @@ export default function PrivacyPolicy() {
         Collected telemetry is utilized strictly to provide, maintain, and optimize AkaRouter. Token analytics are evaluated in real-time to compute sliding window budget consumption and enforce tier limits. Detailed latency metrics are rendered on the developer board for traffic statistics.
       </LegalSection>
       <LegalSection index={3} title="Request Payload Processing">
-        Completions request payloads (messages arrays and parameters) are proxy-forwarded directly to authorized upstream models (e.g. Nous Research Hermes). AkaRouter does not inspect, read, or store the contents of completion request prompts or generated output responses once returned.
+        Completions request payloads (messages arrays and parameters) are proxy-forwarded directly to authorized upstream model providers through the AkaRouter routing layer. AkaRouter does not inspect, read, or store the contents of completion request prompts or generated output responses once returned.
       </LegalSection>
       <LegalSection index={4} title="Telemetry Storage">
         System session logs, latency times, and token totals are securely stored in our analytical databases managed by Supabase. Historical trace buffer records are periodically pruned to ensure system efficiency and data hygiene.

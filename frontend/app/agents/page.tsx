@@ -12,6 +12,7 @@ import {
   destroyHostedAgent,
   getAgentLogs,
   getMyKeys,
+  getModels,
   type HostedAgent,
   type ApiKey
 } from '@/lib/api'
@@ -108,6 +109,7 @@ export default function HostedAgentsPage() {
   // Deploy forms state
   const [newAgentName, setNewAgentName] = useState('')
   const [selectedModel, setSelectedModel] = useState('akarouter-pro')
+  const [modelsLabel, setModelsLabel] = useState<Record<string, string>>({})
   const [deploying, setDeploying] = useState(false)
   
   // API Keys state for picker
@@ -197,6 +199,25 @@ export default function HostedAgentsPage() {
       loadUserKeys()
     }
   }, [wizardStep, loadUserKeys])
+
+  // Load model display_name map for the wizard selector (avoids leaking
+  // upstream provider names like 'Step-3.7-Flash' / 'Nemotron-3-Ultra')
+  useEffect(() => {
+    let cancelled = false
+    getModels()
+      .then((res) => {
+        if (cancelled || !res?.data) return
+        const map: Record<string, string> = {}
+        for (const m of res.data) map[m.id] = m.display_name || m.id
+        setModelsLabel(map)
+      })
+      .catch(() => {
+        // Non-fatal — selector will fall back to generic labels
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Poll agents list updates when something is provisioning/installing/destroying
   useEffect(() => {
@@ -730,9 +751,9 @@ export default function HostedAgentsPage() {
                           onChange={(e) => setSelectedModel(e.target.value)}
                           className="w-full border border-zinc-800 bg-[#050507] px-4 py-2.5 text-xs text-white focus:outline-none focus:border-[#ef4444]/50 transition-colors font-mono rounded-sm"
                         >
-                          <option value="akarouter-pro">akarouter-pro (Step-3.7-Flash)</option>
-                          <option value="akarouter-flash">akarouter-flash (Nemotron-3-Ultra)</option>
-                          <option value="akarouter-large">akarouter-large (Owl-Alpha)</option>
+                          <option value="akarouter-pro">{modelsLabel['akarouter-pro'] || 'AkaRouter Pro'}</option>
+                          <option value="akarouter-flash">{modelsLabel['akarouter-flash'] || 'AkaRouter Flash'}</option>
+                          <option value="akarouter-large">{modelsLabel['akarouter-large'] || 'AkaRouter Large'}</option>
                         </select>
                       </div>
 
