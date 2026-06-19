@@ -22,7 +22,7 @@ async def list_models(request: Request) -> dict:
     # Try DB first (allows dynamic updates from admin)
     try:
         supabase = get_supabase()
-        result = supabase.table("model_mapping").select("alias, display_name, description, is_active, capabilities, input_cost_per_million, output_cost_per_million, pricing_mode, cost_per_request_cents").eq("is_active", True).execute()
+        result = supabase.table("model_mapping").select("alias, display_name, provider_name, description, is_active, capabilities, input_cost_per_million, output_cost_per_million, pricing_mode, cost_per_request_cents, is_free_provider").eq("is_active", True).execute()
         if result.data:
             return {
                 "object": "list",
@@ -32,6 +32,8 @@ async def list_models(request: Request) -> dict:
                         "object": "model",
                         "owned_by": "akarouter",
                         "display_name": row.get("display_name", row["alias"]),
+                        "provider_name": row.get("provider_name", ""),
+                        "is_free_provider": row.get("is_free_provider", False),
                         "description": row.get("description", ""),
                         "is_active": row.get("is_active", True),
                         "capabilities": row.get("capabilities") or ["text"],
@@ -58,6 +60,8 @@ async def list_models(request: Request) -> dict:
                 "object": "model",
                 "owned_by": "akarouter",
                 "display_name": alias.replace("-", " ").title(),
+                "provider_name": "",
+                "is_free_provider": False,
                 "is_active": True,
                 "capabilities": ["text", "vision"] if alias == "akarouter-pro" else ["text"],
                 "input_cost_per_million": settings.model_pricing.get(alias, {}).get("input_cost_per_million", 0.10),

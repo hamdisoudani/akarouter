@@ -6,6 +6,8 @@ import { Search, Filter, Zap, DollarSign, Code2, Eye, Brain, Cpu, X } from 'luci
 interface CatalogModel {
   id: string
   display_name?: string
+  provider_name?: string
+  is_free_provider?: boolean
   description?: string
   is_active?: boolean
   capabilities?: string[]
@@ -42,13 +44,21 @@ function formatPerTokenPrice(input?: number, output?: number) {
 }
 
 function getProvider(model: CatalogModel) {
-  // Best-effort: pull provider from upstream model id in description or from id
+  // Prefer the API-provided provider_name (e.g. "Anthropic", "NVIDIA via Nous Research")
+  const pn = (model.provider_name || '').toLowerCase()
+  if (pn.includes('anthropic')) return { name: 'Anthropic', color: 'text-orange-400 border-orange-500/30 bg-orange-500/10' }
+  if (pn.includes('openai')) return { name: 'OpenAI', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' }
+  if (pn.includes('google')) return { name: 'Google', color: 'text-blue-400 border-blue-500/30 bg-blue-500/10' }
+  if (pn.includes('minimax')) return { name: 'MiniMax', color: 'text-purple-400 border-purple-500/30 bg-purple-500/10' }
+  if (pn.includes('nvidia') || pn.includes('nvidia')) return { name: 'NVIDIA', color: 'text-green-400 border-green-500/30 bg-green-500/10' }
+  if (pn.includes('stepfun')) return { name: 'StepFun', color: 'text-cyan-400 border-cyan-500/30 bg-cyan-500/10' }
+  if (pn.includes('nous') || pn.includes('open source')) return { name: 'Nous Research', color: 'text-zinc-300 border-zinc-500/30 bg-zinc-500/10' }
+  // Fallback: detect from id
   const id = model.id
   if (id.includes('claude')) return { name: 'Anthropic', color: 'text-orange-400 border-orange-500/30 bg-orange-500/10' }
   if (id.includes('gpt')) return { name: 'OpenAI', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' }
   if (id.includes('gemini')) return { name: 'Google', color: 'text-blue-400 border-blue-500/30 bg-blue-500/10' }
   if (id.includes('minimax')) return { name: 'MiniMax', color: 'text-purple-400 border-purple-500/30 bg-purple-500/10' }
-  if (id.includes('nemotron') || id.includes('stepfun') || id.includes('openrouter')) return { name: 'Open Source', color: 'text-zinc-300 border-zinc-500/30 bg-zinc-500/10' }
   return { name: 'Other', color: 'text-zinc-300 border-zinc-500/30 bg-zinc-500/10' }
 }
 
@@ -196,7 +206,14 @@ export function ModelCatalog({ models }: ModelCatalogProps) {
                   <h4 className="font-mono text-xs text-white font-bold tracking-wider truncate">
                     {m.display_name || m.id}
                   </h4>
-                  <p className="text-[9px] text-zinc-600 font-mono truncate mt-0.5">{m.id}</p>
+                  {m.provider_name && (
+                    <p className="text-[9px] text-zinc-500 font-mono truncate mt-0.5" title={`Based on ${m.provider_name}`}>
+                      by {m.provider_name}
+                    </p>
+                  )}
+                  {!m.provider_name && (
+                    <p className="text-[9px] text-zinc-600 font-mono truncate mt-0.5">{m.id}</p>
+                  )}
                 </div>
                 <span
                   className={`shrink-0 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border ${

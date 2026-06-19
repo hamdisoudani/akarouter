@@ -120,7 +120,7 @@ console.log(response.choices[0].message.content);`,
               {isFree ? 'Free' : isPerRequest ? 'Per-Request Billing' : 'Per-Token Billing'}
             </span>
             <span className="inline-flex items-center px-2 py-1 text-[10px] font-mono uppercase tracking-wider border border-zinc-800 bg-zinc-900 text-zinc-400">
-              {providerFromId(m.id)}
+              {m.provider_name || providerFromId(m.id)}
             </span>
             {m.capabilities?.map((cap) => (
               <span key={cap} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-mono uppercase tracking-wider border border-zinc-800 text-zinc-400">
@@ -134,7 +134,9 @@ console.log(response.choices[0].message.content);`,
             <h1 className="text-3xl sm:text-5xl font-black font-mono tracking-tight text-white leading-none">
               {m.display_name || m.id}
             </h1>
-            <p className="text-[11px] sm:text-xs text-zinc-500 font-mono mt-2">{m.id}</p>
+            <p className="text-[11px] sm:text-xs text-zinc-500 font-mono mt-2">
+              {m.provider_name ? `Based on ${m.provider_name}` : m.id}
+            </p>
             {m.description && (
               <p className="text-sm text-zinc-400 mt-4 max-w-3xl font-mono leading-relaxed">{m.description}</p>
             )}
@@ -221,7 +223,7 @@ console.log(response.choices[0].message.content);`,
             <div className="border border-zinc-900 bg-[#0a0a0c] divide-y divide-zinc-900">
               <SpecRow label="Model ID" value={m.id} mono />
               <SpecRow label="Display Name" value={m.display_name || '—'} />
-              <SpecRow label="Provider" value={providerFromId(m.id)} />
+              <SpecRow label="Provider" value={m.provider_name || providerFromId(m.id)} />
               <SpecRow label="Pricing Mode" value={m.pricing_mode || 'per_token'} />
               <SpecRow label="Context Length" value={`${m.context_length?.toLocaleString() || '—'} tokens`} mono />
               <SpecRow label="Capabilities" value={(m.capabilities || []).join(', ') || 'text'} />

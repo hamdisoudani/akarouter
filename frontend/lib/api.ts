@@ -414,6 +414,8 @@ export interface AdminModelMapping {
   alias: string
   upstream_model: string
   display_name: string
+  provider_name?: string
+  is_free_provider?: boolean
   description: string
   is_active: boolean
   input_cost_per_million: number | null
