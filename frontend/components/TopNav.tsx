@@ -28,6 +28,7 @@ import Image from 'next/image'
 import { LogOut, ArrowRight, User } from 'lucide-react'
 import { useApp } from '@/app/providers'
 import { useState } from 'react'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export function TopNav() {
   const { user, signOut } = useApp()
@@ -53,12 +54,12 @@ export function TopNav() {
   const linkClass = (href: string) =>
     `hidden sm:block text-xs font-mono uppercase tracking-wider transition-colors ${
       isActive(href)
-        ? 'text-white'
-        : 'text-zinc-400 hover:text-white'
+        ? 'text-foreground'
+        : 'text-muted-foreground hover:text-foreground'
     }`
 
   return (
-    <nav className="sticky top-0 w-full z-50 border-b border-[#27272a] bg-[#09090b]/80 backdrop-blur-xl micro-grid">
+    <nav className="sticky top-0 w-full z-50 border-b border-border bg-background/80 backdrop-blur-xl micro-grid">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-3 group">
@@ -83,13 +84,14 @@ export function TopNav() {
           </Link>
         </div>
 
-        {/* Right side: login CTA OR user chip */}
+        {/* Right side: theme toggle + login CTA OR user chip */}
         <div className="flex items-center gap-2 sm:gap-3">
+          <ThemeToggle />
           {user ? (
             <>
               <Link
                 href="/dashboard"
-                className="hidden sm:inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-zinc-300 hover:text-white transition-colors"
+                className="hidden sm:inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                 title={user.email}
               >
                 <User className="w-3 h-3" />
@@ -97,7 +99,7 @@ export function TopNav() {
               </Link>
               <Link
                 href="/dashboard"
-                className="relative inline-flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 text-white font-mono text-[10px] sm:text-xs py-1.5 px-3 sm:py-2 sm:px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all crosshair-corners"
+                className="relative inline-flex items-center gap-1.5 bg-muted border border-border text-foreground font-mono text-[10px] sm:text-xs py-1.5 px-3 sm:py-2 sm:px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all crosshair-corners"
               >
                 Dashboard
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -106,7 +108,7 @@ export function TopNav() {
                 onClick={handleSignOut}
                 disabled={signingOut}
                 title="Sign out"
-                className="hidden sm:inline-flex items-center justify-center w-8 h-8 bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-[#ef4444] hover:border-[#ef4444]/40 transition-all disabled:opacity-50"
+                className="hidden sm:inline-flex items-center justify-center w-8 h-8 bg-muted border border-border text-muted-foreground hover:text-[#ef4444] hover:border-[#ef4444]/40 transition-all disabled:opacity-50"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
@@ -115,13 +117,13 @@ export function TopNav() {
             <>
               <Link
                 href="/auth/login"
-                className="hidden sm:block text-[10px] sm:text-xs font-mono uppercase tracking-wider text-zinc-300 hover:text-white transition-colors"
+                className="hidden sm:block text-[10px] sm:text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
               >
                 Sign in
               </Link>
               <Link
                 href="/auth/login"
-                className="relative inline-flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 text-white font-mono text-[10px] sm:text-xs py-1.5 px-3 sm:py-2 sm:px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all crosshair-corners"
+                className="relative inline-flex items-center gap-1.5 bg-muted border border-border text-foreground font-mono text-[10px] sm:text-xs py-1.5 px-3 sm:py-2 sm:px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all crosshair-corners"
               >
                 Get Started
                 <ArrowRight className="w-3.5 h-3.5" />
