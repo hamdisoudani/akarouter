@@ -421,6 +421,9 @@ function ModelCard({ model }: { model: CatalogModel }) {
           {model.points_cost ?? 5} pts<span className="text-zinc-600 font-normal"> / call</span>
         </span>
       </div>
+      {(model.points_cost ?? 5) <= 1 && (
+        <div className="text-[9px] font-mono text-emerald-500 uppercase">⚡ Free model · 10/day</div>
+      )}
 
       <div className="mt-2 flex items-center gap-1 text-[9px] font-mono text-zinc-500 uppercase tracking-wider group-hover:text-[#ef4444] transition-colors">
         <span>View details</span>

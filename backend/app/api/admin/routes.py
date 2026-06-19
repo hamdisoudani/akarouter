@@ -324,6 +324,8 @@ class UpdateAccountRequest(BaseModel):
     t1_requests_limit: Optional[int] = None
     t2_requests_limit: Optional[int] = None
     t3_requests_limit: Optional[int] = None
+    monthly_point_allowance: Optional[int] = None
+    daily_free_requests_limit: Optional[int] = None
 
 class CreatePlanRequest(BaseModel):
     tier: str
@@ -334,6 +336,8 @@ class CreatePlanRequest(BaseModel):
     t1_requests_limit: Optional[int] = 0
     t2_requests_limit: Optional[int] = 0
     t3_requests_limit: Optional[int] = 0
+    monthly_point_allowance: Optional[int] = 0
+    daily_free_requests_limit: Optional[int] = 0
     price: Optional[str] = "$0"
     billing_period: Optional[str] = "mo"
     description: Optional[str] = ""
@@ -351,6 +355,8 @@ class UpdatePlanRequest(BaseModel):
     t1_requests_limit: Optional[int] = None
     t2_requests_limit: Optional[int] = None
     t3_requests_limit: Optional[int] = None
+    monthly_point_allowance: Optional[int] = None
+    daily_free_requests_limit: Optional[int] = None
     price: Optional[str] = None
     billing_period: Optional[str] = None
     description: Optional[str] = None
@@ -693,6 +699,8 @@ async def create_plan(body: CreatePlanRequest, authorization: Optional[str] = He
         "t1_requests_limit": body.t1_requests_limit,
         "t2_requests_limit": body.t2_requests_limit,
         "t3_requests_limit": body.t3_requests_limit,
+        "monthly_point_allowance": body.monthly_point_allowance,
+        "daily_free_requests_limit": body.daily_free_requests_limit,
         "price": body.price,
         "billing_period": body.billing_period,
         "description": body.description,
@@ -737,6 +745,10 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         updates["t2_requests_limit"] = body.t2_requests_limit
     if body.t3_requests_limit is not None:
         updates["t3_requests_limit"] = body.t3_requests_limit
+    if body.monthly_point_allowance is not None:
+        updates["monthly_point_allowance"] = max(0, int(body.monthly_point_allowance))
+    if body.daily_free_requests_limit is not None:
+        updates["daily_free_requests_limit"] = max(0, int(body.daily_free_requests_limit))
     if body.price is not None:
         updates["price"] = body.price
     if body.billing_period is not None:
@@ -775,6 +787,11 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         account_updates["t2_requests_limit"] = body.t2_requests_limit
     if body.t3_requests_limit is not None:
         account_updates["t3_requests_limit"] = body.t3_requests_limit
+    if body.monthly_point_allowance is not None:
+        account_updates["monthly_points_limit"] = body.monthly_point_allowance
+    if body.daily_free_requests_limit is not None:
+        # daily_free_requests_remaining will be reset on next request via the SQL function
+        pass
     if body.monthly_requests_limit is not None:
         account_updates["monthly_requests_limit"] = body.monthly_requests_limit
         

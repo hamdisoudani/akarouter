@@ -121,7 +121,9 @@ async def list_plans() -> dict:
                 "tokens_7d_limit": 0.0,
                 "t1_requests_limit": 10,
                 "t2_requests_limit": 5,
-                "t3_requests_limit": 2
+                "t3_requests_limit": 2,
+                "monthly_point_allowance": 100,
+                "daily_free_requests_limit": 10
             },
             {
                 "tier": "starter",
@@ -131,7 +133,9 @@ async def list_plans() -> dict:
                 "tokens_7d_limit": 5.0,
                 "t1_requests_limit": 60,
                 "t2_requests_limit": 40,
-                "t3_requests_limit": 15
+                "t3_requests_limit": 15,
+                "monthly_point_allowance": 500,
+                "daily_free_requests_limit": 0
             },
             {
                 "tier": "pro",
@@ -141,7 +145,9 @@ async def list_plans() -> dict:
                 "tokens_7d_limit": 50.0,
                 "t1_requests_limit": 400,
                 "t2_requests_limit": 250,
-                "t3_requests_limit": 100
+                "t3_requests_limit": 100,
+                "monthly_point_allowance": 2500,
+                "daily_free_requests_limit": 0
             },
             {
                 "tier": "ultra",
@@ -151,7 +157,9 @@ async def list_plans() -> dict:
                 "tokens_7d_limit": 500.0,
                 "t1_requests_limit": 1500,
                 "t2_requests_limit": 900,
-                "t3_requests_limit": 400
+                "t3_requests_limit": 400,
+                "monthly_point_allowance": 7500,
+                "daily_free_requests_limit": 0
             }
         ]
     }

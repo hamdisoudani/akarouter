@@ -102,6 +102,12 @@ export interface UsageStats {
   next_reset_7d?: number
   full_reset_7d?: number
   is_trialing?: boolean
+  // Point system (NEW)
+  monthly_points_remaining?: number
+  monthly_points_limit?: number
+  points_reset_at?: string | null
+  daily_free_requests_remaining?: number
+  daily_free_requests_reset_at?: string | null
 }
 
 export interface ModelAnalytics {
@@ -142,6 +148,12 @@ export interface UserInfo {
   t1_requests_limit?: number
   t2_requests_limit?: number
   t3_requests_limit?: number
+  // Point system (NEW)
+  monthly_points_remaining?: number
+  monthly_points_limit?: number
+  points_reset_at?: string | null
+  daily_free_requests_remaining?: number
+  daily_free_requests_reset_at?: string | null
 }
 
 // Helper to get auth token from Supabase
@@ -232,6 +244,9 @@ export interface PlanPreset {
   monthly_requests_limit?: number
   per_request_cost_cents?: number
   pricing_mode?: 'per_token' | 'per_request' | 'mixed'
+  // Point system (NEW) — monthly allowance + daily free-model cap
+  monthly_point_allowance?: number
+  daily_free_requests_limit?: number
   price?: string
   billing_period?: string
   description?: string
@@ -345,7 +360,9 @@ export async function adminCreatePlan(
   description?: string,
   badge?: string,
   hasTrial?: boolean,
-  trialDays?: number
+  trialDays?: number,
+  monthlyPointAllowance?: number,
+  dailyFreeRequestsLimit?: number
 ): Promise<{ ok: boolean; plan: PlanPreset }> {
   const res = await fetch(`${API_BASE}/admin/plans`, {
     method: 'POST',
@@ -362,6 +379,8 @@ export async function adminCreatePlan(
       t1_requests_limit: t1RequestsLimit ?? 0,
       t2_requests_limit: t2RequestsLimit ?? 0,
       t3_requests_limit: t3RequestsLimit ?? 0,
+      monthly_point_allowance: monthlyPointAllowance ?? 0,
+      daily_free_requests_limit: dailyFreeRequestsLimit ?? 0,
       price: price ?? '$0',
       billing_period: billingPeriod ?? 'mo',
       description: description ?? '',
@@ -389,6 +408,8 @@ export async function adminUpdatePlan(
     t1_requests_limit?: number;
     t2_requests_limit?: number;
     t3_requests_limit?: number;
+    monthly_point_allowance?: number;
+    daily_free_requests_limit?: number;
     price?: string;
     billing_period?: string;
     description?: string;

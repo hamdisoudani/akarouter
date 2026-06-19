@@ -203,6 +203,8 @@ export default function AdminDashboard() {
   const [newPlanT1, setNewPlanT1] = useState(0)
   const [newPlanT2, setNewPlanT2] = useState(0)
   const [newPlanT3, setNewPlanT3] = useState(0)
+  const [newPlanPointAllowance, setNewPlanPointAllowance] = useState(0)
+  const [newPlanDailyFree, setNewPlanDailyFree] = useState(0)
   const [newPlanPrice, setNewPlanPrice] = useState('$0')
   const [newPlanBillingPeriod, setNewPlanBillingPeriod] = useState('mo')
   const [newPlanDescription, setNewPlanDescription] = useState('')
@@ -217,6 +219,8 @@ export default function AdminDashboard() {
   const [editingPlanT1, setEditingPlanT1] = useState<number>(0)
   const [editingPlanT2, setEditingPlanT2] = useState<number>(0)
   const [editingPlanT3, setEditingPlanT3] = useState<number>(0)
+  const [editingPlanPointAllowance, setEditingPlanPointAllowance] = useState<number>(0)
+  const [editingPlanDailyFree, setEditingPlanDailyFree] = useState<number>(0)
   const [editingPlanPrice, setEditingPlanPrice] = useState('$0')
   const [editingPlanBillingPeriod, setEditingPlanBillingPeriod] = useState('mo')
   const [editingPlanDescription, setEditingPlanDescription] = useState('')
@@ -452,7 +456,9 @@ export default function AdminDashboard() {
         newPlanDescription,
         newPlanBadge,
         newPlanHasTrial,
-        newPlanTrialDays
+        newPlanTrialDays,
+        newPlanPointAllowance,
+        newPlanDailyFree
       )
       setNewPlanTier('')
       setNewPlanLimit(10.0)
@@ -462,6 +468,8 @@ export default function AdminDashboard() {
       setNewPlanT1(0)
       setNewPlanT2(0)
       setNewPlanT3(0)
+      setNewPlanPointAllowance(0)
+      setNewPlanDailyFree(0)
       setNewPlanPrice('$0')
       setNewPlanBillingPeriod('mo')
       setNewPlanDescription('')
@@ -484,6 +492,8 @@ export default function AdminDashboard() {
         t1_requests_limit: editingPlanT1,
         t2_requests_limit: editingPlanT2,
         t3_requests_limit: editingPlanT3,
+        monthly_point_allowance: editingPlanPointAllowance,
+        daily_free_requests_limit: editingPlanDailyFree,
         price: editingPlanPrice,
         billing_period: editingPlanBillingPeriod,
         description: editingPlanDescription,
@@ -1308,6 +1318,8 @@ export default function AdminDashboard() {
                             <th className="p-4">T1 Calls</th>
                             <th className="p-4">T2 Calls</th>
                             <th className="p-4">T3 Calls</th>
+                            <th className="p-4">Points/mo</th>
+                            <th className="p-4">Daily Free</th>
                             <th className="p-4 text-right">Action</th>
                           </tr>
                         </thead>
@@ -1324,6 +1336,8 @@ export default function AdminDashboard() {
                                   <td className="p-4 text-zinc-300 font-bold">{(p.t1_requests_limit ?? 0).toLocaleString()}</td>
                                   <td className="p-4 text-zinc-300 font-bold">{(p.t2_requests_limit ?? 0).toLocaleString()}</td>
                                   <td className="p-4 text-zinc-300 font-bold">{(p.t3_requests_limit ?? 0).toLocaleString()}</td>
+                                  <td className="p-4 text-amber-400 font-bold">{(p.monthly_point_allowance ?? 0).toLocaleString()}</td>
+                                  <td className="p-4 text-amber-400 font-bold">{(p.daily_free_requests_limit ?? 0).toLocaleString()}</td>
                               <td className="p-4 text-right space-x-2">
                                 {editingPlanId === p.id ? (
                                   <div className="inline-flex gap-2">
@@ -1340,6 +1354,8 @@ export default function AdminDashboard() {
                                       setEditingPlanT1(p.t1_requests_limit ?? 0);
                                       setEditingPlanT2(p.t2_requests_limit ?? 0);
                                       setEditingPlanT3(p.t3_requests_limit ?? 0);
+                                      setEditingPlanPointAllowance(p.monthly_point_allowance ?? 0);
+                                      setEditingPlanDailyFree(p.daily_free_requests_limit ?? 0);
                                     }}
                                     className="inline-flex items-center gap-1 px-2.5 py-1 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-550 transition-all text-[10px]"
                                   >
@@ -1470,6 +1486,28 @@ export default function AdminDashboard() {
                             value={newPlanT3}
                             onChange={e => setNewPlanT3(Math.max(0, Number(e.target.value)))}
                             className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Points/mo</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={newPlanPointAllowance}
+                            onChange={e => setNewPlanPointAllowance(Math.max(0, Number(e.target.value)))}
+                            className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Daily Free Req</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={newPlanDailyFree}
+                            onChange={e => setNewPlanDailyFree(Math.max(0, Number(e.target.value)))}
+                            className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                             required
                           />
                         </div>
@@ -1641,6 +1679,26 @@ export default function AdminDashboard() {
                                 value={editingPlanT3}
                                 onChange={e => setEditingPlanT3(Math.max(0, Number(e.target.value)))}
                                 className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Points/mo</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={editingPlanPointAllowance}
+                                onChange={e => setEditingPlanPointAllowance(Math.max(0, Number(e.target.value)))}
+                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Daily Free Req</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={editingPlanDailyFree}
+                                onChange={e => setEditingPlanDailyFree(Math.max(0, Number(e.target.value)))}
+                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                               />
                             </div>
                           </div>

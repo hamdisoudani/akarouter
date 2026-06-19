@@ -495,6 +495,85 @@ export default function UsagePage() {
               </div>
             </div>
 
+            {/* Points meter (point-based pricing) */}
+            <div className="bg-[#0e0e10] border border-amber-500/30 p-6 crosshair-corners space-y-4">
+              <div className="space-y-1">
+                <h2 className="font-mono text-xs text-amber-400 flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                  <div className="w-[3px] h-3 bg-amber-500 red-glow"></div>
+                  POINT_BALANCE
+                </h2>
+                <p className="text-[10px] font-mono text-zinc-500 uppercase">Every model call costs points. Free models (1pt) are capped daily. Resets monthly.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Remaining */}
+                <div className="bg-[#050507] border border-amber-500/20 p-4 space-y-2">
+                  <span className="font-mono text-[9px] text-amber-400 uppercase tracking-widest">REMAINING</span>
+                  <div className="font-mono text-3xl text-amber-300 font-bold tracking-tight">
+                    {usage ? (
+                      <>{(usage.monthly_points_remaining ?? 0).toLocaleString()}<span className="text-amber-700 text-sm ml-1">PTS</span></>
+                    ) : (
+                      <span className="text-amber-700 animate-pulse">[—]</span>
+                    )}
+                  </div>
+                  <span className="font-mono text-[9px] text-zinc-600 uppercase">
+                    {usage?.points_reset_at ? `RESET ${new Date(usage.points_reset_at).toLocaleDateString()}` : 'THIS MONTH'}
+                  </span>
+                </div>
+
+                {/* Monthly allowance */}
+                <div className="bg-[#050507] border border-zinc-900 p-4 space-y-2">
+                  <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest">MONTHLY ALLOWANCE</span>
+                  <div className="font-mono text-3xl text-white font-bold tracking-tight">
+                    {usage ? (
+                      <>{(usage.monthly_points_limit ?? 0).toLocaleString()}<span className="text-zinc-700 text-sm ml-1">PTS</span></>
+                    ) : (
+                      <span className="text-zinc-700 animate-pulse">[—]</span>
+                    )}
+                  </div>
+                  <span className="font-mono text-[9px] text-zinc-600 uppercase">PLAN CAP</span>
+                </div>
+
+                {/* Daily free cap */}
+                <div className="bg-[#050507] border border-zinc-900 p-4 space-y-2">
+                  <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest">DAILY FREE REQ</span>
+                  <div className="font-mono text-3xl text-white font-bold tracking-tight">
+                    {usage ? (
+                      <>{(usage.daily_free_requests_remaining ?? 0).toLocaleString()}<span className="text-zinc-700 text-sm ml-1">LEFT</span></>
+                    ) : (
+                      <span className="text-zinc-700 animate-pulse">[—]</span>
+                    )}
+                  </div>
+                  <span className="font-mono text-[9px] text-zinc-600 uppercase">
+                    {usage?.daily_free_requests_reset_at ? `RESET ${new Date(usage.daily_free_requests_reset_at).toLocaleDateString()}` : 'ROLLS DAILY'}
+                  </span>
+                </div>
+
+                {/* Progress bar */}
+                <div className="bg-[#050507] border border-zinc-900 p-4 space-y-2 flex flex-col justify-between">
+                  <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest">CONSUMED</span>
+                  {(() => {
+                    const remaining = usage?.monthly_points_remaining ?? 0
+                    const limit = usage?.monthly_points_limit ?? 0
+                    const pct = limit > 0 ? Math.min(100, Math.round(((limit - remaining) / limit) * 100)) : 0
+                    return (
+                      <>
+                        <div className="font-mono text-3xl text-white font-bold tracking-tight">
+                          {limit > 0 ? <>{pct}<span className="text-zinc-700 text-sm ml-1">%</span></> : <span className="text-zinc-700">N/A</span>}
+                        </div>
+                        <div className="w-full h-2 bg-zinc-950 border border-zinc-900 overflow-hidden">
+                          <div
+                            className="h-full bg-amber-500 transition-all duration-500"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+
             {/* Sliding budgets card layout */}
             <div className="bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
               <div className="space-y-1">

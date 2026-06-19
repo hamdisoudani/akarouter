@@ -255,6 +255,9 @@ export function ModelCatalog({ models }: ModelCatalogProps) {
                     {m.points_cost ?? 5} pts<span className="text-zinc-600 font-normal"> / call</span>
                   </span>
                 </div>
+                {(m.points_cost ?? 5) <= 1 && (
+                  <div className="text-[8px] font-mono text-emerald-500 text-right uppercase">⚡ Free model · 10/day cap</div>
+                )}
               </div>
             </div>
           )

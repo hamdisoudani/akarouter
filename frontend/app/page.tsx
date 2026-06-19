@@ -138,6 +138,8 @@ function formatPlans(dbPlans: PlanPreset[]): DisplayPlan[] {
           `RPM Limit: ${plan.rpm_limit} RPM`,
           `5-Hour Limit: $${plan.tokens_5h_limit.toFixed(2)}`,
           `7-Day Limit: $${plan.tokens_7d_limit.toFixed(2)}`,
+          `Points/mo: ${(plan.monthly_point_allowance ?? 0).toLocaleString()}`,
+          `Daily Free Req: ${(plan.daily_free_requests_limit ?? 0).toLocaleString()}`,
           `T1 Calls/mo: ${(plan.t1_requests_limit ?? 0).toLocaleString()}`,
           `T2 Calls/mo: ${(plan.t2_requests_limit ?? 0).toLocaleString()}`,
           `T3 Calls/mo: ${(plan.t3_requests_limit ?? 0).toLocaleString()}`,
@@ -232,7 +234,7 @@ response = client.chat.completions.create(
               href="/auth/login"
               className="bg-[#ef4444] text-black font-mono text-xs font-bold py-3.5 px-8 hover:bg-[#ff5451] transition-all red-glow flex items-center gap-2"
             >
-              <span className="font-bold">[+]</span> START FREE TRIAL
+              <span className="font-bold">[+]</span> GET 100 FREE POINTS
             </Link>
             <a
               href="#why"
@@ -249,7 +251,7 @@ response = client.chat.completions.create(
           </div>
 
           <p className="text-[9px] text-[#ef4444] font-mono uppercase tracking-widest pt-2 animate-pulse font-bold">
-            * Pro Plan ships with a 7-day free trial. No credit card required.
+            * Every signup ships with 100 free points on 1pt models (10/day cap). No credit card.
           </p>
 
           {/* Code IDE Container */}

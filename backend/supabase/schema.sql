@@ -67,7 +67,14 @@ CREATE TABLE IF NOT EXISTS accounts (
     
     -- Features & Limits
     is_trialing BOOLEAN NOT NULL DEFAULT FALSE,
-    
+
+    -- Point system (added 2026-06-19): spendable point balance + daily free-model cap
+    monthly_points_remaining BIGINT NOT NULL DEFAULT 0 CHECK (monthly_points_remaining >= 0),
+    monthly_points_limit BIGINT NOT NULL DEFAULT 0 CHECK (monthly_points_limit >= 0),
+    points_reset_at TIMESTAMPTZ,
+    daily_free_requests_remaining BIGINT NOT NULL DEFAULT 0 CHECK (daily_free_requests_remaining >= 0),
+    daily_free_requests_reset_at TIMESTAMPTZ,
+
     -- Status
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'cancelled')),
     suspended_reason TEXT,
@@ -199,6 +206,9 @@ CREATE TABLE IF NOT EXISTS plan_presets (
     t1_requests_limit BIGINT NOT NULL DEFAULT 0,
     t2_requests_limit BIGINT NOT NULL DEFAULT 0,
     t3_requests_limit BIGINT NOT NULL DEFAULT 0,
+    -- Point system (added 2026-06-19): monthly allowance + daily free-model cap
+    monthly_point_allowance BIGINT NOT NULL DEFAULT 0 CHECK (monthly_point_allowance >= 0),
+    daily_free_requests_limit BIGINT NOT NULL DEFAULT 0 CHECK (daily_free_requests_limit >= 0),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -591,3 +601,143 @@ UPDATE model_mapping SET points_cost = 1 WHERE alias = 'akarouter-mini';
 UPDATE model_mapping SET points_cost = 2 WHERE alias IN ('akarouter-flash', 'akarouter-haiku');
 UPDATE model_mapping SET points_cost = 5 WHERE alias IN ('akarouter-pro', 'akarouter-large', 'akarouter-sonnet', 'akarouter-gpt54', 'akarouter-gemini31');
 UPDATE model_mapping SET points_cost = 10 WHERE alias IN ('akarouter-gpt53-codex', 'akarouter-opus', 'akarouter-gpt55');
+
+-- ============================================
+-- 2026-06-19: Point-based pricing system (free plan = 100pts/mo, 1pt models capped at 10/day)
+-- ============================================
+-- Add monthly_point_allowance + daily_free_requests_limit to plan_presets
+ALTER TABLE plan_presets
+    ADD COLUMN IF NOT EXISTS monthly_point_allowance BIGINT NOT NULL DEFAULT 0
+        CHECK (monthly_point_allowance >= 0),
+    ADD COLUMN IF NOT EXISTS daily_free_requests_limit BIGINT NOT NULL DEFAULT 0
+        CHECK (daily_free_requests_limit >= 0);
+
+-- Seed plan point allowances
+UPDATE plan_presets SET monthly_point_allowance = 100,  daily_free_requests_limit = 10  WHERE tier = 'free';
+UPDATE plan_presets SET monthly_point_allowance = 500,  daily_free_requests_limit = 0   WHERE tier = 'starter';
+UPDATE plan_presets SET monthly_point_allowance = 2500, daily_free_requests_limit = 0   WHERE tier = 'pro';
+UPDATE plan_presets SET monthly_point_allowance = 7500, daily_free_requests_limit = 0   WHERE tier = 'ultra';
+
+-- Add per-account point balance + daily free counter (separate from t1/t2/t3 caps)
+ALTER TABLE accounts
+    ADD COLUMN IF NOT EXISTS monthly_points_remaining BIGINT NOT NULL DEFAULT 0
+        CHECK (monthly_points_remaining >= 0),
+    ADD COLUMN IF NOT EXISTS monthly_points_limit BIGINT NOT NULL DEFAULT 0
+        CHECK (monthly_points_limit >= 0),
+    ADD COLUMN IF NOT EXISTS points_reset_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS daily_free_requests_remaining BIGINT NOT NULL DEFAULT 0
+        CHECK (daily_free_requests_remaining >= 0),
+    ADD COLUMN IF NOT EXISTS daily_free_requests_reset_at TIMESTAMPTZ;
+
+-- 1pt models = "free models" — daily-capped for the free plan
+UPDATE model_mapping SET points_cost = 1 WHERE alias IN ('akarouter-flash', 'akarouter-pro', 'akarouter-large');
+UPDATE model_mapping SET points_cost = 2 WHERE alias = 'akarouter-mini';  -- M3 limited-time 2pt
+
+-- Atomic point-charge function: rolls balances forward, checks caps, deducts
+CREATE OR REPLACE FUNCTION charge_account_points(
+  account_uuid UUID,
+  points_to_charge BIGINT,
+  charge_free BOOLEAN DEFAULT FALSE
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  acc accounts%ROWTYPE;
+  plan_rec plan_presets%ROWTYPE;
+  now_ts TIMESTAMPTZ := now();
+  new_monthly_remaining BIGINT;
+  new_daily_free_remaining BIGINT;
+BEGIN
+  SELECT * INTO acc FROM accounts WHERE id = account_uuid FOR UPDATE;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'reason', 'account_not_found'); END IF;
+
+  SELECT * INTO plan_rec FROM plan_presets WHERE tier = acc.tier;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'reason', 'plan_not_found'); END IF;
+
+  -- Roll monthly forward if expired or plan changed
+  IF acc.points_reset_at IS NULL OR now_ts >= acc.points_reset_at
+     OR acc.monthly_points_limit IS DISTINCT FROM plan_rec.monthly_point_allowance THEN
+    acc.monthly_points_limit := plan_rec.monthly_point_allowance;
+    acc.monthly_points_remaining := plan_rec.monthly_point_allowance;
+    acc.points_reset_at := now_ts + INTERVAL '30 days';
+  END IF;
+
+  -- Roll daily free forward if expired
+  IF acc.daily_free_requests_reset_at IS NULL OR now_ts >= acc.daily_free_requests_reset_at THEN
+    acc.daily_free_requests_remaining := plan_rec.daily_free_requests_limit;
+    acc.daily_free_requests_reset_at := now_ts + INTERVAL '24 hours';
+  END IF;
+
+  -- Check daily free cap if charging a 1pt model
+  IF charge_free AND plan_rec.daily_free_requests_limit > 0 THEN
+    IF acc.daily_free_requests_remaining <= 0 THEN
+      RETURN jsonb_build_object(
+        'ok', false, 'reason', 'daily_free_cap',
+        'daily_free_limit', plan_rec.daily_free_requests_limit,
+        'daily_free_reset_at', acc.daily_free_requests_reset_at
+      );
+    END IF;
+  END IF;
+
+  -- Check monthly balance
+  IF acc.monthly_points_remaining < points_to_charge THEN
+    RETURN jsonb_build_object(
+      'ok', false, 'reason', 'insufficient_points',
+      'need', points_to_charge, 'have', acc.monthly_points_remaining,
+      'points_reset_at', acc.points_reset_at
+    );
+  END IF;
+
+  new_monthly_remaining := acc.monthly_points_remaining - points_to_charge;
+  new_daily_free_remaining := acc.daily_free_requests_remaining;
+  IF charge_free AND plan_rec.daily_free_requests_limit > 0 THEN
+    new_daily_free_remaining := acc.daily_free_requests_remaining - 1;
+  END IF;
+
+  UPDATE accounts SET
+    monthly_points_remaining = new_monthly_remaining,
+    monthly_points_limit = acc.monthly_points_limit,
+    points_reset_at = acc.points_reset_at,
+    daily_free_requests_remaining = new_daily_free_remaining,
+    daily_free_requests_reset_at = acc.daily_free_requests_reset_at,
+    updated_at = now_ts
+  WHERE id = account_uuid;
+
+  RETURN jsonb_build_object(
+    'ok', true, 'points_charged', points_to_charge,
+    'monthly_remaining', new_monthly_remaining,
+    'monthly_limit', acc.monthly_points_limit,
+    'daily_free_remaining', new_daily_free_remaining,
+    'free_request_charged', charge_free
+  );
+END;
+$$;
+
+-- Atomic refund (on upstream failure)
+CREATE OR REPLACE FUNCTION refund_account_points(
+  account_uuid UUID, points_to_refund BIGINT, refund_free BOOLEAN DEFAULT FALSE
+) RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE acc accounts%ROWTYPE; plan_rec plan_presets%ROWTYPE;
+BEGIN
+  SELECT * INTO acc FROM accounts WHERE id = account_uuid FOR UPDATE;
+  IF NOT FOUND THEN RETURN; END IF;
+  SELECT * INTO plan_rec FROM plan_presets WHERE tier = acc.tier;
+  IF NOT FOUND THEN RETURN; END IF;
+  UPDATE accounts SET
+    monthly_points_remaining = LEAST(acc.monthly_points_remaining + points_to_refund,
+                                     COALESCE(acc.monthly_points_limit, plan_rec.monthly_point_allowance)),
+    daily_free_requests_remaining = CASE
+      WHEN refund_free AND plan_rec.daily_free_requests_limit > 0
+      THEN LEAST(acc.daily_free_requests_remaining + 1, plan_rec.daily_free_requests_limit)
+      ELSE acc.daily_free_requests_remaining END,
+    updated_at = now()
+  WHERE id = account_uuid;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION charge_account_points TO service_role;
+GRANT EXECUTE ON FUNCTION refund_account_points TO service_role;

@@ -9,7 +9,7 @@ from typing import Any, List, Optional, Union
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.core.config import settings
@@ -137,6 +137,86 @@ def estimate_prompt_tokens(messages: list) -> int:
     return total_tokens + 2
 
 
+# ============ POINT SYSTEM ENFORCEMENT ============
+# Per-account point balance (monthly_points_remaining). Decremented on every call.
+# Free-model daily cap (daily_free_requests_remaining) only applies to 1pt models.
+# Atomic via Postgres charge_account_points() / refund_account_points() functions.
+
+def _is_free_model(points_cost: int) -> bool:
+    """1pt models are 'free models' — daily-capped so freeloaders can't drain the budget."""
+    return points_cost <= 1
+
+
+async def _enforce_and_reserve_points(account_id: str, model_alias: str, points_cost: int) -> dict:
+    """Atomically check + charge points for one call.
+
+    Raises HTTPException if blocked. Returns reservation info (used for refund on failure).
+    """
+    from fastapi import HTTPException
+
+    if points_cost < 0:
+        raise HTTPException(status_code=500, detail=f"Invalid points_cost for model {model_alias}")
+
+    supabase = get_supabase()
+    is_free = _is_free_model(points_cost)
+
+    result = supabase.rpc("charge_account_points", {
+        "account_uuid": account_id,
+        "points_to_charge": points_cost,
+        "charge_free": is_free,
+    }).execute()
+
+    data = result.data if result else {}
+    if isinstance(data, list):
+        data = data[0] if data else {}
+
+    if not data.get("ok"):
+        reason = data.get("reason", "unknown")
+        if reason == "daily_free_cap":
+            reset_at = data.get("daily_free_reset_at", "in 24h")
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily free-model limit reached ({data.get('daily_free_limit', 10)} req/day). Resets at {reset_at} or upgrade for unlimited free models.",
+                headers={"Retry-After": "86400", "X-Free-Daily-Limit": str(data.get("daily_free_limit", 10))},
+            )
+        if reason == "insufficient_points":
+            need = data.get("need", points_cost)
+            have = data.get("have", 0)
+            reset = data.get("points_reset_at", "")
+            raise HTTPException(
+                status_code=402,
+                detail=f"Insufficient points: need {need}, have {have}. Resets {reset} or upgrade your plan.",
+                headers={"X-Points-Need": str(need), "X-Points-Have": str(have)},
+            )
+        if reason == "account_not_found":
+            raise HTTPException(status_code=404, detail="Account not found")
+        if reason == "plan_not_found":
+            raise HTTPException(status_code=500, detail="Plan configuration missing for tier")
+        raise HTTPException(status_code=500, detail=f"Point charge failed: {reason}")
+
+    return {
+        "points_charged": int(data.get("points_charged", points_cost)),
+        "remaining_after": int(data.get("monthly_remaining", 0)),
+        "free_request_charged": bool(data.get("free_request_charged", False)),
+        "free_remaining_after": int(data.get("daily_free_remaining", 0)),
+    }
+
+
+def _refund_points(account_id: str, reservation: dict) -> None:
+    """Best-effort refund if the upstream call failed. Adds points back to the account."""
+    if not reservation:
+        return
+    try:
+        supabase = get_supabase()
+        supabase.rpc("refund_account_points", {
+            "account_uuid": account_id,
+            "points_to_refund": reservation.get("points_charged", 0),
+            "refund_free": reservation.get("free_request_charged", False),
+        }).execute()
+    except Exception as exc:
+        logger.warning(f"Point refund failed for account {account_id}: {exc}")
+
+
 def sanitize_error_msg(msg: str) -> str:
     """
     Map any upstream error string to a strict, opaque, user-safe category label.
@@ -239,6 +319,16 @@ async def proxy_chat(req: Request):
     # Pick routing target: per-request endpoint vs OAuth provider pool
     meta = get_model_metadata(model_alias)
     pricing_mode = meta.get("pricing_mode") or "per_token"
+
+    # Charge points for this call (atomic via Postgres function). Raises 402/429 if blocked.
+    # We deduct BEFORE the upstream call to prevent abuse, then refund on failure.
+    points_cost = int(meta.get("points_cost", 5))
+    auth_info_early = getattr(req.state, "auth", None)
+    account_id_early = auth_info_early["account_id"] if auth_info_early else None
+    point_reservation = None
+    if account_id_early:
+        point_reservation = await _enforce_and_reserve_points(account_id_early, model_alias, points_cost)
+
     use_endpoint = False
     endpoint = None
     if pricing_mode == "per_request":
@@ -345,6 +435,7 @@ async def proxy_chat(req: Request):
                     model=model_alias, upstream_model=upstream_model,
                     status_code=response.status_code, latency_ms=latency, error_message=f"StreamStatusError: {cleaned_msg}"
                 )
+                _refund_points(account_id, point_reservation)
                 raise HTTPException(
                     status_code=response.status_code, 
                     detail=f"Upstream provider error: {cleaned_msg}"
@@ -359,6 +450,7 @@ async def proxy_chat(req: Request):
                 model=model_alias, upstream_model=upstream_model,
                 status_code=502, latency_ms=latency, error_message="ConnectError (Stream)"
             )
+            _refund_points(account_id, point_reservation)
             raise HTTPException(status_code=502, detail="Upstream gateway timeout or connection failure")
         except httpx.RequestError as exc:
             latency = int((time.time() - started) * 1000)
@@ -368,6 +460,7 @@ async def proxy_chat(req: Request):
                 model=model_alias, upstream_model=upstream_model,
                 status_code=502, latency_ms=latency, error_message=f"RequestError (Stream): {exc}"
             )
+            _refund_points(account_id, point_reservation)
             raise HTTPException(status_code=502, detail="Upstream request failed")
         except Exception as exc:
             latency = int((time.time() - started) * 1000)
@@ -399,7 +492,11 @@ async def proxy_chat(req: Request):
                     completion_tokens = max(1, len(extractor.completion_text) // 4)
                 
                 total_tokens = prompt_tokens + completion_tokens
-                
+
+                # If the stream failed mid-flight, refund the points
+                if not success and point_reservation:
+                    _refund_points(account_id, point_reservation)
+
                 await log_request(
                     account_id=account_id, api_key_id=api_key_id, provider_id=provider_id,
                     model=model_alias, upstream_model=upstream_model,
@@ -408,7 +505,14 @@ async def proxy_chat(req: Request):
                     total_tokens=total_tokens
                 )
 
-        return StreamingResponse(stream_generator(), media_type="text/event-stream")
+        # Surface point usage on the streaming response headers so client can update balance UI
+        stream_headers = {
+            "X-Points-Remaining": str(point_reservation.get("remaining_after", 0)) if point_reservation else "",
+            "X-Points-Charged": str(point_reservation.get("points_charged", 0)) if point_reservation else "",
+            "X-Free-Remaining": str(point_reservation.get("free_remaining_after", 0)) if point_reservation else "",
+        }
+        stream_headers = {k: v for k, v in stream_headers.items() if v}
+        return StreamingResponse(stream_generator(), media_type="text/event-stream", headers=stream_headers)
 
     # Non-streaming request
     started = time.time()
@@ -440,6 +544,7 @@ async def proxy_chat(req: Request):
             model=model_alias, upstream_model=upstream_model,
             status_code=exc.response.status_code, latency_ms=latency, error_message=f"HTTPStatusError: {cleaned_msg}"
         )
+        _refund_points(account_id, point_reservation)
         raise HTTPException(
             status_code=exc.response.status_code, 
             detail=f"Upstream provider error: {cleaned_msg}"
@@ -452,6 +557,7 @@ async def proxy_chat(req: Request):
             model=model_alias, upstream_model=upstream_model,
             status_code=502, latency_ms=latency, error_message="ConnectError"
         )
+        _refund_points(account_id, point_reservation)
         raise HTTPException(status_code=502, detail="Upstream gateway timeout or connection failure")
     except httpx.RequestError as exc:
         latency = int((time.time() - started) * 1000)
@@ -461,6 +567,7 @@ async def proxy_chat(req: Request):
             model=model_alias, upstream_model=upstream_model,
             status_code=502, latency_ms=latency, error_message=f"RequestError: {exc}"
         )
+        _refund_points(account_id, point_reservation)
         raise HTTPException(status_code=502, detail="Upstream request failed")
     except Exception as exc:
         latency = int((time.time() - started) * 1000)
@@ -470,6 +577,7 @@ async def proxy_chat(req: Request):
             model=model_alias, upstream_model=upstream_model,
             status_code=500, latency_ms=latency, error_message=str(exc)
         )
+        _refund_points(account_id, point_reservation)
         raise HTTPException(status_code=500, detail=f"Internal proxy error: {sanitize_error_msg(str(exc))}")
 
     latency = int((time.time() - started) * 1000)
@@ -489,10 +597,17 @@ async def proxy_chat(req: Request):
         total_tokens=total_tokens
     )
 
-    # Return response with user-facing model alias
+    # Return response with user-facing model alias + point usage headers
     response.setdefault("id", f"chatcmpl-{id(provider):024d}")
     response["model"] = model_alias
-    return response
+    point_headers = {}
+    if point_reservation:
+        point_headers = {
+            "X-Points-Remaining": str(point_reservation.get("remaining_after", 0)),
+            "X-Points-Charged": str(point_reservation.get("points_charged", 0)),
+            "X-Free-Remaining": str(point_reservation.get("free_remaining_after", 0)),
+        }
+    return JSONResponse(content=response, headers=point_headers)
 
 
 async def _upstream(provider: dict, body: dict, base_url: str | None = None) -> dict:
