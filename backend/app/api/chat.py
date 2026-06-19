@@ -164,6 +164,7 @@ async def _enforce_and_reserve_points(account_id: str, model_alias: str, points_
         "account_uuid": account_id,
         "points_to_charge": points_cost,
         "charge_free": is_free,
+        "model_alias": model_alias,
     }).execute()
 
     data = result.data if result else {}
@@ -199,10 +200,11 @@ async def _enforce_and_reserve_points(account_id: str, model_alias: str, points_
         "remaining_after": int(data.get("monthly_remaining", 0)),
         "free_request_charged": bool(data.get("free_request_charged", False)),
         "free_remaining_after": int(data.get("daily_free_remaining", 0)),
+        "model_alias": model_alias,
     }
 
 
-def _refund_points(account_id: str, reservation: dict) -> None:
+def _refund_points(account_id: str, reservation: dict, model_alias: str | None = None) -> None:
     """Best-effort refund if the upstream call failed. Adds points back to the account."""
     if not reservation:
         return
@@ -212,6 +214,7 @@ def _refund_points(account_id: str, reservation: dict) -> None:
             "account_uuid": account_id,
             "points_to_refund": reservation.get("points_charged", 0),
             "refund_free": reservation.get("free_request_charged", False),
+            "model_alias": model_alias or reservation.get("model_alias"),
         }).execute()
     except Exception as exc:
         logger.warning(f"Point refund failed for account {account_id}: {exc}")
@@ -435,7 +438,7 @@ async def proxy_chat(req: Request):
                     model=model_alias, upstream_model=upstream_model,
                     status_code=response.status_code, latency_ms=latency, error_message=f"StreamStatusError: {cleaned_msg}"
                 )
-                _refund_points(account_id, point_reservation)
+                _refund_points(account_id, point_reservation, model_alias)
                 raise HTTPException(
                     status_code=response.status_code, 
                     detail=f"Upstream provider error: {cleaned_msg}"
@@ -450,7 +453,7 @@ async def proxy_chat(req: Request):
                 model=model_alias, upstream_model=upstream_model,
                 status_code=502, latency_ms=latency, error_message="ConnectError (Stream)"
             )
-            _refund_points(account_id, point_reservation)
+            _refund_points(account_id, point_reservation, model_alias)
             raise HTTPException(status_code=502, detail="Upstream gateway timeout or connection failure")
         except httpx.RequestError as exc:
             latency = int((time.time() - started) * 1000)
@@ -460,7 +463,7 @@ async def proxy_chat(req: Request):
                 model=model_alias, upstream_model=upstream_model,
                 status_code=502, latency_ms=latency, error_message=f"RequestError (Stream): {exc}"
             )
-            _refund_points(account_id, point_reservation)
+            _refund_points(account_id, point_reservation, model_alias)
             raise HTTPException(status_code=502, detail="Upstream request failed")
         except Exception as exc:
             latency = int((time.time() - started) * 1000)
@@ -495,7 +498,7 @@ async def proxy_chat(req: Request):
 
                 # If the stream failed mid-flight, refund the points
                 if not success and point_reservation:
-                    _refund_points(account_id, point_reservation)
+                    _refund_points(account_id, point_reservation, model_alias)
 
                 await log_request(
                     account_id=account_id, api_key_id=api_key_id, provider_id=provider_id,
@@ -544,7 +547,7 @@ async def proxy_chat(req: Request):
             model=model_alias, upstream_model=upstream_model,
             status_code=exc.response.status_code, latency_ms=latency, error_message=f"HTTPStatusError: {cleaned_msg}"
         )
-        _refund_points(account_id, point_reservation)
+        _refund_points(account_id, point_reservation, model_alias)
         raise HTTPException(
             status_code=exc.response.status_code, 
             detail=f"Upstream provider error: {cleaned_msg}"
@@ -557,7 +560,7 @@ async def proxy_chat(req: Request):
             model=model_alias, upstream_model=upstream_model,
             status_code=502, latency_ms=latency, error_message="ConnectError"
         )
-        _refund_points(account_id, point_reservation)
+        _refund_points(account_id, point_reservation, model_alias)
         raise HTTPException(status_code=502, detail="Upstream gateway timeout or connection failure")
     except httpx.RequestError as exc:
         latency = int((time.time() - started) * 1000)
@@ -567,7 +570,7 @@ async def proxy_chat(req: Request):
             model=model_alias, upstream_model=upstream_model,
             status_code=502, latency_ms=latency, error_message=f"RequestError: {exc}"
         )
-        _refund_points(account_id, point_reservation)
+        _refund_points(account_id, point_reservation, model_alias)
         raise HTTPException(status_code=502, detail="Upstream request failed")
     except Exception as exc:
         latency = int((time.time() - started) * 1000)
@@ -577,7 +580,7 @@ async def proxy_chat(req: Request):
             model=model_alias, upstream_model=upstream_model,
             status_code=500, latency_ms=latency, error_message=str(exc)
         )
-        _refund_points(account_id, point_reservation)
+        _refund_points(account_id, point_reservation, model_alias)
         raise HTTPException(status_code=500, detail=f"Internal proxy error: {sanitize_error_msg(str(exc))}")
 
     latency = int((time.time() - started) * 1000)

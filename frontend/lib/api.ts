@@ -110,6 +110,31 @@ export interface UsageStats {
   daily_free_requests_reset_at?: string | null
 }
 
+export interface PointTransaction {
+  id: string
+  points: number
+  kind: 'charge' | 'refund' | 'grant' | 'adjustment'
+  reason: string | null
+  model_alias: string | null
+  balance_after: number
+  created_by: string | null
+  metadata: Record<string, any> | null
+  created_at: string
+}
+
+export interface PointTransactionsResponse {
+  transactions: PointTransaction[]
+  total: number
+  limit: number
+  offset: number
+  has_more: boolean
+  summary: {
+    spent: number
+    refunded: number
+    granted: number
+  }
+}
+
 export interface ModelAnalytics {
   model: string
   total_requests: number
@@ -213,6 +238,22 @@ export async function getUsage(token: string): Promise<UsageStats> {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (!res.ok) throw new Error('Failed to fetch usage')
+  return res.json()
+}
+
+export async function getPointTransactions(
+  token: string,
+  options: { limit?: number; offset?: number; kind?: 'charge' | 'refund' | 'grant' | 'adjustment' } = {}
+): Promise<PointTransactionsResponse> {
+  const params = new URLSearchParams()
+  if (options.limit) params.set('limit', String(options.limit))
+  if (options.offset) params.set('offset', String(options.offset))
+  if (options.kind) params.set('kind', options.kind)
+  const qs = params.toString() ? `?${params.toString()}` : ''
+  const res = await fetch(`${API_BASE}/user/point-transactions${qs}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch point transactions')
   return res.json()
 }
 

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useApp } from '@/app/providers'
-import { createCheckoutSession, getPlans, type PlanPreset } from '@/lib/api'
+import { createCheckoutSession, getPlans, type PlanPreset, getPointTransactions, type PointTransaction } from '@/lib/api'
 import { 
   LogOut, 
   KeyRound, 
@@ -33,6 +33,72 @@ export default function UsagePage() {
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [dbPlans, setDbPlans] = useState<PlanPreset[]>([])
+
+  // Point transaction history
+  const [pointTx, setPointTx] = useState<PointTransaction[]>([])
+  const [pointTxSummary, setPointTxSummary] = useState<{ spent: number; refunded: number; granted: number }>({ spent: 0, refunded: 0, granted: 0 })
+  const [pointTxLoading, setPointTxLoading] = useState(false)
+  const [pointTxKind, setPointTxKind] = useState<'all' | 'charge' | 'refund' | 'grant'>('all')
+  const [pointTxTotal, setPointTxTotal] = useState(0)
+
+  const refetchPointTx = async () => {
+    if (!token) return
+    setPointTxLoading(true)
+    try {
+      const opts = pointTxKind === 'all' ? { limit: 50 } : { limit: 50, kind: pointTxKind as any }
+      const data = await getPointTransactions(token, opts)
+      setPointTx(data.transactions)
+      setPointTxSummary(data.summary)
+      setPointTxTotal(data.total)
+    } catch (err) {
+      console.warn('Failed to fetch point transactions:', err)
+    } finally {
+      setPointTxLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (token && usage) {
+      refetchPointTx()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, pointTxKind])
+
+  // Aliases used in DB → display name lookup (matches /models page logic)
+  const aliasToDisplay: Record<string, string> = {
+    'akarouter-mini': 'MiniMax M3',
+    'akarouter-flash': 'Nemotron Ultra',
+    'akarouter-pro': 'Step 3.7 Flash',
+    'akarouter-large': 'Owl Alpha',
+    'akarouter-haiku': 'Claude Haiku 4.5',
+    'akarouter-sonnet': 'Claude Sonnet 4.6',
+    'akarouter-opus': 'Claude Opus 4.8',
+    'akarouter-gpt54': 'GPT-5.4',
+    'akarouter-gpt55': 'GPT-5.5',
+    'akarouter-gpt53-codex': 'GPT-5.3 Codex Spark',
+    'akarouter-gemini31': 'Gemini 3.1 Pro',
+  }
+
+  const formatPointDelta = (kind: string, points: number) => {
+    if (kind === 'charge') return `-${points}`
+    if (kind === 'refund') return `+${points}`
+    if (kind === 'grant') return `+${points}`
+    return `${points}`
+  }
+
+  const kindColor = (kind: string) => {
+    if (kind === 'charge') return 'text-red-400'
+    if (kind === 'refund') return 'text-emerald-400'
+    if (kind === 'grant') return 'text-amber-400'
+    return 'text-zinc-400'
+  }
+
+  const kindLabel = (kind: string) => {
+    if (kind === 'charge') return 'CALL'
+    if (kind === 'refund') return 'REFUND'
+    if (kind === 'grant') return 'GRANT'
+    return kind.toUpperCase()
+  }
 
   useEffect(() => {
     if (usage) {
@@ -571,6 +637,100 @@ export default function UsagePage() {
                     )
                   })()}
                 </div>
+              </div>
+            </div>
+
+            {/* Point transaction history */}
+            <div className="bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-4">
+              <div className="space-y-1">
+                <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                  <div className="w-[3px] h-3 bg-amber-500" style={{ boxShadow: '0 0 8px rgba(245,158,11,0.6)' }}></div>
+                  POINT_MOVEMENT_LEDGER
+                </h2>
+                <p className="text-[10px] font-mono text-zinc-500 uppercase">Every charge, refund, and monthly grant. Most recent first.</p>
+              </div>
+
+              {/* Summary strip */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-[#050507] border border-zinc-900 py-2">
+                  <div className="font-mono text-base text-red-400 font-bold">{pointTxSummary.spent.toLocaleString()}</div>
+                  <div className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">SPENT (SHOWN)</div>
+                </div>
+                <div className="bg-[#050507] border border-zinc-900 py-2">
+                  <div className="font-mono text-base text-emerald-400 font-bold">{pointTxSummary.refunded.toLocaleString()}</div>
+                  <div className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">REFUNDED</div>
+                </div>
+                <div className="bg-[#050507] border border-zinc-900 py-2">
+                  <div className="font-mono text-base text-amber-400 font-bold">{pointTxSummary.granted.toLocaleString()}</div>
+                  <div className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">GRANTED</div>
+                </div>
+              </div>
+
+              {/* Filter */}
+              <div className="flex items-center gap-1 text-[10px] font-mono uppercase">
+                {(['all', 'charge', 'refund', 'grant'] as const).map(k => (
+                  <button
+                    key={k}
+                    onClick={() => setPointTxKind(k)}
+                    className={`px-2.5 py-1 border tracking-wider transition-colors ${
+                      pointTxKind === k
+                        ? 'border-amber-500 text-amber-400 bg-amber-500/10'
+                        : 'border-zinc-900 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
+                    }`}
+                  >
+                    {k === 'all' ? 'ALL' : kindLabel(k)}
+                  </button>
+                ))}
+                <div className="flex-1" />
+                <button
+                  onClick={refetchPointTx}
+                  className="px-2.5 py-1 border border-zinc-900 text-zinc-500 hover:text-amber-400 hover:border-amber-500/40 tracking-wider"
+                  title="Refresh"
+                >
+                  {pointTxLoading ? '...' : 'REFRESH'}
+                </button>
+              </div>
+
+              {/* Table */}
+              {pointTxLoading && pointTx.length === 0 ? (
+                <div className="font-mono text-[10px] text-zinc-500 text-center py-6 uppercase animate-pulse">LOADING LEDGER...</div>
+              ) : pointTx.length === 0 ? (
+                <div className="font-mono text-[10px] text-zinc-500 text-center py-6 uppercase border border-dashed border-zinc-900">
+                  NO {pointTxKind === 'all' ? '' : pointTxKind.toUpperCase() + ' '}TRANSACTIONS YET
+                </div>
+              ) : (
+                <div className="border border-zinc-900 divide-y divide-zinc-900 max-h-[400px] overflow-y-auto">
+                  {pointTx.map(tx => {
+                    const modelLabel = tx.model_alias ? (aliasToDisplay[tx.model_alias] || tx.model_alias) : null
+                    return (
+                      <div key={tx.id} className="grid grid-cols-[80px_1fr_auto_auto] gap-3 items-center px-3 py-2 hover:bg-zinc-950/50 transition-colors font-mono text-[11px]">
+                        <span className={`font-bold tracking-wider ${kindColor(tx.kind)}`}>{kindLabel(tx.kind)}</span>
+                        <div className="min-w-0">
+                          <div className="text-zinc-300 truncate">
+                            {tx.reason || (modelLabel ? `Call: ${modelLabel}` : '—')}
+                          </div>
+                          <div className="text-[9px] text-zinc-600 uppercase tracking-wider">
+                            {new Date(tx.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            {tx.created_by && tx.created_by !== 'system' && <span className="ml-2">· {tx.created_by}</span>}
+                          </div>
+                        </div>
+                        <span className={`font-bold tabular-nums ${kindColor(tx.kind)}`}>
+                          {formatPointDelta(tx.kind, tx.points)}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 tabular-nums whitespace-nowrap">
+                          BAL: {tx.balance_after.toLocaleString()}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              <div className="flex justify-between text-[9px] font-mono text-zinc-600 uppercase tracking-wider pt-1">
+                <span>SHOWING {pointTx.length} OF {pointTxTotal.toLocaleString()}</span>
+                {pointTxTotal > pointTx.length && (
+                  <span className="text-zinc-500">PAGINATION COMING SOON</span>
+                )}
               </div>
             </div>
 

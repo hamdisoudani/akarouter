@@ -360,6 +360,74 @@ async def get_my_usage(request: Request):
     }
 
 
+@router.get("/point-transactions")
+async def get_my_point_transactions(
+    request: Request,
+    limit: int = 50,
+    offset: int = 0,
+    kind: str | None = None,
+):
+    """Point transaction history for the authenticated user.
+
+    Each row is one charge / refund / grant event. Used for the /usage page
+    history panel. Returns up to `limit` rows (default 50, max 200), sorted
+    by created_at DESC.
+    """
+    account_id = _get_user_id(request)
+    if not account_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # Clamp limit to [1, 200]
+    limit = max(1, min(200, limit))
+    offset = max(0, offset)
+
+    supabase = get_supabase()
+    q = (
+        supabase.table("point_transactions")
+        .select("id, points, kind, reason, model_alias, balance_after, created_by, metadata, created_at")
+        .eq("account_id", account_id)
+        .order("created_at", desc=True)
+        .range(offset, offset + limit - 1)
+    )
+    if kind and kind in ("charge", "refund", "grant", "adjustment"):
+        q = q.eq("kind", kind)
+
+    result = q.execute()
+    rows = result.data or []
+
+    # Get total count for pagination
+    count_q = supabase.table("point_transactions").select("id", count="exact").eq("account_id", account_id)
+    if kind and kind in ("charge", "refund", "grant", "adjustment"):
+        count_q = count_q.eq("kind", kind)
+    count_res = count_q.execute()
+    total = count_res.count or 0
+
+    # Sum by kind for the visible window (useful for "spent X this period")
+    spent = 0
+    refunded = 0
+    granted = 0
+    for r in rows:
+        if r["kind"] == "charge":
+            spent += r["points"]
+        elif r["kind"] == "refund":
+            refunded += r["points"]
+        elif r["kind"] == "grant":
+            granted += r["points"]
+
+    return {
+        "transactions": rows,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + limit) < total,
+        "summary": {
+            "spent": spent,
+            "refunded": refunded,
+            "granted": granted,
+        },
+    }
+
+
 @router.get("/analytics")
 async def get_my_analytics(
     request: Request,
