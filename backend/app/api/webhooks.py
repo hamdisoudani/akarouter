@@ -269,7 +269,7 @@ async def whop_webhook_handler(
     # Idempotency check: fetch current account limits and tier
     current_acc_res = None
     try:
-        current_acc_res = supabase.table("accounts").select("tier, monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, openclaw_enabled, max_agents, agent_cpu, agent_ram, is_trialing").eq("id", account_id).execute()
+        current_acc_res = supabase.table("accounts").select("tier, monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, t1_requests_limit, t2_requests_limit, t3_requests_limit, is_trialing").eq("id", account_id).execute()
     except Exception as e:
         logger.error(f"Failed to query current account state for idempotency check: {e}")
 
@@ -290,10 +290,9 @@ async def whop_webhook_handler(
                     int(curr.get("rpm_limit") or 0) == int(p["rpm_limit"] or 0) and
                     float(curr.get("tokens_5h_limit") or 0.0) == float(p["tokens_5h_limit"] or 0.0) and
                     float(curr.get("tokens_7d_limit") or 0.0) == float(p["tokens_7d_limit"] or 0.0) and
-                    curr.get("openclaw_enabled") == p["openclaw_enabled"] and
-                    int(curr.get("max_agents") or 0) == int(p["max_agents"] or 0) and
-                    int(curr.get("agent_cpu") or 0) == int(p["agent_cpu"] or 0) and
-                    int(curr.get("agent_ram") or 0) == int(p["agent_ram"] or 0)
+                    int(curr.get("t1_requests_limit") or 0) == int(p["t1_requests_limit"] or 0) and
+                    int(curr.get("t2_requests_limit") or 0) == int(p["t2_requests_limit"] or 0) and
+                    int(curr.get("t3_requests_limit") or 0) == int(p["t3_requests_limit"] or 0)
                 ):
                     is_already_synced = True
 
@@ -332,10 +331,9 @@ async def whop_webhook_handler(
                             "rpm_limit": p["rpm_limit"],
                             "tokens_5h_limit": p["tokens_5h_limit"],
                             "tokens_7d_limit": p["tokens_7d_limit"],
-                            "openclaw_enabled": p["openclaw_enabled"],
-                            "max_agents": p["max_agents"],
-                            "agent_cpu": p["agent_cpu"],
-                            "agent_ram": p["agent_ram"],
+                            "t1_requests_limit": p["t1_requests_limit"],
+                            "t2_requests_limit": p["t2_requests_limit"],
+                            "t3_requests_limit": p["t3_requests_limit"],
                             "is_trialing": is_trialing,
                             "updated_at": datetime.now(timezone.utc).isoformat()
                         }).eq("id", account_id).execute()

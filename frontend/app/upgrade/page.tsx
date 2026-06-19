@@ -122,7 +122,9 @@ export default function UpgradePage() {
           `RPM Limit: ${plan.rpm_limit} RPM`,
           `5-Hour Cap: $${plan.tokens_5h_limit.toFixed(2)}`,
           `7-Day Cap: $${plan.tokens_7d_limit.toFixed(2)}`,
-          `Hosted Agents: ${plan.max_agents ?? 0}`,
+          `T1 Calls/mo: ${plan.t1_requests_limit?.toLocaleString() ?? 0}`,
+          `T2 Calls/mo: ${plan.t2_requests_limit?.toLocaleString() ?? 0}`,
+          `T3 Calls/mo: ${plan.t3_requests_limit?.toLocaleString() ?? 0}`,
         ],
         monthlyRequests,
         perRequestCost,
@@ -208,7 +210,7 @@ export default function UpgradePage() {
           <div className="space-y-1">
             <p className="font-bold tracking-wider">[ACCESS_RESTRICTED]: SUBSCRIPTION REQUIRED</p>
             <p className="text-[10px] text-zinc-400 leading-relaxed normal-case">
-              Your account is currently on the free trial/tier. AkaRouter requires an active subscription to provision API keys, allocate token limits, or deploy hosted OpenClaw agents. Please select a plan below to activate your API gateway service.
+              Your account is currently on the free trial/tier. AkaRouter requires an active subscription to provision API keys and allocate request limits. Please select a plan below to activate your API gateway service.
             </p>
           </div>
         </div>

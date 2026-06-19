@@ -17,8 +17,7 @@ class Settings(BaseSettings):
     # apply a default in `model_post_init` if the value is None.
     @field_validator(
         "port", "token_refresh_skew", "refresh_lock_ttl",
-        "max_concurrent_per_account", "daytona_sandbox_cpu",
-        "daytona_sandbox_memory", "daytona_sandbox_disk",
+        "max_concurrent_per_account",
         mode="before",
     )
     @classmethod
@@ -35,9 +34,6 @@ class Settings(BaseSettings):
             "token_refresh_skew": 120,
             "refresh_lock_ttl": 30,
             "max_concurrent_per_account": 12,
-            "daytona_sandbox_cpu": 1,
-            "daytona_sandbox_memory": 1,
-            "daytona_sandbox_disk": 3,
         }
         for field, default in defaults.items():
             if getattr(self, field) is None:
@@ -77,23 +73,6 @@ class Settings(BaseSettings):
     token_refresh_skew: Optional[int] = None
     refresh_lock_ttl: Optional[int] = None
     max_concurrent_per_account: Optional[int] = None
-
-    # Daytona integration
-    daytona_api_base: str = "https://app.daytona.io/api"
-    daytona_api_key: str = ""                     # dtn_... key
-    daytona_sandbox_cpu: Optional[int] = None
-    daytona_sandbox_memory: Optional[int] = None  # GB
-    daytona_sandbox_disk: Optional[int] = None    # GB
-    public_backend_url: Optional[str] = None      # ngrok or other public base URL for VMs to hit backend
-
-    # Agent limits
-    max_agents_free: int = 1
-    max_agents_pro: int = 3
-    max_agents_enterprise: int = 10
-
-    # Encryption key for storing raw API keys (must be a 32-byte url-safe base64 key for Fernet)
-    # REQUIRED in production — app will fail to encrypt/decrypt if empty
-    agent_key_encryption_secret: str = ""
 
     # Whop Integration Settings
     whop_api_key: str = ""

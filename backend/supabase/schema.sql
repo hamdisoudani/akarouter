@@ -67,10 +67,6 @@ CREATE TABLE IF NOT EXISTS accounts (
     
     -- Features & Limits
     is_trialing BOOLEAN NOT NULL DEFAULT FALSE,
-    openclaw_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-    max_agents INT NOT NULL DEFAULT 1,
-    agent_cpu INT NOT NULL DEFAULT 1,
-    agent_ram INT NOT NULL DEFAULT 1,
     
     -- Status
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'cancelled')),
@@ -199,10 +195,10 @@ CREATE TABLE IF NOT EXISTS plan_presets (
     rpm_limit BIGINT NOT NULL DEFAULT 60,
     tokens_5h_limit BIGINT NOT NULL DEFAULT 500000,
     tokens_7d_limit BIGINT NOT NULL DEFAULT 5000000,
-    openclaw_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-    max_agents INT NOT NULL DEFAULT 1,
-    agent_cpu INT NOT NULL DEFAULT 1,
-    agent_ram INT NOT NULL DEFAULT 1,
+    -- Per-tier request caps (T1=cheap, T2=mid, T3=premium)
+    t1_requests_limit BIGINT NOT NULL DEFAULT 0,
+    t2_requests_limit BIGINT NOT NULL DEFAULT 0,
+    t3_requests_limit BIGINT NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

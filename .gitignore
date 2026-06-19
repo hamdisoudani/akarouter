@@ -17,10 +17,6 @@ backend/token.json
 *.pem
 *.key
 
-# Scratch scripts with credentials
-backend/scratch/test_daytona_endpoint.py
-backend/scratch/insert_daytona_key.py
-
 # Local-only references (security audit working files, legacy code archives)
 # Kept on disk for context, never committed.
 /audit/

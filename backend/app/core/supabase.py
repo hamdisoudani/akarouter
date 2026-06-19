@@ -47,7 +47,7 @@ def _verify_supabase_jwt(token: str) -> dict | None:
         auth_user_id = user.id
 
         # Look up account in our DB
-        account_resp = supabase.table("accounts").select("id, email, role, tier, status, suspended_reason, openclaw_enabled, max_agents, agent_cpu, agent_ram, is_trialing").eq("auth_user_id", str(auth_user_id)).execute()
+        account_resp = supabase.table("accounts").select("id, email, role, tier, status, suspended_reason, t1_requests_limit, t2_requests_limit, t3_requests_limit, is_trialing").eq("auth_user_id", str(auth_user_id)).execute()
         if not account_resp.data:
             logger.warning("Supabase Auth: no user account found in DB for auth_user_id=%s", auth_user_id)
             return None
@@ -61,10 +61,9 @@ def _verify_supabase_jwt(token: str) -> dict | None:
             "tier": account.get("tier", "free"),
             "status": account.get("status", "active"),
             "suspended_reason": account.get("suspended_reason") or "",
-            "openclaw_enabled": account.get("openclaw_enabled", False),
-            "max_agents": account.get("max_agents", 0),
-            "agent_cpu": account.get("agent_cpu", 1),
-            "agent_ram": account.get("agent_ram", 1),
+            "t1_requests_limit": account.get("t1_requests_limit", 0),
+            "t2_requests_limit": account.get("t2_requests_limit", 0),
+            "t3_requests_limit": account.get("t3_requests_limit", 0),
             "is_trialing": account.get("is_trialing", False),
         }
         # Cache verified user info (TTL 60 seconds)

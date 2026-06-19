@@ -10,7 +10,6 @@ from app.core.supabase import get_supabase, _verify_supabase_jwt
 from app.api import health, models, chat
 from app.api.admin.routes import router as admin_router
 from app.api.user import router as user_router
-from app.api.hosted_agents import router as hosted_agents_router
 from app.api.webhooks import router as webhooks_router
 from app.api.plans import router as plans_router
 from app.core.http_client import init_http_client, close_http_client
@@ -206,7 +205,6 @@ app.include_router(models.router, tags=["Models"])
 app.include_router(chat.router, tags=["Chat"])
 app.include_router(admin_router, tags=["Admin"])
 app.include_router(user_router, tags=["User"])
-app.include_router(hosted_agents_router, tags=["Hosted Agents"])
 app.include_router(webhooks_router, tags=["Webhooks"])
 app.include_router(plans_router, tags=["Plans"])
 

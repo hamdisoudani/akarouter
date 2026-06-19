@@ -22,14 +22,8 @@ import {
   adminCreateInvitation,
   adminUpdateInvitation,
   adminDeleteInvitation,
-  adminGetDaytonaKeys,
-  adminCreateDaytonaKey,
-  adminUpdateDaytonaKey,
-  adminDeleteDaytonaKey,
-  adminTestDaytonaKey,
   type PlanPreset,
-  type AdminModelMapping,
-  type DaytonaKey
+  type AdminModelMapping
 } from '@/lib/api'
 import { 
   Shield, 
@@ -183,16 +177,7 @@ export default function AdminDashboard() {
   const [copiedUserCode, setCopiedUserCode] = useState(false)
   const [refreshingId, setRefreshingId] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<'providers' | 'users' | 'plans' | 'settings' | 'invitations' | 'daytona_keys'>('providers')
-
-  // Daytona keys state
-  const [daytonaKeys, setDaytonaKeys] = useState<any[]>([])
-  const [loadingDaytonaKeys, setLoadingDaytonaKeys] = useState(false)
-  const [newKeyLabel, setNewKeyLabel] = useState('')
-  const [newKeyApiKey, setNewKeyApiKey] = useState('')
-  const [newKeyApiUrl, setNewKeyApiUrl] = useState('https://app.daytona.io/api')
-  const [testingKeyId, setTestingKeyId] = useState<string | null>(null)
-  const [testResult, setTestResult] = useState<{ id: string; ok: boolean; message: string } | null>(null)
+  const [activeTab, setActiveTab] = useState<'providers' | 'users' | 'plans' | 'settings' | 'invitations'>('providers')
 
   // Invitation management state
   const [invitations, setInvitations] = useState<any[]>([])
@@ -203,7 +188,7 @@ export default function AdminDashboard() {
   const [editingInvMaxUses, setEditingInvMaxUses] = useState<number>(1)
 
   // Settings & Models state
-  const [systemSettings, setSystemSettings] = useState<any>({ gateway_enabled: 'true', max_agents_per_user: '1' })
+  const [systemSettings, setSystemSettings] = useState<any>({ gateway_enabled: 'true' })
   const [adminModels, setAdminModels] = useState<AdminModelMapping[]>([])
   const [loadingSettings, setLoadingSettings] = useState(false)
 
@@ -215,10 +200,9 @@ export default function AdminDashboard() {
   const [newPlanRpm, setNewPlanRpm] = useState(60)
   const [newPlan5h, setNewPlan5h] = useState(1.0)
   const [newPlan7d, setNewPlan7d] = useState(5.0)
-  const [newPlanOpenclawEnabled, setNewPlanOpenclawEnabled] = useState(false)
-  const [newPlanMaxAgents, setNewPlanMaxAgents] = useState(0)
-  const [newPlanAgentCpu, setNewPlanAgentCpu] = useState(1)
-  const [newPlanAgentRam, setNewPlanAgentRam] = useState(1)
+  const [newPlanT1, setNewPlanT1] = useState(0)
+  const [newPlanT2, setNewPlanT2] = useState(0)
+  const [newPlanT3, setNewPlanT3] = useState(0)
   const [newPlanPrice, setNewPlanPrice] = useState('$0')
   const [newPlanBillingPeriod, setNewPlanBillingPeriod] = useState('mo')
   const [newPlanDescription, setNewPlanDescription] = useState('')
@@ -230,10 +214,9 @@ export default function AdminDashboard() {
   const [editingPlanRpm, setEditingPlanRpm] = useState<number>(60)
   const [editingPlan5h, setEditingPlan5h] = useState<number>(1.0)
   const [editingPlan7d, setEditingPlan7d] = useState<number>(5.0)
-  const [editingPlanOpenclawEnabled, setEditingPlanOpenclawEnabled] = useState(false)
-  const [editingPlanMaxAgents, setEditingPlanMaxAgents] = useState(0)
-  const [editingPlanAgentCpu, setEditingPlanAgentCpu] = useState(1)
-  const [editingPlanAgentRam, setEditingPlanAgentRam] = useState(1)
+  const [editingPlanT1, setEditingPlanT1] = useState<number>(0)
+  const [editingPlanT2, setEditingPlanT2] = useState<number>(0)
+  const [editingPlanT3, setEditingPlanT3] = useState<number>(0)
   const [editingPlanPrice, setEditingPlanPrice] = useState('$0')
   const [editingPlanBillingPeriod, setEditingPlanBillingPeriod] = useState('mo')
   const [editingPlanDescription, setEditingPlanDescription] = useState('')
@@ -252,10 +235,9 @@ export default function AdminDashboard() {
   const [editingRpmLimit, setEditingRpmLimit] = useState<number>(60)
   const [editingTokens5hLimit, setEditingTokens5hLimit] = useState<number>(1.0)
   const [editingTokens7dLimit, setEditingTokens7dLimit] = useState<number>(5.0)
-  const [editingAccountOpenclawEnabled, setEditingAccountOpenclawEnabled] = useState(false)
-  const [editingAccountMaxAgents, setEditingAccountMaxAgents] = useState(0)
-  const [editingAccountAgentCpu, setEditingAccountAgentCpu] = useState(1)
-  const [editingAccountAgentRam, setEditingAccountAgentRam] = useState(1)
+  const [editingT1Limit, setEditingT1Limit] = useState<number>(0)
+  const [editingT2Limit, setEditingT2Limit] = useState<number>(0)
+  const [editingT3Limit, setEditingT3Limit] = useState<number>(0)
   const [editingRole, setEditingRole] = useState('user')
   const [editingStatus, setEditingStatus] = useState('active')
   const [editingSuspendedReason, setEditingSuspendedReason] = useState('')
@@ -407,63 +389,6 @@ export default function AdminDashboard() {
     }
   }
 
-  const loadDaytonaKeys = useCallback(async () => {
-    if (!token) return
-    setLoadingDaytonaKeys(true)
-    try {
-      const data = await adminGetDaytonaKeys(token)
-      setDaytonaKeys(data.keys || [])
-    } catch (err: any) {
-      setError(err.message)
-    }
-    setLoadingDaytonaKeys(false)
-  }, [token])
-
-  const handleCreateDaytonaKey = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newKeyLabel || !newKeyApiKey) return
-    try {
-      await adminCreateDaytonaKey(token, newKeyLabel, newKeyApiKey, newKeyApiUrl)
-      setNewKeyLabel('')
-      setNewKeyApiKey('')
-      setNewKeyApiUrl('https://app.daytona.io/api')
-      await loadDaytonaKeys()
-    } catch (err: any) {
-      setError(err.message)
-    }
-  }
-
-  const handleToggleDaytonaKeyActive = async (id: string, currentActive: boolean) => {
-    try {
-      await adminUpdateDaytonaKey(token, id, { is_active: !currentActive })
-      await loadDaytonaKeys()
-    } catch (err: any) {
-      setError(err.message)
-    }
-  }
-
-  const handleDeleteDaytonaKey = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this Daytona API key?')) return
-    try {
-      await adminDeleteDaytonaKey(token, id)
-      await loadDaytonaKeys()
-    } catch (err: any) {
-      setError(err.message)
-    }
-  }
-
-  const handleTestDaytonaKey = async (id: string) => {
-    setTestingKeyId(id)
-    setTestResult(null)
-    try {
-      const res = await adminTestDaytonaKey(token, id)
-      setTestResult({ id, ok: res.ok, message: res.message })
-    } catch (err: any) {
-      setTestResult({ id, ok: false, message: err.message })
-    }
-    setTestingKeyId(null)
-  }
-
   useEffect(() => {
     if (!authChecked || !isAdmin) return
     const channel = supabase
@@ -504,8 +429,6 @@ export default function AdminDashboard() {
       loadAdminModels()
     } else if (activeTab === 'invitations') {
       loadInvitations()
-    } else if (activeTab === 'daytona_keys') {
-      loadDaytonaKeys()
     }
   }, [authChecked, isAdmin, token, activeTab, accountsPage])
 
@@ -517,14 +440,13 @@ export default function AdminDashboard() {
       await adminCreatePlan(
         token, 
         newPlanTier.toLowerCase(), 
-        newPlanLimit, 
-        newPlanRpm, 
-        newPlan5h, 
+        newPlanLimit,
+        newPlanRpm,
+        newPlan5h,
         newPlan7d,
-        newPlanOpenclawEnabled,
-        newPlanMaxAgents,
-        newPlanAgentCpu,
-        newPlanAgentRam,
+        newPlanT1,
+        newPlanT2,
+        newPlanT3,
         newPlanPrice,
         newPlanBillingPeriod,
         newPlanDescription,
@@ -537,10 +459,9 @@ export default function AdminDashboard() {
       setNewPlanRpm(60)
       setNewPlan5h(1.0)
       setNewPlan7d(5.0)
-      setNewPlanOpenclawEnabled(false)
-      setNewPlanMaxAgents(0)
-      setNewPlanAgentCpu(1)
-      setNewPlanAgentRam(1)
+      setNewPlanT1(0)
+      setNewPlanT2(0)
+      setNewPlanT3(0)
       setNewPlanPrice('$0')
       setNewPlanBillingPeriod('mo')
       setNewPlanDescription('')
@@ -560,10 +481,9 @@ export default function AdminDashboard() {
         rpm_limit: editingPlanRpm,
         tokens_5h_limit: editingPlan5h,
         tokens_7d_limit: editingPlan7d,
-        openclaw_enabled: editingPlanOpenclawEnabled,
-        max_agents: editingPlanMaxAgents,
-        agent_cpu: editingPlanAgentCpu,
-        agent_ram: editingPlanAgentRam,
+        t1_requests_limit: editingPlanT1,
+        t2_requests_limit: editingPlanT2,
+        t3_requests_limit: editingPlanT3,
         price: editingPlanPrice,
         billing_period: editingPlanBillingPeriod,
         description: editingPlanDescription,
@@ -600,10 +520,9 @@ export default function AdminDashboard() {
     setEditingRpmLimit(acc.rpm_limit ?? 60)
     setEditingTokens5hLimit(acc.tokens_5h_limit ?? 1.0)
     setEditingTokens7dLimit(acc.tokens_7d_limit ?? 5.0)
-    setEditingAccountOpenclawEnabled(acc.openclaw_enabled ?? false)
-    setEditingAccountMaxAgents(acc.max_agents ?? 0)
-    setEditingAccountAgentCpu(acc.agent_cpu ?? 1)
-    setEditingAccountAgentRam(acc.agent_ram ?? 1)
+    setEditingT1Limit(acc.t1_requests_limit ?? 0)
+    setEditingT2Limit(acc.t2_requests_limit ?? 0)
+    setEditingT3Limit(acc.t3_requests_limit ?? 0)
   }
 
   const handleUpdateAccount = async (e: React.FormEvent) => {
@@ -621,10 +540,9 @@ export default function AdminDashboard() {
         rpm_limit: Number(editingRpmLimit),
         tokens_5h_limit: Number(editingTokens5hLimit),
         tokens_7d_limit: Number(editingTokens7dLimit),
-        openclaw_enabled: editingAccountOpenclawEnabled,
-        max_agents: Number(editingAccountMaxAgents),
-        agent_cpu: Number(editingAccountAgentCpu),
-        agent_ram: Number(editingAccountAgentRam),
+        t1_requests_limit: Number(editingT1Limit),
+        t2_requests_limit: Number(editingT2Limit),
+        t3_requests_limit: Number(editingT3Limit),
       })
       setEditingAccountId(null)
       await loadAccounts(searchQuery)
@@ -644,10 +562,9 @@ export default function AdminDashboard() {
       setEditingRpmLimit(matchedPlan.rpm_limit ?? 60)
       setEditingTokens5hLimit(matchedPlan.tokens_5h_limit ?? 1.0)
       setEditingTokens7dLimit(matchedPlan.tokens_7d_limit ?? 5.0)
-      setEditingAccountOpenclawEnabled(matchedPlan.openclaw_enabled ?? false)
-      setEditingAccountMaxAgents(matchedPlan.max_agents ?? 0)
-      setEditingAccountAgentCpu(matchedPlan.agent_cpu ?? 1)
-      setEditingAccountAgentRam(matchedPlan.agent_ram ?? 1)
+      setEditingT1Limit(matchedPlan.t1_requests_limit ?? 0)
+      setEditingT2Limit(matchedPlan.t2_requests_limit ?? 0)
+      setEditingT3Limit(matchedPlan.t3_requests_limit ?? 0)
     }
   }
 
@@ -1075,16 +992,6 @@ export default function AdminDashboard() {
               >
                 [05_INVITATION_CODES]
               </button>
-              <button
-                onClick={() => setActiveTab('daytona_keys')}
-                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 ${
-                  activeTab === 'daytona_keys'
-                    ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
-                    : 'text-zinc-500 hover:text-white'
-                }`}
-              >
-                [06_DAYTONA_KEYS]
-              </button>
             </div>
 
             {/* Tab Panel: Providers */}
@@ -1398,10 +1305,9 @@ export default function AdminDashboard() {
                             <th className="p-4">RPM Limit</th>
                             <th className="p-4">5H Budget</th>
                             <th className="p-4">7D Budget</th>
-                            <th className="p-4">OpenClaw</th>
-                            <th className="p-4">Max Agents</th>
-                            <th className="p-4">CPU</th>
-                            <th className="p-4">RAM</th>
+                            <th className="p-4">T1 Calls</th>
+                            <th className="p-4">T2 Calls</th>
+                            <th className="p-4">T3 Calls</th>
                             <th className="p-4 text-right">Action</th>
                           </tr>
                         </thead>
@@ -1415,18 +1321,9 @@ export default function AdminDashboard() {
                                   <td className="p-4 text-zinc-300">{p.rpm_limit ?? 60} RPM</td>
                                   <td className="p-4 text-zinc-300">${(p.tokens_5h_limit ?? 1.0).toFixed(2)}</td>
                                   <td className="p-4 text-zinc-300">${(p.tokens_7d_limit ?? 5.0).toFixed(2)}</td>
-                                  <td className="p-4 text-zinc-300">
-                                    <span className={`px-2 py-0.5 text-[9px] font-mono border rounded-sm font-bold ${
-                                      p.openclaw_enabled 
-                                        ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400' 
-                                        : 'border-zinc-850 bg-zinc-900/40 text-zinc-500'
-                                    }`}>
-                                      {p.openclaw_enabled ? 'ENABLED' : 'DISABLED'}
-                                    </span>
-                                  </td>
-                                  <td className="p-4 text-zinc-300 font-bold">{p.max_agents ?? 0}</td>
-                                  <td className="p-4 text-zinc-300">{p.agent_cpu ?? 1} CPU</td>
-                                  <td className="p-4 text-zinc-300">{p.agent_ram ?? 1} GB</td>
+                                  <td className="p-4 text-zinc-300 font-bold">{(p.t1_requests_limit ?? 0).toLocaleString()}</td>
+                                  <td className="p-4 text-zinc-300 font-bold">{(p.t2_requests_limit ?? 0).toLocaleString()}</td>
+                                  <td className="p-4 text-zinc-300 font-bold">{(p.t3_requests_limit ?? 0).toLocaleString()}</td>
                               <td className="p-4 text-right space-x-2">
                                 {editingPlanId === p.id ? (
                                   <div className="inline-flex gap-2">
@@ -1440,10 +1337,9 @@ export default function AdminDashboard() {
                                       setEditingPlanRpm(p.rpm_limit ?? 60);
                                       setEditingPlan5h(p.tokens_5h_limit ?? 1.0);
                                       setEditingPlan7d(p.tokens_7d_limit ?? 5.0);
-                                      setEditingPlanOpenclawEnabled(p.openclaw_enabled ?? false);
-                                      setEditingPlanMaxAgents(p.max_agents ?? 0);
-                                      setEditingPlanAgentCpu(p.agent_cpu ?? 1);
-                                      setEditingPlanAgentRam(p.agent_ram ?? 1);
+                                      setEditingPlanT1(p.t1_requests_limit ?? 0);
+                                      setEditingPlanT2(p.t2_requests_limit ?? 0);
+                                      setEditingPlanT3(p.t3_requests_limit ?? 0);
                                     }}
                                     className="inline-flex items-center gap-1 px-2.5 py-1 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-550 transition-all text-[10px]"
                                   >
@@ -1540,57 +1436,44 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* OpenClaw Feature Settings */}
+                    {/* Per-Tier Request Caps */}
                     <div className="border border-zinc-900 bg-[#050507]/40 p-4 rounded-sm space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Enable Hosted OpenClaw</label>
-                        <input 
-                          type="checkbox" 
-                          checked={newPlanOpenclawEnabled}
-                          onChange={(e) => setNewPlanOpenclawEnabled(e.target.checked)}
-                          className="w-4 h-4 rounded border-zinc-800 bg-[#050507] text-[#ef4444] accent-[#ef4444] cursor-pointer"
-                        />
-                      </div>
-                      
-                      {newPlanOpenclawEnabled && (
-                        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-zinc-900/60 animate-fade-in">
-                          <div className="space-y-1">
-                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Max Agents</label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={newPlanMaxAgents}
-                              onChange={e => setNewPlanMaxAgents(Math.max(1, Number(e.target.value)))}
-                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                              required
-                            />
-                          </div>
-                          
-                          <div className="space-y-1">
-                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">CPU Cores</label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={newPlanAgentCpu}
-                              onChange={e => setNewPlanAgentCpu(Math.max(1, Number(e.target.value)))}
-                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                              required
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">RAM (GB)</label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={newPlanAgentRam}
-                              onChange={e => setNewPlanAgentRam(Math.max(1, Number(e.target.value)))}
-                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                              required
-                            />
-                          </div>
+                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider block">Monthly Request Caps per Tier</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T1 Calls/mo</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={newPlanT1}
+                            onChange={e => setNewPlanT1(Math.max(0, Number(e.target.value)))}
+                            className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                            required
+                          />
                         </div>
-                      )}
+                        <div className="space-y-1">
+                          <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T2 Calls/mo</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={newPlanT2}
+                            onChange={e => setNewPlanT2(Math.max(0, Number(e.target.value)))}
+                            className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T3 Calls/mo</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={newPlanT3}
+                            onChange={e => setNewPlanT3(Math.max(0, Number(e.target.value)))}
+                            className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                            required
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     <button
@@ -1726,48 +1609,41 @@ export default function AdminDashboard() {
                           </div>
                         </div>
 
-                        {/* OpenClaw Config */}
+                        {/* Per-Tier Request Caps (edit) */}
                         <div className="border border-zinc-900 bg-zinc-950 p-4 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-zinc-400 uppercase text-[10px] tracking-widest font-bold">OpenClaw Settings</h3>
-                            <input
-                              type="checkbox"
-                              checked={editingPlanOpenclawEnabled}
-                              onChange={e => setEditingPlanOpenclawEnabled(e.target.checked)}
-                              className="w-4 h-4 rounded border-zinc-800 bg-[#050507] text-[#ef4444] accent-[#ef4444]"
-                            />
-                          </div>
-                          {editingPlanOpenclawEnabled && (
-                            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-zinc-900/60 animate-fade-in">
-                              <div className="space-y-1">
-                                <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Max Agents</label>
-                                <input
-                                  type="number"
-                                  value={editingPlanMaxAgents}
-                                  onChange={e => setEditingPlanMaxAgents(Number(e.target.value))}
-                                  className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-zinc-500 uppercase text-[9px] tracking-wider">CPU Cores</label>
-                                <input
-                                  type="number"
-                                  value={editingPlanAgentCpu}
-                                  onChange={e => setEditingPlanAgentCpu(Number(e.target.value))}
-                                  className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-zinc-500 uppercase text-[9px] tracking-wider">RAM (GB)</label>
-                                <input
-                                  type="number"
-                                  value={editingPlanAgentRam}
-                                  onChange={e => setEditingPlanAgentRam(Number(e.target.value))}
-                                  className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                                />
-                              </div>
+                          <h3 className="text-zinc-400 uppercase text-[10px] tracking-widest font-bold">Monthly Request Caps per Tier</h3>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="space-y-1">
+                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T1 Calls/mo</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={editingPlanT1}
+                                onChange={e => setEditingPlanT1(Math.max(0, Number(e.target.value)))}
+                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              />
                             </div>
-                          )}
+                            <div className="space-y-1">
+                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T2 Calls/mo</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={editingPlanT2}
+                                onChange={e => setEditingPlanT2(Math.max(0, Number(e.target.value)))}
+                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T3 Calls/mo</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={editingPlanT3}
+                                onChange={e => setEditingPlanT3(Math.max(0, Number(e.target.value)))}
+                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              />
+                            </div>
+                          </div>
                         </div>
 
                         <div className="flex gap-4 pt-4 border-t border-zinc-900">
@@ -1889,58 +1765,6 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 </div>
-
-                {/* Hosted Agent Creation Limit Card */}
-                <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
-                  <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
-                      <Cpu className="w-4 h-4 text-[#ef4444]" />
-                      HOSTED_AGENTS_LIMIT_CONTROL
-                    </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
-                      Configure the maximum number of hosted agents a user is allowed to create.
-                    </p>
-                  </div>
-
-                  <div className="p-5 bg-zinc-950 border border-zinc-900 flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                      <label className="font-mono text-xs text-zinc-400 uppercase tracking-wider font-bold">
-                        MAX AGENTS PER USER:
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="number"
-                          min="1"
-                          value={systemSettings.max_agents_per_user || '1'}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setSystemSettings((prev: any) => ({ ...prev, max_agents_per_user: val }));
-                          }}
-                          className="bg-black border border-zinc-900 font-mono text-xs text-white p-2 w-24 focus:outline-none focus:border-[#ef4444] transition-colors"
-                        />
-                        <button
-                          onClick={async () => {
-                            const val = parseInt(systemSettings.max_agents_per_user || '1', 10);
-                            if (isNaN(val) || val < 1) {
-                              alert('Limit must be a number greater than or equal to 1');
-                              return;
-                            }
-                            try {
-                              await adminUpdateSettings(token, { max_agents_per_user: val });
-                              alert('Hosted agents limit updated successfully!');
-                            } catch (err: any) {
-                              setError(err.message);
-                            }
-                          }}
-                          className="bg-[#ef4444] text-black font-mono text-xs font-bold px-4 py-2 hover:bg-[#ff5451] transition-all crosshair-corners"
-                        >
-                          SAVE LIMIT
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Model active switches Card */}
                 <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
                   <div className="space-y-1">
@@ -2119,147 +1943,6 @@ export default function AdminDashboard() {
                 </div>
               </section>
             )}
-
-            {activeTab === 'daytona_keys' && (
-              <section className="grid grid-cols-12 gap-6 animate-slide-in relative">
-                {/* Create Daytona Key Card */}
-                <div className="col-span-12 lg:col-span-4 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
-                  <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
-                      <Plus className="w-4 h-4 text-[#ef4444]" />
-                      REGISTER_DAYTONA_KEY
-                    </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
-                      Register a new Daytona API credential. Keys are stored encrypted using Fernet (AES-128).
-                    </p>
-                  </div>
-
-                  <form onSubmit={handleCreateDaytonaKey} className="space-y-4 font-mono text-xs text-zinc-300">
-                    <div className="space-y-1">
-                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider font-bold">Key Label</label>
-                      <input
-                        type="text"
-                        required
-                        value={newKeyLabel}
-                        onChange={e => setNewKeyLabel(e.target.value)}
-                        placeholder="e.g. DAYTONA-WORKER-01"
-                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white placeholder-zinc-800 uppercase focus:outline-none focus:border-[#ef4444] rounded-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider font-bold">API Base URL</label>
-                      <input
-                        type="url"
-                        required
-                        value={newKeyApiUrl}
-                        onChange={e => setNewKeyApiUrl(e.target.value)}
-                        placeholder="https://app.daytona.io/api"
-                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] rounded-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider font-bold">Daytona API Key (dtn_...)</label>
-                      <input
-                        type="password"
-                        required
-                        value={newKeyApiKey}
-                        onChange={e => setNewKeyApiKey(e.target.value)}
-                        placeholder="dtn_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] rounded-none"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full bg-[#ef4444] text-black font-bold py-3 hover:bg-[#ff5451] transition-all crosshair-corners uppercase tracking-wider rounded-none"
-                    >
-                      [+] Register Key
-                    </button>
-                  </form>
-                </div>
-
-                {/* List & Manage Daytona Keys Card */}
-                <div className="col-span-12 lg:col-span-8 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
-                  <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
-                      <Cpu className="w-4 h-4 text-[#ef4444]" />
-                      ACTIVE_DAYTONA_CREDENTIALS
-                    </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
-                      Load-balances OpenClaw provisioning tasks across active credentials. Decrypted previews are shown below.
-                    </p>
-                  </div>
-
-                  <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
-                    {loadingDaytonaKeys ? (
-                      <AdminListSkeleton count={2} />
-                    ) : daytonaKeys.length === 0 ? (
-                      <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center">[NO_DAYTONA_KEYS_REGISTERED]</p>
-                    ) : (
-                      daytonaKeys.map((key) => (
-                        <div key={key.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-zinc-950 border border-zinc-900 hover:border-zinc-850 transition-all group">
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-3">
-                              <span className="font-mono text-sm font-bold text-white uppercase tracking-wider">{key.key_label}</span>
-                              <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
-                                key.is_active
-                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                                  : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444] red-glow-text'
-                              }`}>
-                                {key.is_active ? 'ACTIVE' : 'INACTIVE'}
-                              </span>
-                            </div>
-                            <div className="font-mono text-[10px] text-zinc-550 uppercase">
-                              Preview: <span className="text-zinc-300 font-mono font-semibold">{key.api_key_preview}</span> • Base URL: <span className="text-zinc-350 font-semibold lowercase">{key.api_url}</span>
-                            </div>
-                            <div className="font-mono text-[10px] text-zinc-550 uppercase">
-                              Active Sandboxes: <span className="text-[#ef4444] font-bold">{key.active_vms}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            {testResult && testResult.id === key.id && (
-                              <span className={`font-mono text-[10px] mr-2 uppercase ${testResult.ok ? 'text-emerald-400' : 'text-[#ef4444]'}`}>
-                                {testResult.ok ? '✓ Connected' : `✗ Failed: ${testResult.message}`}
-                              </span>
-                            )}
-                            
-                            <button
-                              onClick={() => handleTestDaytonaKey(key.id)}
-                              disabled={testingKeyId === key.id}
-                              className="px-2.5 py-1.5 border border-zinc-850 hover:border-zinc-500 hover:bg-zinc-900 font-mono text-[9px] font-bold text-zinc-350 hover:text-white transition-all uppercase disabled:opacity-50"
-                            >
-                              {testingKeyId === key.id ? 'Testing...' : 'Test Connection'}
-                            </button>
-                            
-                            <button
-                              onClick={() => handleToggleDaytonaKeyActive(key.id, key.is_active)}
-                              className={`px-2.5 py-1.5 border font-mono text-[9px] font-bold transition-all uppercase ${
-                                key.is_active
-                                  ? 'border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] hover:bg-[#ef4444]/15'
-                                  : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/15'
-                              }`}
-                            >
-                              {key.is_active ? 'Deactivate' : 'Activate'}
-                            </button>
-                            
-                            <button
-                              onClick={() => handleDeleteDaytonaKey(key.id)}
-                              className="p-1.5 border border-zinc-900 bg-zinc-950 text-zinc-650 hover:text-[#ef4444] hover:border-[#ef4444]/30 hover:bg-[#ef4444]/5 transition-all"
-                              title="Delete Key"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </section>
-            )}
             {editingAccountId && (
               <div className="fixed inset-0 z-50 bg-[#09090b]/80 backdrop-blur-sm flex items-center justify-center p-4">
                 <div className="bg-[#0e0e10] border border-[#ef4444]/35 p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto crosshair-corners relative animate-fade-in space-y-4">
@@ -2356,57 +2039,34 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* OpenClaw User Settings Override */}
-                    <div className="border border-zinc-900 bg-[#050507]/40 p-4 rounded-sm space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Enable Hosted OpenClaw</label>
-                        <input 
-                          type="checkbox" 
-                          checked={editingAccountOpenclawEnabled}
-                          onChange={(e) => setEditingAccountOpenclawEnabled(e.target.checked)}
-                          className="w-4 h-4 rounded border-zinc-800 bg-[#050507] text-[#ef4444] accent-[#ef4444] cursor-pointer"
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-zinc-900">
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T1 Calls/mo</label>
+                        <input
+                          type="number"
+                          value={editingT1Limit}
+                          onChange={e => setEditingT1Limit(Number(e.target.value))}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
                         />
                       </div>
-                      
-                      {editingAccountOpenclawEnabled && (
-                        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-zinc-900/60 animate-fade-in">
-                          <div className="space-y-1">
-                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Max Agents</label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={editingAccountMaxAgents}
-                              onChange={e => setEditingAccountMaxAgents(Number(e.target.value))}
-                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                              required
-                            />
-                          </div>
-                          
-                          <div className="space-y-1">
-                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">CPU Cores</label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={editingAccountAgentCpu}
-                              onChange={e => setEditingAccountAgentCpu(Number(e.target.value))}
-                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                              required
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">RAM (GB)</label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={editingAccountAgentRam}
-                              onChange={e => setEditingAccountAgentRam(Number(e.target.value))}
-                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
-                              required
-                            />
-                          </div>
-                        </div>
-                      )}
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T2 Calls/mo</label>
+                        <input
+                          type="number"
+                          value={editingT2Limit}
+                          onChange={e => setEditingT2Limit(Number(e.target.value))}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">T3 Calls/mo</label>
+                        <input
+                          type="number"
+                          value={editingT3Limit}
+                          onChange={e => setEditingT3Limit(Number(e.target.value))}
+                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                        />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

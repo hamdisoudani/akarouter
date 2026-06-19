@@ -510,39 +510,6 @@ def is_activation_required() -> bool:
         return False
 
 
-def get_max_agents_limit() -> int:
-    """Retrieve the max agents limit per user. Cached for 60s."""
-    now = time.time()
-    with _lock:
-        if "max_agents_per_user" in _system_settings_cache:
-            val, fetched_at = _system_settings_cache["max_agents_per_user"]
-            if now - fetched_at < 60.0:
-                try:
-                    return int(val)
-                except ValueError:
-                    return 1
-    
-    # Cache miss, query DB
-    try:
-        supabase = get_supabase()
-        res = supabase.table("system_settings").select("value").eq("key", "max_agents_per_user").execute()
-        val = "1"
-        if res.data:
-            val = res.data[0]["value"]
-        else:
-            # Seed it if missing
-            supabase.table("system_settings").insert({"key": "max_agents_per_user", "value": "1"}).execute()
-        
-        with _lock:
-            _system_settings_cache["max_agents_per_user"] = (val, now)
-        try:
-            return int(val)
-        except ValueError:
-            return 1
-    except Exception as e:
-        logger.error(f"Failed to check max_agents_per_user status: {e}")
-        return 1
-
 
 
 def evict_system_settings_cache() -> None:
