@@ -426,11 +426,12 @@ async def startup():
     # take effect immediately on first request after deploy, rather than
     # waiting up to 60s for the TTL.
     try:
-        from app.core.cache import evict_all_model_caches
+        from app.core.cache import evict_all_model_caches, evict_plan_meta_cache
         evict_all_model_caches()
-        logger.info("Model metadata cache evicted after pricing migration")
+        evict_plan_meta_cache()
+        logger.info("Model metadata + plan meta cache evicted after pricing migration")
     except Exception as e:
-        logger.warning(f"Failed to evict model cache (non-fatal): {e}")
+        logger.warning(f"Failed to evict caches (non-fatal): {e}")
 
 
 @app.on_event("shutdown")
