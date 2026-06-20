@@ -650,6 +650,7 @@ def get_plan_meta(tier: str) -> dict[str, Any]:
         )
         if res.data:
             row = res.data
+            logger.info(f"[plan_meta] tier={tier} mult={row.get('points_cost_multiplier')} pts={row.get('monthly_point_allowance')}")
             val = {
                 "tier": row.get("tier") or tier,
                 "points_cost_multiplier": float(row.get("points_cost_multiplier") or 1.0),
@@ -690,7 +691,7 @@ def get_plan_meta(tier: str) -> dict[str, Any]:
             _plan_meta_cache[tier] = (val, now)
         return val
     except Exception as e:
-        logger.error(f"Failed to fetch plan meta for tier={tier}: {e}")
+        logger.error(f"Failed to fetch plan meta for tier={tier}: {type(e).__name__}: {e}")
         return {
             "tier": tier,
             "points_cost_multiplier": 1.0,
