@@ -6,24 +6,15 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useApp } from '@/app/providers'
 import { createCheckoutSession, getPlans, type PlanPreset, getPointTransactions, type PointTransaction } from '@/lib/api'
-import { 
-  LogOut, 
-  KeyRound, 
-  Terminal,
-  Shield,
-  Layers,
-  Menu,
-  X,
-  Activity,
-  FileText,
-  Cpu
+import {
+  LogOut
 } from 'lucide-react'
 
 
+import { DashboardSidebar } from '@/components/DashboardSidebar'
 export default function UsagePage() {
   const router = useRouter()
   const { user, token, usage, loading: authLoading, signOut, refetchUsage } = useApp()
-  const [mobileOpen, setMobileOpen] = useState(false)
 
   const [secondsLeft5h, setSecondsLeft5h] = useState<number | null>(null)
   const [fullSecondsLeft5h, setFullSecondsLeft5h] = useState<number | null>(null)
@@ -260,188 +251,14 @@ export default function UsagePage() {
     <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex antialiased selection:bg-[#ef4444]/30 selection:text-white">
       
       {/* SideNavBar */}
-      <nav className="hidden md:flex flex-col h-screen w-64 tech-border-r bg-[#09090b] py-6 fixed left-0 top-0 z-20 micro-grid">
-        <div className="px-6 mb-8 flex flex-col gap-1">
-          <div className="w-full">
-            <div className="relative w-full h-16 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
-              <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 mt-3">
-            <div className="w-1.5 h-1.5 bg-[#ef4444] red-glow status-pulse"></div>
-            <p className="font-mono text-[9px] text-zinc-600 tracking-widest uppercase">Kernel: v1.0.0-STABLE</p>
-          </div>
-        </div>
 
-        <div className="flex-1 px-2 space-y-1">
-          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/dashboard">
-            <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
-              <Terminal className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
-            </span>
-            <span className="tracking-widest font-mono uppercase text-[11px]">Telemetry</span>
-          </Link>
+      <DashboardSidebar />
 
-          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/dashboard/keys">
-            <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
-              <KeyRound className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
-            </span>
-            <span className="tracking-widest font-mono uppercase text-[11px]">API Keys</span>
-          </Link>
-
-          <Link className="flex items-center gap-3 px-3 py-2 w-full text-white nav-item-active" href="/dashboard/usage">
-            <span className="border border-[#ef4444] p-1 bg-[#ef4444]/10 text-[#ef4444] flex items-center justify-center red-glow">
-              <Layers className="w-3.5 h-3.5 text-[#ef4444]" />
-            </span>
-            <span className="tracking-widest font-mono uppercase text-[11px]">Usage</span>
-          </Link>
-
-          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/docs">
-            <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
-              <FileText className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
-            </span>
-            <span className="tracking-widest font-mono uppercase text-[11px]">Docs</span>
-          </Link>
-
-
-          {user?.role === 'admin' && (
-            <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/dashboard/admin">
-              <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
-                <Shield className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
-              </span>
-              <span className="tracking-widest font-mono uppercase text-[11px]">Admin Panel</span>
-            </Link>
-          )}
-        </div>
-
-        <div className="px-6 mt-auto">
-          <div className="font-mono text-[9px] text-zinc-600 mb-2 flex justify-between tracking-tighter">
-            <span>[SYS_SESSION]</span>
-            <span className={`text-emerald-500 uppercase ${!usage ? 'animate-pulse' : ''}`}>{usage?.tier || '...'}</span>
-          </div>
-          <button 
-            onClick={signOut}
-            className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono text-[10px] py-3 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white transition-all flex items-center justify-center gap-2 group crosshair-corners"
-          >
-            <LogOut className="w-3.5 h-3.5 group-hover:text-[#ef4444] transition-colors" />
-            <span className="tracking-widest uppercase font-bold">Sign Out</span>
-          </button>
-        </div>
-      </nav>
-
-      {/* Mobile Navigation Drawer */}
-      {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-[#09090b]/98 backdrop-blur-md flex flex-col justify-between py-24 px-6 border-b border-zinc-900 animate-fade-in">
-          {/* Close button inside mobile drawer */}
-          <div className="absolute top-4 right-6 md:hidden">
-            <button 
-              onClick={() => setMobileOpen(false)}
-              className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            <Link 
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
-              href="/dashboard"
-            >
-              <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
-                <Terminal className="w-3.5 h-3.5 text-zinc-455" />
-              </span>
-              <span className="tracking-widest font-mono uppercase text-xs">Telemetry</span>
-            </Link>
-
-            <Link 
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
-              href="/dashboard/keys"
-            >
-              <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
-                <KeyRound className="w-3.5 h-3.5 text-zinc-455" />
-              </span>
-              <span className="tracking-widest font-mono uppercase text-xs">API Keys</span>
-            </Link>
-
-            <Link 
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 px-4 py-3 w-full border border-[#ef4444] bg-[#ef4444]/10 text-white red-glow"
-              href="/dashboard/usage"
-            >
-              <span className="border border-[#ef4444] p-1 bg-[#ef4444]/10 text-[#ef4444] flex items-center justify-center red-glow">
-                <Layers className="w-3.5 h-3.5 text-[#ef4444]" />
-              </span>
-              <span className="tracking-widest font-mono uppercase text-xs">Usage</span>
-            </Link>
-
-            <Link 
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
-              href="/docs"
-            >
-              <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
-                <FileText className="w-3.5 h-3.5 text-zinc-455" />
-              </span>
-              <span className="tracking-widest font-mono uppercase text-xs">Docs</span>
-            </Link>
-
-
-            {user?.role === 'admin' && (
-              <Link 
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
-                href="/dashboard/admin"
-              >
-                <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
-                  <Shield className="w-3.5 h-3.5 text-zinc-450" />
-                </span>
-                <span className="tracking-widest font-mono uppercase text-xs">Admin Panel</span>
-              </Link>
-            )}
-          </div>
-
-          <div>
-            <button 
-              onClick={() => { setMobileOpen(false); signOut(); }}
-              className="w-full bg-zinc-950 border border-zinc-900 text-zinc-300 font-mono text-[11px] py-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white transition-all flex items-center justify-center gap-2 crosshair-corners"
-            >
-              <LogOut className="w-4 h-4 text-zinc-455" />
-              <span className="tracking-widest uppercase font-bold">Sign Out</span>
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col md:ml-64 w-full relative">
         
-        {/* TopAppBar */}
-        <header className="flex justify-between items-center w-full px-6 py-3 bg-[#09090b] tech-border-b sticky top-0 z-10 micro-grid">
-          <div className="md:hidden flex items-center justify-between w-full">
-            <div className="relative w-20 h-10 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
-              <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
-            </div>
-            <button 
-              onClick={() => setMobileOpen(!mobileOpen)}
-              className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
-            >
-              {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            </button>
-          </div>
 
-          <div className="hidden md:flex font-mono text-[11px] text-zinc-400 items-center gap-4">
-            <div className="w-[2px] h-4 bg-[#ef4444]"></div>
-            <span className="tracking-[0.2em] uppercase font-bold text-zinc-300">USAGE TELEMETRY MATRIX</span>
-          </div>
-
-          <div className="flex items-center gap-4 font-mono text-[11px]">
-            <div className="hidden sm:flex items-center gap-2 border border-zinc-800 bg-[#0e0e10] px-3 py-1.5 text-zinc-400">
-              <span className="text-zinc-600">[USER]:</span>
-              <span className="text-white font-semibold">{user ? user.email : 'CONNECTING...'}</span>
-            </div>
-          </div>
-        </header>
 
 
 

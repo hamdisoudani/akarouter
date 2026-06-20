@@ -6,8 +6,14 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useApp } from '@/app/providers'
 import { createCheckoutSession, getModels, getPlans, type PlanPreset } from '@/lib/api'
-import { LogOut, RefreshCw, Brain, Zap, DollarSign, ChevronRight } from 'lucide-react'
+import {
+  RefreshCw,
+  Brain,
+  Zap,
+  DollarSign
+} from 'lucide-react'
 
+import { DashboardSidebar } from '@/components/DashboardSidebar'
 export default function UpgradePage() {
   const router = useRouter()
   const { user, token, usage, loading: authLoading, signOut, refetchUsage } = useApp()
@@ -172,32 +178,7 @@ export default function UpgradePage() {
 
   return (
     <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col overflow-hidden grid-bg">
-      {/* TopAppBar */}
-      <header className="flex justify-between items-center w-full px-6 py-3 bg-[#09090b] border-b border-zinc-900 sticky top-0 z-10 micro-grid">
-        <div className="flex items-center gap-3">
-          <div className="relative w-20 h-10 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
-            <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
-          </div>
-          <span className="hidden sm:inline-block font-mono text-[10px] tracking-[0.2em] text-zinc-400 uppercase font-bold border-l border-zinc-800 pl-4 leading-none">
-            Subscription Setup Portal
-          </span>
-        </div>
 
-        <div className="flex items-center gap-4 font-mono text-[11px]">
-          <div className="flex items-center gap-2 border border-zinc-900 bg-[#0e0e10] px-3 py-1.5 text-zinc-400">
-            <span className="text-zinc-650">[USER]:</span>
-            <span className="text-white font-semibold">{user?.email}</span>
-          </div>
-
-          <button 
-            onClick={signOut}
-            className="bg-zinc-900 border border-zinc-850 hover:border-[#ef4444] hover:bg-[#ef4444]/5 text-zinc-300 hover:text-white px-3 py-1.5 transition-all flex items-center gap-2 font-bold uppercase tracking-wider"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Sign Out
-          </button>
-        </div>
-      </header>
 
       {/* Main Container */}
       <main className="flex-1 p-6 max-w-5xl mx-auto w-full space-y-6 flex flex-col justify-center">
