@@ -371,6 +371,13 @@ async def startup():
                     cur.execute(sql)
                 except Exception as e:
                     logger.warning(f"migration update skipped (non-fatal): {sql[:80]}... — {e}")
+            def _safe_insert(sql: str) -> None:
+                try:
+                    cur.execute(sql)
+                    if cur.rowcount > 0:
+                        logger.info(f"migration insert applied (rowcount={cur.rowcount}): {sql[:80]}...")
+                except Exception as e:
+                    logger.warning(f"migration insert skipped (non-fatal): {sql[:80]}... — {e}")
             # First: fix any rows that would violate model_mapping_free_provider_cost_check
             # when the upcoming pricing changes land. The constraint requires that
             # if is_free_provider=true then points_cost <= 1. Several rows currently
@@ -416,7 +423,7 @@ async def startup():
             _safe_update("UPDATE model_mapping SET pricing_mode = 'per_request', cost_per_request_cents = 2, points_cost = 2 WHERE alias = 'akarouter-large' AND pricing_mode = 'per_token';")
             # 13. 2026-06-20: ensure all 5 plan tiers exist. Live DB was missing
             # the enterprise row entirely. Idempotent INSERT...ON CONFLICT DO NOTHING.
-            _safe_update("INSERT INTO plan_presets (tier, monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, monthly_point_allowance, daily_free_requests_limit, points_cost_multiplier, price, billing_period, description) VALUES ('enterprise', 100000, 600, 5000000, 50000000, 25000, 0, 0.5, '$499', 'mo', 'Everything in Ultra + dedicated SLA, custom limits, on-prem option') ON CONFLICT (tier) DO NOTHING;")
+            _safe_insert("INSERT INTO plan_presets (tier, monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, monthly_point_allowance, daily_free_requests_limit, points_cost_multiplier, price, billing_period, description) VALUES ('enterprise', 100000, 600, 5000000, 50000000, 25000, 0, 0.5, '$499', 'mo', 'Everything in Ultra + dedicated SLA, custom limits, on-prem option') ON CONFLICT (tier) DO NOTHING;")
             cur.close()
             conn.close()
             logger.info("model_mapping migrations applied (slug + included_model_aliases + is_upcoming + 2x markup + tier multiplier + promotional + per_token→per_request)")
