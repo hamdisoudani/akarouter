@@ -19,10 +19,12 @@ async def get_plans(request: Request):
     # Only return plans marked is_visible=true. Enterprise is hidden from the
     # marketing /v1/plans endpoint (kept in DB for legacy accounts only).
     # Order by tier so the response is always free, starter, pro, ultra.
+    # Use raw PostgREST filter string for booleans (Supabase-py 2.x has known
+    # issues with .eq("col", True) silently failing to filter).
     result = (
         supabase.table("plan_presets")
         .select("*")
-        .eq("is_visible", True)
+        .filter("is_visible", "eq", True)
         .order("tier")
         .execute()
     )

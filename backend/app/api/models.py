@@ -145,7 +145,7 @@ async def get_billing_matrix() -> dict:
         supabase = get_supabase()
         plans_res = supabase.table("plan_presets").select(
             "tier, points_cost_multiplier, monthly_point_allowance, daily_free_requests_limit, rpm_limit, price, billing_period"
-        ).eq("is_visible", True).execute()
+        ).filter("is_visible", "eq", True).execute()
         multipliers: dict[str, float] = {}
         allowances: dict[str, int] = {}
         rpm_limits: dict[str, int] = {}

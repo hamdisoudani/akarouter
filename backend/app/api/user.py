@@ -70,7 +70,7 @@ async def list_my_keys(request: Request):
         supabase.table("api_keys")
         .select("id, key_prefix, key_name, scopes, is_active, last_used_at, created_at")
         .eq("account_id", account_id)
-        .eq("is_active", True)
+        .filter("is_active", "eq", True)
         .execute()
     )
     return {"keys": result.data}
