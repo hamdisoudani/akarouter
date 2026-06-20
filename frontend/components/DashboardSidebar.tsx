@@ -47,6 +47,7 @@ import {
   X,
 } from 'lucide-react'
 import { useApp } from '@/app/providers'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 interface NavItem {
   label: string
@@ -166,34 +167,43 @@ export function DashboardSidebar() {
         {sidebarBody}
       </nav>
 
-      {/* Mobile top app bar (preserves the pre-refactor pattern). On
-          <md screens the dashboard shows a sticky horizontal bar at the
-          top of the content area with the AkaRouter logo on the left and
-          a hamburger button on the right. Tapping the hamburger opens
-          the same fullscreen overlay that the desktop sidebar nav links
-          would expand into. This matches the pre-02ce0b8 layout and
-          keeps the page canvas free of floating action buttons. The bar
-          is hidden on md+ since the desktop sidebar takes over. */}
-      <header className="md:hidden sticky top-0 z-30 flex justify-between items-center w-full px-4 py-2.5 bg-[#09090b]/95 backdrop-blur border-b border-zinc-900">
+      {/* Top app bar — sticky horizontal bar shown on EVERY screen size
+          (mobile AND desktop). On mobile it's full-width above the
+          content; on desktop it sits to the right of the fixed vertical
+          sidebar (md:ml-64 offsets the sidebar's w-64). Layout:
+            [logo]  ...spacer...  [theme toggle] [hamburger]
+          The hamburger opens the same fullscreen overlay on both
+          breakpoints — the desktop sidebar stays put underneath, but
+          the overlay still gives the user a focused nav view (matches
+          the user's "both sidebar and topnav" request from 2026-06-20).
+          The bar lives at z-30 (sidebar is z-20, overlay is z-50). */}
+      <header className="sticky top-0 z-30 flex justify-between items-center w-full md:ml-64 md:w-[calc(100%-16rem)] px-4 py-2.5 bg-[#09090b]/95 backdrop-blur border-b border-zinc-900">
         <div className="relative w-20 h-9 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
           <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
         </div>
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
-          aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
-        >
-          {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
+            aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          >
+            {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </button>
+        </div>
       </header>
 
-      {/* Mobile fullscreen overlay (preserves the original pre-refactor
+      {/* Fullscreen overlay (preserves the original pre-refactor
           behaviour). When the hamburger is tapped, this overlay takes
           over the viewport with the same nav links as the desktop
-          sidebar. Tapping a link or the close button dismisses it. */}
+          sidebar. Tapping a link or the close button dismisses it.
+          The overlay is shown on BOTH mobile and desktop — desktop
+          users get a focused nav view that sits on top of (not
+          behind) the dashboard content, complementing the always-
+          visible vertical sidebar. */}
       {mobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-[#09090b]/98 backdrop-blur-md flex flex-col justify-between py-24 px-6 border-b border-zinc-900 animate-fade-in">
-          <div className="absolute top-4 right-6 md:hidden">
+        <div className="fixed inset-0 z-50 bg-[#09090b]/98 backdrop-blur-md flex flex-col justify-between py-24 px-6 border-b border-zinc-900 animate-fade-in">
+          <div className="absolute top-4 right-6">
             <button
               onClick={() => setMobileOpen(false)}
               className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
