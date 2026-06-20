@@ -233,6 +233,7 @@ export default function AdminDashboard() {
   const [editingPlanBadge, setEditingPlanBadge] = useState('')
   const [editingPlanHasTrial, setEditingPlanHasTrial] = useState(false)
   const [editingPlanTrialDays, setEditingPlanTrialDays] = useState(7)
+  const [editingPlanIncludedAliases, setEditingPlanIncludedAliases] = useState<string[]>([])
 
   // Users state
   const [accounts, setAccounts] = useState<any[]>([])
@@ -547,6 +548,7 @@ export default function AdminDashboard() {
         badge: editingPlanBadge,
         has_trial: editingPlanHasTrial,
         trial_days: editingPlanTrialDays,
+        included_model_aliases: editingPlanIncludedAliases,
       })
       setEditingPlanId(null)
       await loadPlans()
@@ -1195,6 +1197,7 @@ export default function AdminDashboard() {
                                       setEditingPlan7d(p.tokens_7d_limit ?? 5.0);
                                       setEditingPlanPointAllowance(p.monthly_point_allowance ?? 0);
                                       setEditingPlanDailyFree(p.daily_free_requests_limit ?? 0);
+                                      setEditingPlanIncludedAliases(p.included_model_aliases ?? []);
                                     }}
                                     className="inline-flex items-center gap-1 px-2.5 py-1 border border-border bg-muted text-muted-foreground hover:text-foreground hover:border-zinc-550 transition-all text-[10px]"
                                   >
@@ -1478,6 +1481,52 @@ export default function AdminDashboard() {
                               />
                             </div>
                           </div>
+                        </div>
+
+                        {/* Included models (edit) */}
+                        <div className="border border-border bg-muted/40 p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-muted-foreground uppercase text-[10px] tracking-widest font-bold">Included Models</h3>
+                            <span className="text-[9px] text-muted-foreground/60 uppercase">
+                              {editingPlanIncludedAliases.length === 0 ? 'ALL ACTIVE MODELS' : `${editingPlanIncludedAliases.length} SELECTED`}
+                            </span>
+                          </div>
+                          <p className="text-[9px] text-muted-foreground/60 uppercase">
+                            Empty list = all active models are accessible on this plan. Add aliases to restrict access.
+                          </p>
+                          <div className="grid grid-cols-2 gap-1.5 max-h-[200px] overflow-y-auto pr-1">
+                            {adminModels.map(m => {
+                              const checked = editingPlanIncludedAliases.includes(m.alias)
+                              return (
+                                <label key={m.alias} className="flex items-center gap-2 text-[10px] font-mono uppercase cursor-pointer hover:text-foreground">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={e => {
+                                      setEditingPlanIncludedAliases(
+                                        e.target.checked
+                                          ? [...editingPlanIncludedAliases, m.alias]
+                                          : editingPlanIncludedAliases.filter(a => a !== m.alias)
+                                      )
+                                    }}
+                                    className="accent-[#ef4444]"
+                                  />
+                                  <span className={checked ? 'text-foreground' : 'text-muted-foreground/70'}>
+                                    {m.display_name || m.alias}
+                                  </span>
+                                </label>
+                              )
+                            })}
+                          </div>
+                          {editingPlanIncludedAliases.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingPlanIncludedAliases([])}
+                              className="text-[9px] text-muted-foreground/60 hover:text-foreground uppercase tracking-wider underline"
+                            >
+                              Clear (grant access to all)
+                            </button>
+                          )}
                         </div>
 
                         <div className="flex gap-4 pt-4 border-t border-border">

@@ -425,10 +425,10 @@ export async function adminCreatePlan(
 }
 
 export async function adminUpdatePlan(
-  token: string, 
-  planId: string, 
-  data: { 
-    tier?: string; 
+  token: string,
+  planId: string,
+  data: {
+    tier?: string;
     monthly_limit?: number;
     rpm_limit?: number;
     tokens_5h_limit?: number;
@@ -441,6 +441,7 @@ export async function adminUpdatePlan(
     badge?: string;
     has_trial?: boolean;
     trial_days?: number;
+    included_model_aliases?: string[] | null;
   }
 ): Promise<{ ok: boolean; plan: PlanPreset }> {
   const res = await fetch(`${API_BASE}/admin/plans/${planId}`, {
