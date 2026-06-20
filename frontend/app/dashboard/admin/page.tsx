@@ -214,6 +214,7 @@ export default function AdminDashboard() {
   const [newPlan7d, setNewPlan7d] = useState(5.0)
   const [newPlanPointAllowance, setNewPlanPointAllowance] = useState(0)
   const [newPlanDailyFree, setNewPlanDailyFree] = useState(0)
+  const [newPlanMultiplier, setNewPlanMultiplier] = useState(1.0)
   const [newPlanPrice, setNewPlanPrice] = useState('$0')
   const [newPlanBillingPeriod, setNewPlanBillingPeriod] = useState('mo')
   const [newPlanDescription, setNewPlanDescription] = useState('')
@@ -227,6 +228,7 @@ export default function AdminDashboard() {
   const [editingPlan7d, setEditingPlan7d] = useState<number>(5.0)
   const [editingPlanPointAllowance, setEditingPlanPointAllowance] = useState<number>(0)
   const [editingPlanDailyFree, setEditingPlanDailyFree] = useState<number>(0)
+  const [editingPlanMultiplier, setEditingPlanMultiplier] = useState<number>(1.0)
   const [editingPlanPrice, setEditingPlanPrice] = useState('$0')
   const [editingPlanBillingPeriod, setEditingPlanBillingPeriod] = useState('mo')
   const [editingPlanDescription, setEditingPlanDescription] = useState('')
@@ -512,7 +514,8 @@ export default function AdminDashboard() {
         newPlanHasTrial,
         newPlanTrialDays,
         newPlanPointAllowance,
-        newPlanDailyFree
+        newPlanDailyFree,
+        newPlanMultiplier
       )
       setNewPlanTier('')
       setNewPlanLimit(10.0)
@@ -521,6 +524,7 @@ export default function AdminDashboard() {
       setNewPlan7d(5.0)
       setNewPlanPointAllowance(0)
       setNewPlanDailyFree(0)
+      setNewPlanMultiplier(1.0)
       setNewPlanPrice('$0')
       setNewPlanBillingPeriod('mo')
       setNewPlanDescription('')
@@ -542,6 +546,7 @@ export default function AdminDashboard() {
         tokens_7d_limit: editingPlan7d,
         monthly_point_allowance: editingPlanPointAllowance,
         daily_free_requests_limit: editingPlanDailyFree,
+        points_cost_multiplier: editingPlanMultiplier,
         price: editingPlanPrice,
         billing_period: editingPlanBillingPeriod,
         description: editingPlanDescription,
@@ -1167,6 +1172,7 @@ export default function AdminDashboard() {
                             <th className="p-4">7D Budget</th>
                             <th className="p-4">Points/mo</th>
                             <th className="p-4">Daily Free</th>
+                            <th className="p-4 text-emerald-400">Multiplier</th>
                             <th className="p-4 text-right">Action</th>
                           </tr>
                         </thead>
@@ -1182,6 +1188,7 @@ export default function AdminDashboard() {
                                   <td className="p-4 text-foreground/80">${(p.tokens_7d_limit ?? 5.0).toFixed(2)}</td>
                                   <td className="p-4 text-amber-400 font-bold">{(p.monthly_point_allowance ?? 0).toLocaleString()}</td>
                                   <td className="p-4 text-amber-400 font-bold">{(p.daily_free_requests_limit ?? 0).toLocaleString()}</td>
+                                  <td className="p-4 text-emerald-400 font-bold">{(p.points_cost_multiplier ?? 1.0).toFixed(2)}x</td>
                               <td className="p-4 text-right space-x-2">
                                 {editingPlanId === p.id ? (
                                   <div className="inline-flex gap-2">
@@ -1197,6 +1204,7 @@ export default function AdminDashboard() {
                                       setEditingPlan7d(p.tokens_7d_limit ?? 5.0);
                                       setEditingPlanPointAllowance(p.monthly_point_allowance ?? 0);
                                       setEditingPlanDailyFree(p.daily_free_requests_limit ?? 0);
+                                      setEditingPlanMultiplier(p.points_cost_multiplier ?? 1.0);
                                       setEditingPlanIncludedAliases(p.included_model_aliases ?? []);
                                     }}
                                     className="inline-flex items-center gap-1 px-2.5 py-1 border border-border bg-muted text-muted-foreground hover:text-foreground hover:border-zinc-550 transition-all text-[10px]"
@@ -1317,6 +1325,20 @@ export default function AdminDashboard() {
                             value={newPlanDailyFree}
                             onChange={e => setNewPlanDailyFree(Math.max(0, Number(e.target.value)))}
                             className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-amber-500"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-emerald-400 uppercase text-[9px] tracking-wider">Point Multiplier</label>
+                          <input
+                            type="number"
+                            step="0.001"
+                            min="0.001"
+                            max="1.0"
+                            value={newPlanMultiplier}
+                            onChange={e => setNewPlanMultiplier(Math.max(0.001, Math.min(1.0, Number(e.target.value))))}
+                            className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-emerald-500"
+                            title="0.001 - 1.0. Lower = bigger discount. Default 1.0 (no discount)."
                             required
                           />
                         </div>
@@ -1478,6 +1500,19 @@ export default function AdminDashboard() {
                                 value={editingPlanDailyFree}
                                 onChange={e => setEditingPlanDailyFree(Math.max(0, Number(e.target.value)))}
                                 className="w-full bg-card/80 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-emerald-400 uppercase text-[9px] tracking-wider">Point Multiplier</label>
+                              <input
+                                type="number"
+                                step="0.001"
+                                min="0.001"
+                                max="1.0"
+                                value={editingPlanMultiplier}
+                                onChange={e => setEditingPlanMultiplier(Math.max(0.001, Math.min(1.0, Number(e.target.value))))}
+                                className="w-full bg-card/80 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-emerald-500"
+                                title="0.001 - 1.0. Lower = bigger discount. Free=1.0, Pro=0.75, Ultra=0.6, Enterprise=0.5"
                               />
                             </div>
                           </div>

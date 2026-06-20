@@ -21,7 +21,7 @@
  */
 
 import { useState } from 'react'
-import { Save, Power, DollarSign, Coins, Loader2, Trash2, Clock } from 'lucide-react'
+import { Save, Power, DollarSign, Coins, Loader2, Trash2, Clock, Sparkles } from 'lucide-react'
 import { adminUpdateModel, type AdminModelMapping } from '@/lib/api'
 
 interface Props {
@@ -38,6 +38,11 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
   const initialMode: PricingMode = (model.pricing_mode as PricingMode) || 'per_token'
   const [isActive, setIsActive] = useState(model.is_active ?? true)
   const [isUpcoming, setIsUpcoming] = useState(model.is_upcoming ?? false)
+  const [isPromotional, setIsPromotional] = useState(model.is_promotional ?? false)
+  const [promoDiscountPct, setPromoDiscountPct] = useState<number>(
+    typeof model.promotional_discount_pct === 'number' ? Math.round(model.promotional_discount_pct * 100) : 0
+  )
+  const [promoNote, setPromoNote] = useState<string>(model.promotional_admin_note ?? '')
   const [mode, setMode] = useState<PricingMode>(initialMode)
   const [inputCost, setInputCost] = useState<number | null>(model.input_cost_per_million ?? 0.10)
   const [outputCost, setOutputCost] = useState<number | null>(model.output_cost_per_million ?? 0.30)
@@ -48,6 +53,9 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
   const dirty =
     isActive !== (model.is_active ?? true) ||
     isUpcoming !== (model.is_upcoming ?? false) ||
+    isPromotional !== (model.is_promotional ?? false) ||
+    promoDiscountPct !== (typeof model.promotional_discount_pct === 'number' ? Math.round(model.promotional_discount_pct * 100) : 0) ||
+    promoNote !== (model.promotional_admin_note ?? '') ||
     mode !== initialMode ||
     (mode === 'per_token' && (inputCost !== (model.input_cost_per_million ?? 0.10) || outputCost !== (model.output_cost_per_million ?? 0.30))) ||
     (mode === 'per_request' && perReqCents !== (model.cost_per_request_cents ?? 1)) ||
@@ -56,7 +64,14 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
   const handleSave = async () => {
     setSaving(true)
     try {
-      const patch: any = { is_active: isActive, is_upcoming: isUpcoming, pricing_mode: mode }
+      const patch: any = {
+        is_active: isActive,
+        is_upcoming: isUpcoming,
+        is_promotional: isPromotional,
+        promotional_discount_pct: Math.max(0, Math.min(1, promoDiscountPct / 100)),
+        promotional_admin_note: promoNote,
+        pricing_mode: mode,
+      }
       if (mode === 'per_token') {
         patch.input_cost_per_million = inputCost
         patch.output_cost_per_million = outputCost
@@ -70,6 +85,9 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
         ...model,
         is_active: isActive,
         is_upcoming: isUpcoming,
+        is_promotional: isPromotional,
+        promotional_discount_pct: Math.max(0, Math.min(1, promoDiscountPct / 100)),
+        promotional_admin_note: promoNote,
         pricing_mode: mode,
         input_cost_per_million: mode === 'per_token' ? inputCost : null,
         output_cost_per_million: mode === 'per_token' ? outputCost : null,
@@ -151,6 +169,38 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
           >
             <Clock className="w-3 h-3 inline mr-1" />
             {isUpcoming ? 'UPCOMING ON' : 'MARK UPCOMING'}
+          </button>
+          <button
+            onClick={async () => {
+              const next = !isPromotional
+              setIsPromotional(next)
+              try {
+                await adminUpdateModel(token, model.alias, {
+                  is_promotional: next,
+                  promotional_discount_pct: next ? Math.max(0, Math.min(1, promoDiscountPct / 100)) : 0,
+                  promotional_admin_note: next ? promoNote : '',
+                })
+                onUpdated({
+                  ...model,
+                  is_promotional: next,
+                  promotional_discount_pct: next ? Math.max(0, Math.min(1, promoDiscountPct / 100)) : 0,
+                  promotional_admin_note: next ? promoNote : '',
+                })
+              } catch (err: any) {
+                setIsPromotional(!next)
+                onError(err?.message || 'Failed to toggle promotional status')
+              }
+            }}
+            disabled={saving}
+            className={`px-3 py-1 font-mono text-[10px] font-bold border transition-all disabled:opacity-50 ${
+              isPromotional
+                ? 'border-pink-500/40 bg-pink-500/15 text-pink-400 hover:bg-pink-500/25'
+                : 'border-pink-500/20 bg-pink-500/5 text-pink-400/70 hover:bg-pink-500/15'
+            }`}
+            title="Mark as promotional — extra % off layered on top of tier discount"
+          >
+            <Sparkles className="w-3 h-3 inline mr-1" />
+            {isPromotional ? 'PROMO ON' : 'MARK PROMO'}
           </button>
           {onDelete && (
             <button
@@ -287,6 +337,42 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
           </p>
           <p className="mt-1 text-muted-foreground/70">
             Suggested: free-tier models = 1pt, cheap (Haiku) = 2pt, mid (Sonnet) = 5pt, premium (Opus/GPT-5.5) = 10–15pt.
+          </p>
+        </div>
+      </div>
+
+      {/* Promotional discount row — extra % off on top of tier multiplier */}
+      <div className="border-t border-border/60 pt-4 grid grid-cols-1 md:grid-cols-12 gap-4 font-mono text-[10px]">
+        <div className="md:col-span-3 space-y-1">
+          <label className="text-pink-400 uppercase text-[8px] tracking-wider">Promo discount %</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              step="1"
+              min="0"
+              max="100"
+              value={promoDiscountPct}
+              onChange={(e) => setPromoDiscountPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+              className="w-20 bg-muted border border-border px-2 py-1.5 text-foreground text-xs focus:outline-none focus:border-pink-500/50"
+              disabled={!isPromotional}
+            />
+            <span className="text-pink-400 font-bold text-xs">%</span>
+          </div>
+        </div>
+        <div className="md:col-span-9 space-y-1">
+          <label className="text-pink-400 uppercase text-[8px] tracking-wider">Admin note</label>
+          <input
+            type="text"
+            value={promoNote}
+            onChange={(e) => setPromoNote(e.target.value)}
+            placeholder="e.g. Launch promo — 50% off for early adopters"
+            maxLength={200}
+            className="w-full bg-muted border border-border px-2 py-1.5 text-foreground text-xs focus:outline-none focus:border-pink-500/50"
+            disabled={!isPromotional}
+          />
+          <p className="text-muted-foreground/70 text-[9px] leading-relaxed">
+            Stackable with tier multiplier. Example: 50% promo on Pro (0.75x) = base × 0.5 × 0.75.
+            Only applies when the PROMO toggle is on.
           </p>
         </div>
       </div>
