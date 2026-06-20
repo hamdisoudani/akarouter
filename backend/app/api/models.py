@@ -117,8 +117,7 @@ async def list_models(request: Request) -> dict:
 
 
 @router.get("/v1/billing-matrix")
-async def get_billing_matrix() -> dict:
-    """Return the effective points cost for every model on every tier.
+async def get_billing_matrix() -> dict:    """Return the effective points cost for every model on every tier.
 
     The /upgrade page uses this to render a 'cost per request' table that
     shows how each model's point cost drops on higher tiers. Public endpoint
@@ -136,15 +135,20 @@ async def get_billing_matrix() -> dict:
       }
     """
     try:
-        from app.core.cache import get_plan_meta
         from app.core.chat_billing import get_effective_points_cost
         tiers = ["free", "starter", "pro", "ultra", "enterprise"]
+        # Read plans fresh from DB (bypass cache — values must reflect post-migration state)
+        supabase = get_supabase()
+        plans_res = supabase.table("plan_presets").select(
+            "tier, points_cost_multiplier, monthly_point_allowance, daily_free_requests_limit"
+        ).execute()
         multipliers: dict[str, float] = {}
         allowances: dict[str, int] = {}
-        for tier in tiers:
-            meta = get_plan_meta(tier)
-            multipliers[tier] = float(meta.get("points_cost_multiplier") or 1.0)
-            allowances[tier] = int(meta.get("monthly_point_allowance") or 0)
+        for row in (plans_res.data or []):
+            t = row.get("tier")
+            if t:
+                multipliers[t] = float(row.get("points_cost_multiplier") or 1.0)
+                allowances[t] = int(row.get("monthly_point_allowance") or 0)
         # Fetch models (active + upcoming only)
         supabase = get_supabase()
         result = supabase.table("model_mapping").select(
