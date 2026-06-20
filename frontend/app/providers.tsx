@@ -149,6 +149,8 @@ export function AppProvider({
             '/auth/login',
             '/auth/callback',
             '/models',
+            '/pricing',
+            '/dashboard/upgrade',  // Public upgrade page — anyone can see plans/costs
             '/privacy',
             '/terms',
             '/cookies',
@@ -165,7 +167,7 @@ export function AppProvider({
           if (!isPublic) {
             router.push(`/auth/login?next=${encodeURIComponent(pathname)}`)
           }
-        }
+}
       } catch (err: any) {
         console.error('Session initialization error:', err)
       } finally {
@@ -197,6 +199,8 @@ export function AppProvider({
           '/auth/login',
           '/auth/callback',
           '/models',
+          '/pricing',
+          '/dashboard/upgrade',
           '/privacy',
           '/terms',
           '/cookies',
