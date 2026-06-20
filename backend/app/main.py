@@ -362,18 +362,14 @@ async def startup():
             # Per-request models: cost_per_request_cents + points_cost.
             # Per-token models: input_cost_per_million + output_cost_per_million.
             # Idempotent — re-running applies the same target values.
-            # NOTE: must run each UPDATE in its own SAVEPOINT so a row that
-            # violates an unrelated constraint (e.g. Step 3.7 Flash already has
-            # is_free_provider=true + points_cost=3 which fails the
-            # model_mapping_free_provider_cost_check added earlier) doesn't
-            # roll back all the other updates in the same transaction.
+            # NOTE: conn is in autocommit mode (set above), so each UPDATE is its
+            # own implicit transaction. We can catch per-statement errors with a
+            # simple try/except — no SAVEPOINT needed. A bad row only blocks its
+            # own UPDATE; subsequent UPDATEs still run.
             def _safe_update(sql: str) -> None:
                 try:
-                    cur.execute("SAVEPOINT sp_safe_update;")
                     cur.execute(sql)
-                    cur.execute("RELEASE SAVEPOINT sp_safe_update;")
                 except Exception as e:
-                    cur.execute("ROLLBACK TO SAVEPOINT sp_safe_update;")
                     logger.warning(f"migration update skipped (non-fatal): {sql[:80]}... — {e}")
             # First: fix any rows that violate model_mapping_free_provider_cost_check
             # (is_free_provider=true with points_cost>1). Mark them as non-free so
