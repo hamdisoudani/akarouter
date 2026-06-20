@@ -860,3 +860,35 @@ CREATE OR REPLACE FUNCTION refund_account_points(
 - If admin changes a user's tier outside the reset cycle, the new limit is applied on next reset. User may exceed plan limit until reset.
 - Acceptable but worth noting.
 
+
+---
+
+## CORRECTION — Finding #147 / "Quick win #2" was a false positive
+
+After re-reading `chat.py:362-370` carefully:
+
+```python
+release_fn = lambda ok, err=None: release_provider(provider["id"], ok, err)
+```
+
+And the success-path call:
+```python
+await release_fn(success)
+```
+
+`release_fn` is called with one arg → `ok=success, err=None` (lambda default).
+Inside the lambda: `release_provider(provider["id"], success, None)`.
+`release_provider(provider_id, success=True, error_msg=None)` → goes to the
+`if success:` branch → auto-heals the provider. Correct.
+
+The `release_endpoint` lambda is also correct:
+```python
+release_fn = lambda ok, err=None: release_endpoint(endpoint["endpoint_id"])
+```
+The lambda only passes `endpoint["endpoint_id"]` (one arg). The `err` param
+is silently dropped. `release_endpoint` is a no-op anyway. Fine.
+
+**Conclusion: the "release_fn(success) → release_fn(success, None)" fix is unnecessary.** False alarm in the audit. No code change needed for #2.
+
+What I should have flagged: the silent drop of `err` in the endpoint lambda. The endpoint error message is lost. Low priority (endpoint is a no-op).
+
