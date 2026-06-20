@@ -638,6 +638,10 @@ def get_plan_meta(tier: str) -> dict[str, Any]:
                 return val
     try:
         supabase = get_supabase()
+        # Use a regular query (NOT maybe_single) so PostgREST errors (e.g. unknown
+        # column when the schema cache is stale after ADD COLUMN) propagate as
+        # exceptions. With maybe_single(), a 400 is silently converted to
+        # data=None and we fall through to the default 1.0/0 dict.
         res = (
             supabase.table("plan_presets")
             .select("tier, points_cost_multiplier, monthly_point_allowance, "
@@ -645,11 +649,12 @@ def get_plan_meta(tier: str) -> dict[str, Any]:
                     "monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, "
                     "price, billing_period, description, badge, has_trial, trial_days")
             .eq("tier", tier)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
-        if res.data:
-            row = res.data
+        rows = res.data or []
+        if rows:
+            row = rows[0]
             logger.info(f"[plan_meta] tier={tier} mult={row.get('points_cost_multiplier')} pts={row.get('monthly_point_allowance')}")
             val = {
                 "tier": row.get("tier") or tier,

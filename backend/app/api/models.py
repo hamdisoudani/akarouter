@@ -117,7 +117,8 @@ async def list_models(request: Request) -> dict:
 
 
 @router.get("/v1/billing-matrix")
-async def get_billing_matrix() -> dict:    """Return the effective points cost for every model on every tier.
+async def get_billing_matrix() -> dict:
+    """Return the effective points cost for every model on every tier.
 
     The /upgrade page uses this to render a 'cost per request' table that
     shows how each model's point cost drops on higher tiers. Public endpoint
@@ -142,6 +143,11 @@ async def get_billing_matrix() -> dict:    """Return the effective points cost f
         plans_res = supabase.table("plan_presets").select(
             "tier, points_cost_multiplier, monthly_point_allowance, daily_free_requests_limit"
         ).execute()
+        logger.info(
+            f"[billing-matrix] plans_res type={type(plans_res.data).__name__} "
+            f"len={len(plans_res.data) if plans_res and plans_res.data is not None else 'None'} "
+            f"sample={plans_res.data[:2] if plans_res and plans_res.data else 'empty'}"
+        )
         multipliers: dict[str, float] = {}
         allowances: dict[str, int] = {}
         for row in (plans_res.data or []):
