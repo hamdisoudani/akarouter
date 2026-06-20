@@ -166,27 +166,33 @@ export function DashboardSidebar() {
         {sidebarBody}
       </nav>
 
-      {/* Mobile hamburger button — sits in the top-left on mobile so the
-          dashboard canvas doesn't get a floating action button competing
-          with the page content. */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-40 p-2.5 border border-[#ef4444] bg-[#09090b]/95 backdrop-blur text-[#ef4444] hover:bg-[#ef4444] hover:text-white transition-all crosshair-corners red-glow shadow-lg"
-        aria-label="Open navigation menu"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
+      {/* Mobile top app bar (preserves the pre-refactor pattern). On
+          <md screens the dashboard shows a sticky horizontal bar at the
+          top of the content area with the AkaRouter logo on the left and
+          a hamburger button on the right. Tapping the hamburger opens
+          the same fullscreen overlay that the desktop sidebar nav links
+          would expand into. This matches the pre-02ce0b8 layout and
+          keeps the page canvas free of floating action buttons. The bar
+          is hidden on md+ since the desktop sidebar takes over. */}
+      <header className="md:hidden sticky top-0 z-30 flex justify-between items-center w-full px-4 py-2.5 bg-[#09090b]/95 backdrop-blur border-b border-zinc-900">
+        <div className="relative w-20 h-9 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
+          <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
+        </div>
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
+          aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+        >
+          {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+        </button>
+      </header>
 
       {/* Mobile fullscreen overlay (preserves the original pre-refactor
-          behaviour). The previous implementation rendered the mobile
-          drawer as a side rail from the left, which ate the dashboard
-          canvas on narrow screens and made the side-by-side KPI grid
-          unreadable. The fullscreen overlay lets the nav links use the
-          full mobile width with comfortable tap targets and stays
-          consistent with the rest of the dashboard's terminal aesthetic. */}
+          behaviour). When the hamburger is tapped, this overlay takes
+          over the viewport with the same nav links as the desktop
+          sidebar. Tapping a link or the close button dismisses it. */}
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 bg-[#09090b]/98 backdrop-blur-md flex flex-col justify-between py-24 px-6 border-b border-zinc-900 animate-fade-in">
-          {/* Close button inside mobile overlay */}
           <div className="absolute top-4 right-6 md:hidden">
             <button
               onClick={() => setMobileOpen(false)}
