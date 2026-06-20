@@ -362,16 +362,35 @@ async def startup():
             # Per-request models: cost_per_request_cents + points_cost.
             # Per-token models: input_cost_per_million + output_cost_per_million.
             # Idempotent — re-running applies the same target values.
-            cur.execute("UPDATE model_mapping SET is_upcoming = TRUE, is_active = FALSE WHERE alias = 'akarouter-opus';")
-            cur.execute("UPDATE model_mapping SET cost_per_request_cents = 1,  points_cost = 1  WHERE alias = 'akarouter-haiku';")
-            cur.execute("UPDATE model_mapping SET cost_per_request_cents = 2,  points_cost = 2  WHERE alias = 'akarouter-sonnet';")
-            cur.execute("UPDATE model_mapping SET cost_per_request_cents = 2,  points_cost = 2  WHERE alias = 'akarouter-gemini31';")
-            cur.execute("UPDATE model_mapping SET cost_per_request_cents = 2,  points_cost = 2  WHERE alias = 'akarouter-gpt54';")
-            cur.execute("UPDATE model_mapping SET cost_per_request_cents = 5,  points_cost = 3  WHERE alias = 'akarouter-gpt55';")
-            cur.execute("UPDATE model_mapping SET cost_per_request_cents = 5,  points_cost = 3  WHERE alias = 'akarouter-gpt53-codex';")
-            cur.execute("UPDATE model_mapping SET input_cost_per_million = 0.013, output_cost_per_million = 0.038, cost_per_request_cents = 1, points_cost = 1 WHERE alias = 'akarouter-flash';")
-            cur.execute("UPDATE model_mapping SET input_cost_per_million = 0.056, output_cost_per_million = 0.280, cost_per_request_cents = 5, points_cost = 3 WHERE alias = 'akarouter-pro';")
-            cur.execute("UPDATE model_mapping SET input_cost_per_million = 0.280, output_cost_per_million = 1.120, cost_per_request_cents = 10, points_cost = 10 WHERE alias = 'akarouter-large';")
+            # NOTE: must run each UPDATE in its own SAVEPOINT so a row that
+            # violates an unrelated constraint (e.g. Step 3.7 Flash already has
+            # is_free_provider=true + points_cost=3 which fails the
+            # model_mapping_free_provider_cost_check added earlier) doesn't
+            # roll back all the other updates in the same transaction.
+            def _safe_update(sql: str) -> None:
+                try:
+                    cur.execute("SAVEPOINT sp_safe_update;")
+                    cur.execute(sql)
+                    cur.execute("RELEASE SAVEPOINT sp_safe_update;")
+                except Exception as e:
+                    cur.execute("ROLLBACK TO SAVEPOINT sp_safe_update;")
+                    logger.warning(f"migration update skipped (non-fatal): {sql[:80]}... — {e}")
+            # First: fix any rows that violate model_mapping_free_provider_cost_check
+            # (is_free_provider=true with points_cost>1). Mark them as non-free so
+            # the CHECK constraint allows the rest of the pricing changes.
+            _safe_update("UPDATE model_mapping SET is_free_provider = FALSE WHERE is_free_provider = TRUE AND points_cost > 1;")
+            # Then: Opus → upcoming + deactivated
+            _safe_update("UPDATE model_mapping SET is_upcoming = TRUE, is_active = FALSE WHERE alias = 'akarouter-opus';")
+            # Then: 2x CNY→USD markup on every active model
+            _safe_update("UPDATE model_mapping SET cost_per_request_cents = 1,  points_cost = 1  WHERE alias = 'akarouter-haiku';")
+            _safe_update("UPDATE model_mapping SET cost_per_request_cents = 2,  points_cost = 2  WHERE alias = 'akarouter-sonnet';")
+            _safe_update("UPDATE model_mapping SET cost_per_request_cents = 2,  points_cost = 2  WHERE alias = 'akarouter-gemini31';")
+            _safe_update("UPDATE model_mapping SET cost_per_request_cents = 2,  points_cost = 2  WHERE alias = 'akarouter-gpt54';")
+            _safe_update("UPDATE model_mapping SET cost_per_request_cents = 5,  points_cost = 3  WHERE alias = 'akarouter-gpt55';")
+            _safe_update("UPDATE model_mapping SET cost_per_request_cents = 5,  points_cost = 3  WHERE alias = 'akarouter-gpt53-codex';")
+            _safe_update("UPDATE model_mapping SET input_cost_per_million = 0.013, output_cost_per_million = 0.038, cost_per_request_cents = 1, points_cost = 1 WHERE alias = 'akarouter-flash';")
+            _safe_update("UPDATE model_mapping SET input_cost_per_million = 0.056, output_cost_per_million = 0.280, cost_per_request_cents = 5, points_cost = 3 WHERE alias = 'akarouter-pro';")
+            _safe_update("UPDATE model_mapping SET input_cost_per_million = 0.280, output_cost_per_million = 1.120, cost_per_request_cents = 10, points_cost = 10 WHERE alias = 'akarouter-large';")
             cur.close()
             conn.close()
             logger.info("model_mapping migrations applied (slug + included_model_aliases + is_upcoming + 2x markup)")
