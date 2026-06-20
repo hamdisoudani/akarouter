@@ -22,14 +22,18 @@ async def list_models(request: Request) -> dict:
     # Try DB first (allows dynamic updates from admin)
     try:
         supabase = get_supabase()
+        # Include both active models AND is_upcoming models (so the UI can show
+        # "Feature Upcoming" for not-yet-released ones). Filter out deprecated
+        # ones (is_active=false AND is_upcoming=false).
         result = supabase.table("model_mapping").select(
             "alias, slug, display_name, provider_name, description, is_active, capabilities, "
             "input_cost_per_million, output_cost_per_million, pricing_mode, "
             "cost_per_request_cents, is_free_provider, points_cost, "
             "context_window_tokens, max_output_tokens, input_modalities, output_modalities, "
             "knowledge_cutoff, released_date, supports_vision, supports_video, supports_audio, "
-            "supports_tool_use, supports_function_calling, supports_reasoning, specs_source"
-        ).eq("is_active", True).execute()
+            "supports_tool_use, supports_function_calling, supports_reasoning, specs_source, "
+            "is_upcoming"
+        ).or_("is_active.eq.true,is_upcoming.eq.true").execute()
         if result.data:
             return {
                 "object": "list",
@@ -46,6 +50,8 @@ async def list_models(request: Request) -> dict:
                         "is_free_provider": row.get("is_free_provider", False),
                         "description": row.get("description", ""),
                         "is_active": row.get("is_active", True),
+                        # is_upcoming: shown in catalog with price, but chat returns 403.
+                        "is_upcoming": bool(row.get("is_upcoming", False)),
                         "capabilities": row.get("capabilities") or ["text"],
                         "input_cost_per_million": row.get("input_cost_per_million", 0.10),
                         "output_cost_per_million": row.get("output_cost_per_million", 0.30),

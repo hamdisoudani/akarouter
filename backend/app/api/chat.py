@@ -334,6 +334,18 @@ async def proxy_chat(req: Request):
     meta = get_model_metadata(model_alias)
     pricing_mode = meta.get("pricing_mode") or "per_token"
 
+    # SECURITY: refuse "feature upcoming" models. is_upcoming=true means the
+    # model is shown in the catalog with a price (so users can see what's
+    # coming), but the chat endpoint must not serve it. Prevents accidental
+    # upstream calls for deactivated models.
+    if meta.get("is_upcoming"):
+        logger.info(f"Refusing chat for upcoming model: {model_alias}")
+        raise HTTPException(
+            status_code=403,
+            detail=f"Model '{meta.get('display_name', model_alias)}' is not yet available. "
+                   f"Join the waitlist or check back soon."
+        )
+
     # Charge points for this call (atomic via Postgres function). Raises 402/429 if blocked.
     # We deduct BEFORE the upstream call to prevent abuse, then refund on failure.
     #

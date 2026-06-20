@@ -17,6 +17,10 @@ export interface ModelsResponse {
     display_name?: string
     description?: string
     is_active?: boolean
+    // is_upcoming: TRUE = shown in catalog with price, but chat returns 403.
+    // Use for "Feature Upcoming" / soon-to-launch models. UI should disable
+    // the chat button and show a "Coming Soon" badge.
+    is_upcoming?: boolean
     capabilities?: string[]
     input_cost_per_million?: number
     output_cost_per_million?: number
@@ -477,6 +481,7 @@ export interface AdminModelMapping {
   is_free_provider?: boolean
   description?: string
   is_active?: boolean
+  is_upcoming?: boolean
   capabilities?: string[]
   input_cost_per_million: number | null
   output_cost_per_million: number | null
@@ -513,6 +518,7 @@ export interface CreateModelPayload {
   points_cost?: number
   is_free_provider?: boolean
   is_active?: boolean
+  is_upcoming?: boolean
   slug?: string
   context_window_tokens?: number
   max_output_tokens?: number
@@ -531,6 +537,7 @@ export interface CreateModelPayload {
 /** Body for PATCH /admin/models/{alias} — partial update. */
 export interface UpdateModelPayload {
   is_active?: boolean
+  is_upcoming?: boolean
   display_name?: string
   slug?: string
   description?: string

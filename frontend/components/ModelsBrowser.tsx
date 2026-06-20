@@ -4,7 +4,7 @@ import { useState, useMemo, useDeferredValue } from 'react'
 import Link from 'next/link'
 import {
   Search, Filter, Zap, Coins, Code2, Eye, Brain, Cpu, X, ChevronRight,
-  ArrowUpDown, LayoutGrid, List, Layers, Sparkles, Star,
+  ArrowUpDown, LayoutGrid, List, Layers, Sparkles, Star, Clock,
 } from 'lucide-react'
 import { detectProvider, groupByProvider, modelPath, type ProviderInfo } from '@/lib/providers'
 
@@ -15,6 +15,7 @@ interface CatalogModel {
   is_free_provider?: boolean
   description?: string
   is_active?: boolean
+  is_upcoming?: boolean
   capabilities?: string[]
   input_cost_per_million?: number
   output_cost_per_million?: number
@@ -476,6 +477,7 @@ function ModelCard({ model }: { model: CatalogModel }) {
   const provider = detectProvider(model)
   const isPerRequest = model.pricing_mode === 'per_request'
   const isFree = isPerRequest && (model.cost_per_request_cents ?? 0) === 0
+  const isUpcoming = model.is_upcoming === true
 
   // Pricing-mode-specific visuals
   const pricingMeta = isFree
@@ -514,7 +516,9 @@ function ModelCard({ model }: { model: CatalogModel }) {
   return (
     <Link
       href={modelPath(model)}
-      className={`group relative block bg-background border ${pricingMeta.borderClass} hover:border-foreground/40 transition-all overflow-hidden`}
+      className={`group relative block bg-background border ${pricingMeta.borderClass} ${isUpcoming ? 'opacity-60 cursor-not-allowed' : 'hover:border-foreground/40'} transition-all overflow-hidden`}
+      onClick={(e) => { if (isUpcoming) e.preventDefault(); }}
+      aria-disabled={isUpcoming || undefined}
     >
       {/* Top accent bar — the most distinctive visual cue */}
       <div
@@ -536,6 +540,15 @@ function ModelCard({ model }: { model: CatalogModel }) {
             {pricingMeta.icon}
             {pricingMeta.label}
           </span>
+          {isUpcoming && (
+            <span
+              className="shrink-0 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border border-amber-500/60 bg-amber-500/15 text-amber-400 inline-flex items-center gap-1"
+              title="This model is shown for preview only. Chat is not yet available."
+            >
+              <Clock className="w-2.5 h-2.5" />
+              Coming Soon
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 mb-3 flex-wrap">
@@ -606,13 +619,16 @@ function ModelRow({ model }: { model: CatalogModel }) {
   const provider = detectProvider(model)
   const isPerRequest = model.pricing_mode === 'per_request'
   const isFree = isPerRequest && (model.cost_per_request_cents ?? 0) === 0
+  const isUpcoming = model.is_upcoming === true
 
   const barColor = isFree ? '#f59e0b' : isPerRequest ? '#ef4444' : '#10b981'
 
   return (
     <Link
       href={modelPath(model)}
-      className="group flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors relative"
+      className={`group flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors relative ${isUpcoming ? 'opacity-60 cursor-not-allowed' : ''}`}
+      onClick={(e) => { if (isUpcoming) e.preventDefault(); }}
+      aria-disabled={isUpcoming || undefined}
     >
       {/* Left accent bar */}
       <div
@@ -650,6 +666,11 @@ function ModelRow({ model }: { model: CatalogModel }) {
         ) : (
           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border border-emerald-500/40 bg-emerald-500/10 text-emerald-400">
             <Coins className="w-2.5 h-2.5" /> PER-TOKEN
+          </span>
+        )}
+        {isUpcoming && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border border-amber-500/60 bg-amber-500/15 text-amber-400" title="Shown for preview only. Chat is not yet available.">
+            <Clock className="w-2.5 h-2.5" /> COMING SOON
           </span>
         )}
         <div>

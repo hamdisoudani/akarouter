@@ -21,7 +21,7 @@
  */
 
 import { useState } from 'react'
-import { Save, Power, DollarSign, Coins, Loader2, Trash2 } from 'lucide-react'
+import { Save, Power, DollarSign, Coins, Loader2, Trash2, Clock } from 'lucide-react'
 import { adminUpdateModel, type AdminModelMapping } from '@/lib/api'
 
 interface Props {
@@ -36,7 +36,8 @@ type PricingMode = 'per_token' | 'per_request'
 
 export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: Props) {
   const initialMode: PricingMode = (model.pricing_mode as PricingMode) || 'per_token'
-  const [isActive, setIsActive] = useState(model.is_active)
+  const [isActive, setIsActive] = useState(model.is_active ?? true)
+  const [isUpcoming, setIsUpcoming] = useState(model.is_upcoming ?? false)
   const [mode, setMode] = useState<PricingMode>(initialMode)
   const [inputCost, setInputCost] = useState<number | null>(model.input_cost_per_million ?? 0.10)
   const [outputCost, setOutputCost] = useState<number | null>(model.output_cost_per_million ?? 0.30)
@@ -45,7 +46,8 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
   const [saving, setSaving] = useState(false)
 
   const dirty =
-    isActive !== model.is_active ||
+    isActive !== (model.is_active ?? true) ||
+    isUpcoming !== (model.is_upcoming ?? false) ||
     mode !== initialMode ||
     (mode === 'per_token' && (inputCost !== (model.input_cost_per_million ?? 0.10) || outputCost !== (model.output_cost_per_million ?? 0.30))) ||
     (mode === 'per_request' && perReqCents !== (model.cost_per_request_cents ?? 1)) ||
@@ -54,7 +56,7 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
   const handleSave = async () => {
     setSaving(true)
     try {
-      const patch: any = { is_active: isActive, pricing_mode: mode }
+      const patch: any = { is_active: isActive, is_upcoming: isUpcoming, pricing_mode: mode }
       if (mode === 'per_token') {
         patch.input_cost_per_million = inputCost
         patch.output_cost_per_million = outputCost
@@ -67,6 +69,7 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
       onUpdated({
         ...model,
         is_active: isActive,
+        is_upcoming: isUpcoming,
         pricing_mode: mode,
         input_cost_per_million: mode === 'per_token' ? inputCost : null,
         output_cost_per_million: mode === 'per_token' ? outputCost : null,
@@ -104,12 +107,15 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
         <div className="flex items-center gap-3 shrink-0">
           <span
             className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase border ${
-              isActive
+              isUpcoming
+                ? 'bg-amber-500/10 border-amber-500/40 text-amber-400'
+                : isActive
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                 : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
             }`}
+            title={isUpcoming ? 'Shown in catalog but not yet usable. Chat returns 403.' : undefined}
           >
-            {isActive ? 'ACTIVE' : 'DISABLED'}
+            {isUpcoming ? 'UPCOMING' : isActive ? 'ACTIVE' : 'DISABLED'}
           </span>
           <button
             onClick={handleToggleActive}
@@ -122,6 +128,29 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
           >
             <Power className="w-3 h-3 inline mr-1" />
             {isActive ? 'DISABLE' : 'ENABLE'}
+          </button>
+          <button
+            onClick={async () => {
+              const next = !isUpcoming
+              setIsUpcoming(next)
+              try {
+                await adminUpdateModel(token, model.alias, { is_upcoming: next, is_active: next ? false : isActive })
+                onUpdated({ ...model, is_upcoming: next, is_active: next ? false : isActive })
+              } catch (err: any) {
+                setIsUpcoming(!next)
+                onError(err?.message || 'Failed to toggle upcoming status')
+              }
+            }}
+            disabled={saving}
+            className={`px-3 py-1 font-mono text-[10px] font-bold border transition-all disabled:opacity-50 ${
+              isUpcoming
+                ? 'border-amber-500/40 bg-amber-500/15 text-amber-400 hover:bg-amber-500/25'
+                : 'border-amber-500/20 bg-amber-500/5 text-amber-400/70 hover:bg-amber-500/15'
+            }`}
+            title="Mark as 'Feature Upcoming' — shown in catalog with price but not usable."
+          >
+            <Clock className="w-3 h-3 inline mr-1" />
+            {isUpcoming ? 'UPCOMING ON' : 'MARK UPCOMING'}
           </button>
           {onDelete && (
             <button

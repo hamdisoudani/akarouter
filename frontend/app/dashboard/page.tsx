@@ -485,12 +485,15 @@ export default function UserDashboard() {
                       modelsList.slice(0, 6).map((m) => {
                         const isPerRequest = m.pricing_mode === 'per_request'
                         return (
-                          <Link key={m.id} href={modelPath(m)} className="flex justify-between items-center p-2.5 bg-card/80 border border-border hover:border-border transition-all group">
+                          <Link key={m.id} href={modelPath(m)} className={`flex justify-between items-center p-2.5 bg-card/80 border border-border hover:border-border transition-all group ${m.is_upcoming ? 'opacity-60' : ''}`}>
                             <div className="flex items-center gap-3 min-w-0">
-                              <span className={`w-1.5 h-1.5 ${m.is_active ? 'bg-emerald-400 status-pulse' : 'bg-[#ef4444]'} shrink-0`} />
+                              <span className={`w-1.5 h-1.5 ${m.is_upcoming ? 'bg-amber-400' : m.is_active ? 'bg-emerald-400 status-pulse' : 'bg-[#ef4444]'} shrink-0`} />
                               <span className="font-mono text-[11px] text-foreground/80 group-hover:text-foreground uppercase truncate transition-colors">
                                 {m.display_name || m.id}
                               </span>
+                              {m.is_upcoming && (
+                                <span className="text-[8px] font-mono uppercase tracking-wider text-amber-400 border border-amber-500/40 px-1">soon</span>
+                              )}
                             </div>
                             <span className={`shrink-0 ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border ${
                               isPerRequest

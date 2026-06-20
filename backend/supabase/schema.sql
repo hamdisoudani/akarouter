@@ -1048,3 +1048,45 @@ UPDATE plan_presets SET included_model_aliases = ARRAY[
 ] WHERE tier = 'enterprise';
 
 COMMENT ON COLUMN plan_presets.included_model_aliases IS 'Model aliases included in this plan. NULL = all active models. Admin editable via /admin/plans.';
+
+-- ============================================
+-- 2026-06-20: is_upcoming flag for "feature upcoming" models
+-- ============================================
+-- Models with is_upcoming=true are shown in the public catalog with
+-- their price and description, but the chat endpoint returns 403 if you
+-- try to use them. Use for models we're about to launch.
+
+ALTER TABLE model_mapping ADD COLUMN IF NOT EXISTS is_upcoming BOOLEAN NOT NULL DEFAULT FALSE;
+
+COMMENT ON COLUMN model_mapping.is_upcoming IS 'TRUE = shown in catalog with price, but not yet usable. Chat endpoint returns 403. Use for "feature upcoming" / soon-to-launch models.';
+
+-- Mark Claude Opus 4.8 as upcoming (deactivated, still listed)
+UPDATE model_mapping SET is_upcoming = TRUE, is_active = FALSE WHERE alias = 'akarouter-opus';
+
+-- ============================================
+-- 2026-06-20: 2x markup pricing (CNY→USD, doubled)
+-- ============================================
+-- Upstream costs (justpaste.it/bor0t) are in CNY. Conversion rate 0.14 USD/CNY.
+-- Apply 2x markup. CNY×0.14×2 = USD sales price per unit.
+-- Per-request models: cost_per_request_cents is the sell price in cents.
+-- Per-token models: input_cost_per_million and output_cost_per_million are the sell price per 1M tokens in USD.
+-- Plus: points_cost ≈ sell price in cents (rounded to clean numbers).
+
+-- Per-request: rounded to clean numbers, minimum 1 cent
+UPDATE model_mapping SET cost_per_request_cents = 1,  points_cost = 1  WHERE alias = 'akarouter-haiku';     -- ¥0.002 → $0.0006 → round to 1c
+UPDATE model_mapping SET cost_per_request_cents = 2,  points_cost = 2  WHERE alias = 'akarouter-sonnet';    -- ¥0.005 → $0.0014 → 2c
+UPDATE model_mapping SET cost_per_request_cents = 2,  points_cost = 2  WHERE alias = 'akarouter-gemini31';  -- ¥0.01  → $0.0028 → 2c (was 5)
+UPDATE model_mapping SET cost_per_request_cents = 2,  points_cost = 2  WHERE alias = 'akarouter-gpt54';     -- ¥0.01  → $0.0028 → 2c
+UPDATE model_mapping SET cost_per_request_cents = 5,  points_cost = 3  WHERE alias = 'akarouter-gpt55';     -- ¥0.02  → $0.0056 → 5c (was 30c)
+UPDATE model_mapping SET cost_per_request_cents = 5,  points_cost = 3  WHERE alias = 'akarouter-gpt53-codex';-- ¥0.05  → $0.0140 → 5c (was 30c)
+
+-- Per-token: round to 3 decimals, keep upstream cost × 2 then mark up
+-- gpt-oss-120b (our flash): ¥0.045/¥0.135 → $0.0063/$0.0189 × 2 = $0.013/$0.038
+UPDATE model_mapping SET input_cost_per_million = 0.013, output_cost_per_million = 0.038, cost_per_request_cents = 1, points_cost = 1 WHERE alias = 'akarouter-flash';
+-- deepseek-v4-flash (our pro): ¥0.2/¥1.0 → $0.028/$0.14 × 2 = $0.056/$0.28
+UPDATE model_mapping SET input_cost_per_million = 0.056, output_cost_per_million = 0.280, cost_per_request_cents = 5, points_cost = 3 WHERE alias = 'akarouter-pro';
+-- deepseek-v4-pro (our large): ¥1.0/¥4.0 → $0.14/$0.56 × 2 = $0.28/$1.12
+UPDATE model_mapping SET input_cost_per_million = 0.280, output_cost_per_million = 1.120, cost_per_request_cents = 10, points_cost = 10 WHERE alias = 'akarouter-large';
+
+-- Keep M3 (akarouter-mini) as it is — upstream is free, points_cost = 2 (promotional).
+-- Note: kept at 2pts even though upstream is free; this is intentional loss-leader pricing.

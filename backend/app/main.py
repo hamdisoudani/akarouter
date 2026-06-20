@@ -354,13 +354,41 @@ async def startup():
                   END IF;
                 EXCEPTION WHEN others THEN NULL; END $$;
             """)
+            # 10. is_upcoming flag: model is shown in catalog with price but cannot be used
+            # for chat. Use for "feature upcoming" / soon-to-launch models.
+            cur.execute("ALTER TABLE model_mapping ADD COLUMN IF NOT EXISTS is_upcoming BOOLEAN DEFAULT FALSE;")
+            # 11. 2026-06-20: 2x CNY→USD markup on pricing. Upstream costs in CNY
+            # (see https://justpaste.it/bor0t). Conversion 0.14 USD/CNY × 2 markup.
+            # Per-request models: cost_per_request_cents + points_cost.
+            # Per-token models: input_cost_per_million + output_cost_per_million.
+            # Idempotent — re-running applies the same target values.
+            cur.execute("UPDATE model_mapping SET is_upcoming = TRUE, is_active = FALSE WHERE alias = 'akarouter-opus';")
+            cur.execute("UPDATE model_mapping SET cost_per_request_cents = 1,  points_cost = 1  WHERE alias = 'akarouter-haiku';")
+            cur.execute("UPDATE model_mapping SET cost_per_request_cents = 2,  points_cost = 2  WHERE alias = 'akarouter-sonnet';")
+            cur.execute("UPDATE model_mapping SET cost_per_request_cents = 2,  points_cost = 2  WHERE alias = 'akarouter-gemini31';")
+            cur.execute("UPDATE model_mapping SET cost_per_request_cents = 2,  points_cost = 2  WHERE alias = 'akarouter-gpt54';")
+            cur.execute("UPDATE model_mapping SET cost_per_request_cents = 5,  points_cost = 3  WHERE alias = 'akarouter-gpt55';")
+            cur.execute("UPDATE model_mapping SET cost_per_request_cents = 5,  points_cost = 3  WHERE alias = 'akarouter-gpt53-codex';")
+            cur.execute("UPDATE model_mapping SET input_cost_per_million = 0.013, output_cost_per_million = 0.038, cost_per_request_cents = 1, points_cost = 1 WHERE alias = 'akarouter-flash';")
+            cur.execute("UPDATE model_mapping SET input_cost_per_million = 0.056, output_cost_per_million = 0.280, cost_per_request_cents = 5, points_cost = 3 WHERE alias = 'akarouter-pro';")
+            cur.execute("UPDATE model_mapping SET input_cost_per_million = 0.280, output_cost_per_million = 1.120, cost_per_request_cents = 10, points_cost = 10 WHERE alias = 'akarouter-large';")
             cur.close()
             conn.close()
-            logger.info("model_mapping.slug + plan_presets.included_model_aliases migrations applied")
+            logger.info("model_mapping migrations applied (slug + included_model_aliases + is_upcoming + 2x markup)")
     except Exception as e:
         # Don't fail startup — log and continue. The /api/v1/models endpoint already
         # falls back to alias if slug is missing in a row.
         logger.warning(f"slug auto-migration skipped: {e}")
+
+    # Evict model metadata cache so the new is_upcoming column + new prices
+    # take effect immediately on first request after deploy, rather than
+    # waiting up to 60s for the TTL.
+    try:
+        from app.core.cache import evict_all_model_caches
+        evict_all_model_caches()
+        logger.info("Model metadata cache evicted after pricing migration")
+    except Exception as e:
+        logger.warning(f"Failed to evict model cache (non-fatal): {e}")
 
 
 @app.on_event("shutdown")

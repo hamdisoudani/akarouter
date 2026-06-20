@@ -532,7 +532,8 @@ def get_model_metadata(model_alias: str) -> dict[str, Any]:
         supabase = get_supabase()
         res = (
             supabase.table("model_mapping")
-            .select("is_active, input_cost_per_million, output_cost_per_million, pricing_mode, cost_per_request_cents")
+            .select("is_active, is_upcoming, input_cost_per_million, output_cost_per_million, "
+                    "pricing_mode, cost_per_request_cents, points_cost, display_name")
             .eq("alias", model_alias)
             .execute()
         )
@@ -540,18 +541,24 @@ def get_model_metadata(model_alias: str) -> dict[str, Any]:
             row = res.data[0]
             val = {
                 "is_active": row.get("is_active") if row.get("is_active") is not None else True,
+                "is_upcoming": bool(row.get("is_upcoming")),
                 "input_cost_per_million": row.get("input_cost_per_million"),
                 "output_cost_per_million": row.get("output_cost_per_million"),
                 "pricing_mode": row.get("pricing_mode") or "per_token",
                 "cost_per_request_cents": row.get("cost_per_request_cents"),
+                "points_cost": row.get("points_cost"),
+                "display_name": row.get("display_name"),
             }
         else:
             val = {
                 "is_active": True,
+                "is_upcoming": False,
                 "input_cost_per_million": None,
                 "output_cost_per_million": None,
                 "pricing_mode": "per_token",
                 "cost_per_request_cents": None,
+                "points_cost": None,
+                "display_name": None,
             }
         
         with _lock:
@@ -561,10 +568,13 @@ def get_model_metadata(model_alias: str) -> dict[str, Any]:
         logger.error(f"Failed to fetch model metadata for {model_alias}: {e}")
         return {
             "is_active": True,
+            "is_upcoming": False,
             "input_cost_per_million": None,
             "output_cost_per_million": None,
             "pricing_mode": "per_token",
             "cost_per_request_cents": None,
+            "points_cost": None,
+            "display_name": None,
         }
 
 
@@ -581,6 +591,15 @@ def evict_model_active_cache(model_alias: str) -> None:
             del _model_active_cache[model_alias]
         if model_alias in _model_meta_cache:
             del _model_meta_cache[model_alias]
+
+
+def evict_all_model_caches() -> None:
+    """Evict all model metadata + active caches. Used after schema migrations
+    so the new is_upcoming column + new prices take effect immediately rather
+    than waiting for the 60s TTL."""
+    with _lock:
+        _model_meta_cache.clear()
+        _model_active_cache.clear()
 
 
 def get_jwt_cache(token: str) -> Optional[dict[str, Any]]:

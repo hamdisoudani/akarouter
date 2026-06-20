@@ -258,11 +258,32 @@ console.log(response.choices[0].message.content);`,
                     : (m.capabilities || []).join(', ') || 'text'
                 }
               />
-              <SpecRow label="Status" value={m.is_active === false ? 'Deprecated' : 'Active'} />
+              <SpecRow label="Status" value={m.is_upcoming ? 'Feature Upcoming' : m.is_active === false ? 'Deprecated' : 'Active'} />
             </div>
           </div>
 
           {/* CTA */}
+          {m.is_upcoming ? (
+            <div className="border border-amber-500/40 bg-amber-500/[0.04] p-6 sm:p-8 text-center space-y-4">
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 border border-amber-500/60 bg-amber-500/15 text-amber-400 font-mono text-[10px] uppercase tracking-wider">
+                FEATURE UPCOMING
+              </div>
+              <h3 className="text-lg font-bold font-mono uppercase tracking-wider text-foreground">
+                {m.display_name || m.id} IS COMING SOON
+              </h3>
+              <p className="text-xs text-muted-foreground/80 font-mono max-w-md mx-auto">
+                This model is shown for preview only. Chat support is not yet available.
+                Pricing below reflects the launch price — no credit card needed, we'll
+                notify you when it's live.
+              </p>
+              <Link
+                href="/dashboard/upgrade"
+                className="inline-block border border-amber-500/50 text-amber-400 hover:bg-amber-500/10 font-mono text-xs font-bold py-3 px-6 uppercase tracking-wider transition-all"
+              >
+                JOIN THE WAITLIST →
+              </Link>
+            </div>
+          ) : (
           <div className="border border-border bg-background p-6 sm:p-8 text-center space-y-4">
             <h3 className="text-lg font-bold font-mono uppercase tracking-wider text-foreground">
               READY TO USE {m.display_name || m.id}?
@@ -285,6 +306,7 @@ console.log(response.choices[0].message.content);`,
               </Link>
             </div>
           </div>
+          )}
         </div>
       </section>
     </div>
