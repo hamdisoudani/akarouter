@@ -447,3 +447,4 @@ async def shutdown():
     # Stop flusher task and execute final database flush
     from app.core.cache import stop_flusher
     await stop_flusher()
+
