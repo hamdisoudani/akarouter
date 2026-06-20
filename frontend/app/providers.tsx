@@ -222,37 +222,6 @@ export function AppProvider({
     }
   }, [fetchUserData, pathname, router])
 
-  // Redirect free tier users to /upgrade so they must subscribe before using the system
-  useEffect(() => {
-    if (!loading && token && user && user.status !== 'pending') {
-      if (usage && usage.tier === 'free' && pathname !== '/upgrade') {
-        // Public pages (mirror list above) are exempt from the free-tier upgrade nudge.
-        const publicPaths = [
-          '/',
-          '/auth/login',
-          '/auth/callback',
-          '/models',
-          '/privacy',
-          '/terms',
-          '/cookies',
-          '/docs',
-          '/upgrade',
-        ]
-        const isPublic =
-          publicPaths.includes(pathname) ||
-          pathname.startsWith('/models/') ||
-          pathname.startsWith('/docs/') ||
-          pathname.startsWith('/privacy') ||
-          pathname.startsWith('/terms') ||
-          pathname.startsWith('/cookies') ||
-          pathname.startsWith('/auth/')
-        if (!isPublic) {
-          router.push('/upgrade')
-        }
-      }
-    }
-  }, [loading, token, user, usage, pathname, router])
-
   return (
     <AppContext.Provider value={{ user, token, usage, loading, error, refetchUser, refetchUsage, refetchAll, signOut }}>
       {children}

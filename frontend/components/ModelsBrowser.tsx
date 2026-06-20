@@ -16,6 +16,9 @@ interface CatalogModel {
   description?: string
   is_active?: boolean
   is_upcoming?: boolean
+  // NEW (2026-06-20): promotional model flag — extra % off.
+  is_promotional?: boolean
+  promotional_discount_pct?: number
   capabilities?: string[]
   input_cost_per_million?: number
   output_cost_per_million?: number
@@ -548,6 +551,15 @@ function ModelCard({ model }: { model: CatalogModel }) {
             >
               <Clock className="w-2.5 h-2.5" />
               Coming Soon
+            </span>
+          )}
+          {!isUpcoming && model.is_promotional && (
+            <span
+              className="shrink-0 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border border-pink-500/60 bg-pink-500/15 text-pink-400 inline-flex items-center gap-1"
+              title={`Promotional: ${Math.round((model.promotional_discount_pct || 0) * 100)}% off — limited time`}
+            >
+              <Sparkles className="w-2.5 h-2.5" />
+              {Math.round((model.promotional_discount_pct || 0) * 100)}% Off
             </span>
           )}
         </div>

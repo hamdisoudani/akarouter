@@ -28,6 +28,11 @@ export interface ModelsResponse {
     pricing_mode?: 'per_token' | 'per_request'
     cost_per_request_cents?: number | null
     points_cost?: number  // per-call point cost (admin-editable, 0-1000)
+    // NEW (2026-06-20): Promotional model flag — extra % off on top of tier multiplier.
+    // Admin editable. Use for loss leaders / launch promos (e.g. MiniMax-M3).
+    is_promotional?: boolean
+    promotional_discount_pct?: number  // 0-1, e.g. 0.3 = 30% off
+    promotional_admin_note?: string
     // Authoritative model specifications (populated from upstream docs)
     provider_name?: string
     is_free_provider?: boolean
@@ -286,6 +291,10 @@ export interface PlanPreset {
   // Point system (NEW) — monthly allowance + daily free-model cap
   monthly_point_allowance?: number
   daily_free_requests_limit?: number
+  // NEW (2026-06-20): per-tier discount multiplier on points_cost.
+  // 0 < m <= 1.0. Higher tier = lower multiplier = bigger discount.
+  // free=1.0, starter=0.9, pro=0.75, ultra=0.6, enterprise=0.5.
+  points_cost_multiplier?: number
   /** Model aliases included in this plan. NULL/undefined = all active models. Admin editable. */
   included_model_aliases?: string[] | null
   price?: string
@@ -296,6 +305,36 @@ export interface PlanPreset {
   trial_days?: number
   created_at: string
   updated_at: string
+}
+
+// NEW (2026-06-20): billing matrix — effective cost for every model on every tier.
+export interface BillingMatrixTier {
+  base: number
+  effective: number
+}
+
+export interface BillingMatrixModel {
+  alias: string
+  display_name: string
+  provider_name: string
+  is_upcoming: boolean
+  is_promotional: boolean
+  promotional_discount_pct: number
+  pricing_mode: 'per_token' | 'per_request'
+  costs: Record<string, BillingMatrixTier>  // { free: { base, effective }, pro: ..., ... }
+}
+
+export interface BillingMatrix {
+  tiers: string[]
+  plan_multipliers: Record<string, number>  // { free: 1.0, pro: 0.75, ... }
+  monthly_allowances: Record<string, number>
+  models: BillingMatrixModel[]
+}
+
+export async function getBillingMatrix(): Promise<BillingMatrix> {
+  const res = await fetch(`${API_BASE}/v1/billing-matrix`)
+  if (!res.ok) throw new Error('Failed to fetch billing matrix')
+  return res.json()
 }
 
 export async function getMe(token: string): Promise<UserInfo> {
@@ -397,7 +436,8 @@ export async function adminCreatePlan(
   hasTrial?: boolean,
   trialDays?: number,
   monthlyPointAllowance?: number,
-  dailyFreeRequestsLimit?: number
+  dailyFreeRequestsLimit?: number,
+  pointsCostMultiplier?: number
 ): Promise<{ ok: boolean; plan: PlanPreset }> {
   const res = await fetch(`${API_BASE}/admin/plans`, {
     method: 'POST',
@@ -413,6 +453,7 @@ export async function adminCreatePlan(
       tokens_7d_limit: tokens7dLimit ?? 5.0,
       monthly_point_allowance: monthlyPointAllowance ?? 0,
       daily_free_requests_limit: dailyFreeRequestsLimit ?? 0,
+      points_cost_multiplier: pointsCostMultiplier ?? 1.0,
       price: price ?? '$0',
       billing_period: billingPeriod ?? 'mo',
       description: description ?? '',
@@ -439,6 +480,7 @@ export async function adminUpdatePlan(
     tokens_7d_limit?: number;
     monthly_point_allowance?: number;
     daily_free_requests_limit?: number;
+    points_cost_multiplier?: number;
     price?: string;
     billing_period?: string;
     description?: string;
@@ -482,6 +524,9 @@ export interface AdminModelMapping {
   description?: string
   is_active?: boolean
   is_upcoming?: boolean
+  is_promotional?: boolean
+  promotional_discount_pct?: number
+  promotional_admin_note?: string | null
   capabilities?: string[]
   input_cost_per_million: number | null
   output_cost_per_million: number | null
@@ -519,6 +564,9 @@ export interface CreateModelPayload {
   is_free_provider?: boolean
   is_active?: boolean
   is_upcoming?: boolean
+  is_promotional?: boolean
+  promotional_discount_pct?: number
+  promotional_admin_note?: string
   slug?: string
   context_window_tokens?: number
   max_output_tokens?: number
@@ -538,6 +586,9 @@ export interface CreateModelPayload {
 export interface UpdateModelPayload {
   is_active?: boolean
   is_upcoming?: boolean
+  is_promotional?: boolean
+  promotional_discount_pct?: number
+  promotional_admin_note?: string
   display_name?: string
   slug?: string
   description?: string
