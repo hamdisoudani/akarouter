@@ -70,10 +70,11 @@ async def list_my_keys(request: Request):
         supabase.table("api_keys")
         .select("id, key_prefix, key_name, scopes, is_active, last_used_at, created_at")
         .eq("account_id", account_id)
-        .filter("is_active", "eq", True)
         .execute()
     )
-    return {"keys": result.data}
+    # Supabase-py 2.x boolean filter unreliability: filter in Python.
+    keys = [k for k in (result.data or []) if k.get("is_active") is True]
+    return {"keys": keys}
 
 
 class CreateKeyRequest(BaseModel):
