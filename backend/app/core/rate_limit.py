@@ -189,6 +189,9 @@ ENDPOINT_IP_LIMITS: Dict[str, Dict[str, int]] = {
     "user.revoke_key":   {"limit": 5,   "window_seconds": 60},
     "user.create_key":   {"limit": 5,   "window_seconds": 60},
     "user.activate":     {"limit": 5,   "window_seconds": 60},
+    "user.usage":        {"limit": 60,  "window_seconds": 60},
+    "user.analytics":    {"limit": 10,  "window_seconds": 60},
+    "user.point_transactions": {"limit": 30, "window_seconds": 60},
 }
 
 

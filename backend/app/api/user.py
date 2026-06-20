@@ -38,12 +38,16 @@ router = APIRouter(prefix="/user")
 def _get_user_id(request: Request) -> str:
     """Extract Supabase user ID from request.state (set by auth middleware)."""
     auth = getattr(request.state, "auth", None)
-    if auth and "account_id" in auth:
+    if auth and auth.get("account_id"):
         return auth["account_id"]
     # Try Supabase JWT auth
     supabase_auth = getattr(request.state, "supabase_user", None)
-    if supabase_auth:
-        return supabase_auth.get("account_id", "")
+    if supabase_auth and supabase_auth.get("account_id"):
+        return supabase_auth["account_id"]
+    # SECURITY: explicit 401 with no silent fallback. The previous code returned
+    # "" (empty string) on a missing/malformed supabase_user, which then flowed
+    # into Supabase queries as `eq("account_id", "")` — matching no rows (safe
+    # but misleading) and skipping the 401 the caller should see.
     raise HTTPException(status_code=401, detail="Not authenticated")
 
 
@@ -227,7 +231,7 @@ async def revoke_my_key(key_id: str, request: Request):
     # collapses the bucket immediately, so when (or if) the user mints
     # a new key with the same id, it starts at zero usage. (New keys
     # have new ids in practice, so this is defense in depth.)
-    from app.core.rate_limit import get_rate_limiter
+    from app.core.rate_limit_middleware import get_rate_limiter
     limiter = get_rate_limiter(request)
     if limiter is not None:
         try:
@@ -256,6 +260,14 @@ async def revoke_my_key(key_id: str, request: Request):
 @router.get("/usage")
 async def get_my_usage(request: Request):
     """Get usage stats for the currently authenticated user."""
+    # SECURITY: per-IP rate limit. The /usage page polls this on mount and on
+    # every ledger change; without a throttle a malicious client could fire
+    # hundreds of requests/min to amplify DB load. Capped at 60 req/min/IP —
+    # generous for normal UI use.
+    rl = await enforce_ip_rate_limit(request, endpoint="user.usage")
+    if not rl.allowed:
+        raise rate_limit_429(rl)
+
     account_id = _get_user_id(request)
     supabase = get_supabase()
 
@@ -370,9 +382,14 @@ async def get_my_point_transactions(
     history panel. Returns up to `limit` rows (default 50, max 200), sorted
     by created_at DESC.
     """
+    # SECURITY: per-IP rate limit. The /usage page polls this every few seconds;
+    # a malicious client could poll it hundreds of times per minute to amplify
+    # DB load. Capped at 30 req/min/IP — generous for normal UI use.
+    rl = await enforce_ip_rate_limit(request, endpoint="user.point_transactions")
+    if not rl.allowed:
+        raise rate_limit_429(rl)
+
     account_id = _get_user_id(request)
-    if not account_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
 
     # Clamp limit to [1, 200]
     limit = max(1, min(200, limit))
@@ -433,8 +450,34 @@ async def get_my_analytics(
     end_date: Optional[str] = None
 ):
     """Get per-model usage analytics for the currently authenticated user."""
+    # SECURITY: per-IP rate limit. Analytics query joins + aggregates up to 1000
+    # request_logs rows; spamming this endpoint hammers the DB. Capped at
+    # 10 req/min/IP — the dashboard polls this on mount.
+    rl = await enforce_ip_rate_limit(request, endpoint="user.analytics")
+    if not rl.allowed:
+        raise rate_limit_429(rl)
+
     account_id = _get_user_id(request)
     supabase = get_supabase()
+
+    # SECURITY: clamp `days` to [1, 365]. Without this, an attacker with a valid
+    # session could pass days=999999 to pull every row from request_logs ever
+    # logged for their account — a slow full-table scan that hammers the DB.
+    days = max(1, min(365, int(days or 30)))
+    if start_date:
+        # SECURITY: reject malformed dates early so the gte/lte filters don't
+        # return nothing AND so we don't pass arbitrary strings into Supabase.
+        from datetime import datetime as _dt
+        try:
+            _dt.fromisoformat(start_date.replace("Z", "+00:00"))
+        except Exception:
+            raise HTTPException(status_code=400, detail="start_date must be ISO 8601")
+    if end_date:
+        from datetime import datetime as _dt
+        try:
+            _dt.fromisoformat(end_date.replace("Z", "+00:00"))
+        except Exception:
+            raise HTTPException(status_code=400, detail="end_date must be ISO 8601")
 
     query = supabase.table("request_logs").select(
         "model, upstream_model, status_code, latency_ms, prompt_tokens, completion_tokens, total_tokens, created_at"
@@ -554,6 +597,11 @@ async def create_checkout_session(request: Request, body: CheckoutSessionRequest
     
     tier = body.tier.lower()
     plan_id = ""
+    # SECURITY: enforce strict tier allowlist. The previous code accepted any
+    # string starting with `plan_` or `prod_` (e.g. `prod_xyz_from_competitor`),
+    # which let the user pick ANY Whop product — including one that's set up for
+    # a different account or in a different company. Now we only accept the
+    # three configured tiers, falling back to a hard 400.
     if tier == "starter":
         plan_id = settings.whop_plan_starter
     elif tier == "pro":
@@ -561,14 +609,11 @@ async def create_checkout_session(request: Request, body: CheckoutSessionRequest
     elif tier == "ultra":
         plan_id = settings.whop_plan_ultra
     
-    if not plan_id:
-        if body.tier.startswith("plan_") or body.tier.startswith("prod_"):
-            plan_id = body.tier
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Subscription tier '{body.tier}' is not configured on the backend"
-            )
+    if not plan_id or not plan_id.strip():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Subscription tier '{body.tier}' is not configured on the backend"
+        )
 
     if not settings.whop_api_key:
         raise HTTPException(status_code=500, detail="Whop API Key is not configured on the backend")
@@ -588,13 +633,15 @@ async def create_checkout_session(request: Request, body: CheckoutSessionRequest
         else:
             redirect_url = "https://akarouter.com/usage"  # Fallback
 
-    # Enforce redirect URL allowlist to prevent open redirect attacks
+    # Enforce redirect URL allowlist to prevent open redirect attacks.
+    # SECURITY: never accept localhost as a redirect target — it's only safe for
+    # dev but the production backend can't tell if it's running with dev creds.
+    # Production hosts only.
     ALLOWED_REDIRECT_HOSTS = {
         "akarouter.com",
         "www.akarouter.com",
         "akarouter.dev",
         "akarouter-frontend-production.up.railway.app",
-        "localhost",
     }
     try:
         parsed_redirect = urlparse(redirect_url)
