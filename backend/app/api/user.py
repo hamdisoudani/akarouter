@@ -286,15 +286,28 @@ async def get_my_usage(request: Request):
     # We do NOT call calculate_account_budget anymore — it computed 5h/7d
     # numbers, which we no longer surface.
     now_dt = datetime.now(timezone.utc)
-    points_reset_at = account.get("points_reset_at")
+    points_reset_at_raw = account.get("points_reset_at")
+    # Supabase returns timestamptz as an ISO string, not a datetime. Normalize
+    # to a tz-aware datetime before we do anything else.
+    points_reset_at: datetime | None = None
+    if points_reset_at_raw:
+        try:
+            parsed = (
+                points_reset_at_raw
+                if isinstance(points_reset_at_raw, datetime)
+                else datetime.fromisoformat(str(points_reset_at_raw).replace("Z", "+00:00"))
+            )
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            points_reset_at = parsed
+        except Exception:
+            points_reset_at = None
+
     points_reset_iso = points_reset_at.isoformat() if points_reset_at else None
     seconds_until_points_reset: int | None = None
     if points_reset_at:
         try:
-            reset_dt = points_reset_at if isinstance(points_reset_at, datetime) else datetime.fromisoformat(str(points_reset_at).replace("Z", "+00:00"))
-            if reset_dt.tzinfo is None:
-                reset_dt = reset_dt.replace(tzinfo=timezone.utc)
-            seconds_until_points_reset = max(0, int((reset_dt - now_dt).total_seconds()))
+            seconds_until_points_reset = max(0, int((points_reset_at - now_dt).total_seconds()))
         except Exception:
             seconds_until_points_reset = None
 
@@ -303,18 +316,26 @@ async def get_my_usage(request: Request):
     rpm_limit = int(account.get("rpm_limit") or 0)
     is_trialing = bool(account.get("is_trialing", False))
     daily_free_requests_remaining = int(account.get("daily_free_requests_remaining") or 0)
-    daily_free_requests_reset_at = account.get("daily_free_requests_reset_at")
-    daily_free_requests_reset_iso = daily_free_requests_reset_at.isoformat() if daily_free_requests_reset_at else None
+    daily_free_requests_reset_at_raw = account.get("daily_free_requests_reset_at")
+    daily_free_requests_reset_at: datetime | None = None
+    if daily_free_requests_reset_at_raw:
+        try:
+            parsed_daily = (
+                daily_free_requests_reset_at_raw
+                if isinstance(daily_free_requests_reset_at_raw, datetime)
+                else datetime.fromisoformat(str(daily_free_requests_reset_at_raw).replace("Z", "+00:00"))
+            )
+            if parsed_daily.tzinfo is None:
+                parsed_daily = parsed_daily.replace(tzinfo=timezone.utc)
+            daily_free_requests_reset_at = parsed_daily
+        except Exception:
+            daily_free_requests_reset_at = None
+    daily_free_requests_reset_iso = (
+        daily_free_requests_reset_at.isoformat() if daily_free_requests_reset_at else None
+    )
 
     # Token counts since the last point reset (still useful for "X input tokens used")
-    start_dt_tokens: datetime | None = None
-    if points_reset_at:
-        try:
-            start_dt_tokens = points_reset_at if isinstance(points_reset_at, datetime) else datetime.fromisoformat(str(points_reset_at).replace("Z", "+00:00"))
-            if start_dt_tokens.tzinfo is None:
-                start_dt_tokens = start_dt_tokens.replace(tzinfo=timezone.utc)
-        except Exception:
-            start_dt_tokens = None
+    start_dt_tokens: datetime | None = points_reset_at
 
     tokens_query = supabase.table("request_logs").select("prompt_tokens, completion_tokens").eq("account_id", account_id)
     if start_dt_tokens:
