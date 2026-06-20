@@ -101,7 +101,8 @@ export function ModelsBrowser({ models }: ModelsBrowserProps) {
   const filtered = useMemo(() => {
     const q = deferredSearch.toLowerCase().trim()
     const list = models.filter((m) => {
-      if (m.is_active === false) return false
+      // Show model if it's active OR if it's marked upcoming (still shown with price + badge)
+      if (m.is_active === false && !m.is_upcoming) return false
       const pricingMode = m.pricing_mode || 'per_token'
       // Pricing filter
       if (pricingFilter === 'per_token' && pricingMode !== 'per_token') return false
