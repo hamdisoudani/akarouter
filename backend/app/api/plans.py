@@ -28,6 +28,8 @@ async def get_plans(request: Request):
         .order("tier")
         .execute()
     )
-    plans = [p for p in (result.data or []) if p.get("is_visible") is True]
+    all_plans = result.data or []
+    plans = [p for p in all_plans if p.get("is_visible") is True]
+    import logging
+    logging.warning(f"DEBUG plans: {len(all_plans)} total, {len(plans)} visible, is_visible values: {[p.get('is_visible') for p in all_plans]}")
     return {"plans": plans}
-    return {"plans": result.data or []}
