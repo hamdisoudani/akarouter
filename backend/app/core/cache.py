@@ -670,7 +670,6 @@ def get_plan_meta(tier: str) -> dict[str, Any]:
         rows = res.data or []
         if rows:
             row = rows[0]
-            logger.info(f"[plan_meta] tier={tier} mult={row.get('points_cost_multiplier')} pts={row.get('monthly_point_allowance')}")
             val = {
                 "tier": row.get("tier") or tier,
                 "points_cost_multiplier": float(row.get("points_cost_multiplier") or 1.0),

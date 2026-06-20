@@ -143,11 +143,6 @@ async def get_billing_matrix() -> dict:
         plans_res = supabase.table("plan_presets").select(
             "tier, points_cost_multiplier, monthly_point_allowance, daily_free_requests_limit"
         ).execute()
-        logger.info(
-            f"[billing-matrix] plans_res type={type(plans_res.data).__name__} "
-            f"len={len(plans_res.data) if plans_res and plans_res.data is not None else 'None'} "
-            f"sample={plans_res.data[:2] if plans_res and plans_res.data else 'empty'}"
-        )
         multipliers: dict[str, float] = {}
         allowances: dict[str, int] = {}
         for row in (plans_res.data or []):
