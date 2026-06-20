@@ -517,3 +517,67 @@ class TestUsageTimestampParsing:
         # seconds_until_points_reset must be a positive int (future date)
         assert isinstance(resp["seconds_until_points_reset"], int)
         assert resp["seconds_until_points_reset"] > 0
+
+
+# ---------------------------------------------------------------------------
+# /user/activate must be blocked by the admin's `signup_enabled` toggle.
+# Date: 2026-06-20 23:42 UTC
+# ---------------------------------------------------------------------------
+class TestActivateBlockedBySignupToggle:
+    """When admin sets signup_enabled=false, /user/activate returns 403."""
+
+    @patch("app.api.user.is_signup_enabled")
+    @patch("app.core.rate_limit_middleware.get_rate_limiter")
+    def test_activate_403_when_signup_disabled(self, mock_limiter, mock_signup_off):
+        """is_signup_enabled() == False must cause /user/activate to 403."""
+        from app.api.user import activate_user_account
+        from pydantic import BaseModel
+
+        class _Body(BaseModel):
+            code: str = "ANYCODE"
+            recaptcha_token: str = "ignored"
+
+        mock_signup_off.return_value = False
+        mock_limiter.return_value = _allow_limiter(mock_limiter)
+
+        # Simulate a logged-in pending user
+        req = _make_request(account_id="acc-pending-1")
+        req.state.supabase_user = {"account_id": "acc-pending-1", "email": "x@x.com"}
+
+        body = _Body()
+        with pytest.raises(HTTPException) as exc_info:
+            await_run(activate_user_account(body, req))
+        assert exc_info.value.status_code == 403
+        assert "disabled" in exc_info.value.detail.lower()
+
+    @patch("app.api.user.is_signup_enabled")
+    @patch("app.core.rate_limit_middleware.get_rate_limiter")
+    def test_activate_proceeds_when_signup_enabled(self, mock_limiter, mock_signup_on):
+        """is_signup_enabled() == True must NOT 403 on the signup gate.
+
+        The activation may still fail for other reasons (recaptcha, etc.)
+        but the 403 from the signup gate must NOT fire.
+        """
+        from app.api.user import activate_user_account
+        from pydantic import BaseModel
+
+        class _Body(BaseModel):
+            code: str = "ANYCODE"
+            recaptcha_token: str = "ignored"
+
+        mock_signup_on.return_value = True
+        # limiter allows
+        mock_limiter.return_value = _allow_limiter(mock_limiter)
+
+        req = _make_request(account_id="acc-pending-2")
+        req.state.supabase_user = {"account_id": "acc-pending-2", "email": "x@x.com"}
+
+        body = _Body()
+        # The function will proceed past the signup gate and may fail at
+        # recaptcha (which we can't easily mock) but should NOT 403 with
+        # "disabled" message. The first thing after the gate is
+        # verify_recaptcha, so we expect 400 (recaptcha) not 403 (signup).
+        with pytest.raises(HTTPException) as exc_info:
+            await_run(activate_user_account(body, req))
+        # Must not be the signup-disabled 403
+        assert exc_info.value.status_code != 403 or "disabled" not in exc_info.value.detail.lower()

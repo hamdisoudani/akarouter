@@ -236,6 +236,21 @@ async def root():
     }
 
 
+@app.get("/v1/system/status")
+async def public_system_status():
+    """Public read-only flags the landing/signup UI needs.
+
+    No auth — only returns non-sensitive booleans. Used by the frontend
+    signup form to decide whether to show the form or a 'signups closed'
+    banner.
+    """
+    from app.core.cache import is_gateway_enabled, is_signup_enabled
+    return {
+        "gateway_enabled": is_gateway_enabled(),
+        "signup_enabled": is_signup_enabled(),
+    }
+
+
 @app.on_event("startup")
 async def startup():
     logger.info(f"AKAROUTER starting in {settings.app_env} mode")

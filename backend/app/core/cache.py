@@ -518,6 +518,47 @@ def evict_system_settings_cache() -> None:
         _system_settings_cache.clear()
 
 
+def is_signup_enabled() -> bool:
+    """Check if new account activation is enabled by admin.
+
+    When disabled, /user/activate rejects all new activations even with
+    a valid invitation code, effectively stopping new users from
+    becoming active members of the platform.
+
+    Note: this does NOT block Supabase Auth sign-up itself (that's
+    client-side and out of our control). It blocks the post-signup
+    activation step, which is the only path to a usable account.
+    Cached for 60s.
+    """
+    now = time.time()
+    with _lock:
+        cached = _system_settings_cache.get("signup_enabled")
+        if cached is not None:
+            val, fetched_at = cached
+            if now - fetched_at < 60.0:
+                return val == "true"
+
+    try:
+        supabase = get_supabase()
+        res = supabase.table("system_settings").select("value").eq("key", "signup_enabled").execute()
+        val = "true"  # default: enabled
+        if res.data:
+            val = res.data[0]["value"]
+        else:
+            # Seed it if missing — default true so we never accidentally
+            # lock admins out of a fresh DB.
+            supabase.table("system_settings").insert({"key": "signup_enabled", "value": "true"}).execute()
+
+        with _lock:
+            _system_settings_cache["signup_enabled"] = (val, now)
+        return val == "true"
+    except Exception as e:
+        logger.error(f"Failed to check signup_enabled status: {e}")
+        # Fail open: better to let people sign up than to accidentally
+        # block all new accounts on a transient DB error.
+        return True
+
+
 def resolve_model_id_to_alias(model_id: str) -> str:
     """Resolve a user-facing model id (slug or alias) to the internal alias.
 

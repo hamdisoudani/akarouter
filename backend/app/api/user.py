@@ -21,6 +21,7 @@ from app.core.cache import (
     evict_jwt_cache,
     evict_api_key_cache,
     is_gateway_enabled,
+    is_signup_enabled,
 )
 from app.core.http_client import get_http_client
 
@@ -143,6 +144,16 @@ async def activate_user_account(body: ActivateAccountRequest, request: Request):
     supabase_auth = getattr(request.state, "supabase_user", None)
     if not supabase_auth:
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    # Admin toggle: disable new account activation. When off, even a valid
+    # invitation code cannot activate an account. Used by admins to close
+    # signups during incidents or capacity freezes.
+    if not is_signup_enabled():
+        logger.warning(f"Activation blocked (signup disabled) for account: {supabase_auth.get('account_id')}")
+        raise HTTPException(
+            status_code=403,
+            detail="New account signups are currently disabled by the administrator. If you already have an account, please contact support."
+        )
 
     # SECURITY: per-IP rate limit. The cache.py activation rate limiter
     # is per-account; this is per-IP. An attacker with access to many

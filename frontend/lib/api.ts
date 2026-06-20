@@ -361,6 +361,17 @@ export async function getBillingMatrix(): Promise<BillingMatrix> {
   return res.json()
 }
 
+/**
+ * Public, no-auth system flags. Used by the signup form to decide whether
+ * to render the form or a 'signups closed' message. Returns 200 OK with
+ * booleans regardless of any other state.
+ */
+export async function getSystemStatus(): Promise<{ gateway_enabled: boolean; signup_enabled: boolean }> {
+  const res = await fetch(`${API_BASE}/v1/system/status`)
+  if (!res.ok) throw new Error('Failed to fetch system status')
+  return res.json()
+}
+
 export async function getMe(token: string): Promise<UserInfo> {
   const res = await fetch(`${API_BASE}/user/me`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -648,7 +659,7 @@ export async function adminGetSettings(token: string): Promise<{ settings: Recor
   return res.json()
 }
 
-export async function adminUpdateSettings(token: string, data: { gateway_enabled?: boolean; require_activation?: boolean }): Promise<{ ok: boolean; gateway_enabled?: boolean; require_activation?: boolean }> {
+export async function adminUpdateSettings(token: string, data: { gateway_enabled?: boolean; require_activation?: boolean; signup_enabled?: boolean }): Promise<{ ok: boolean; gateway_enabled?: boolean; require_activation?: boolean; signup_enabled?: boolean }> {
   const res = await fetch(`${API_BASE}/admin/settings`, {
     method: 'PATCH',
     headers: {

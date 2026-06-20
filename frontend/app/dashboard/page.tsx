@@ -501,7 +501,7 @@ export default function UserDashboard() {
                                 : 'border-emerald-500/30 bg-emerald-500/5 text-emerald-400'
                             }`}>
                               {isPerRequest ? '$' : 'T'}
-                              {isPerRequest ? `$${((m.cost_per_request_cents ?? 0) / 100).toFixed(2)}` : 'PER_M'}
+                              {isPerRequest ? `${((m.cost_per_request_cents ?? 0) / 100).toFixed(2)}` : 'PER_M'}
                             </span>
                           </Link>
                         )

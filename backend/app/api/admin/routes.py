@@ -368,6 +368,7 @@ class UpdatePlanRequest(BaseModel):
 class UpdateSettingsRequest(BaseModel):
     gateway_enabled: Optional[bool] = None
     require_activation: Optional[bool] = None
+    signup_enabled: Optional[bool] = None
 
 class CreateInvitationRequest(BaseModel):
     code: Optional[str] = None
@@ -895,6 +896,8 @@ async def get_admin_settings(authorization: Optional[str] = Header(None)):
         settings_dict["gateway_enabled"] = "true"
     if "require_activation" not in settings_dict:
         settings_dict["require_activation"] = "false"
+    if "signup_enabled" not in settings_dict:
+        settings_dict["signup_enabled"] = "true"
     return {"settings": settings_dict}
 
 
@@ -914,6 +917,11 @@ async def update_admin_settings(body: UpdateSettingsRequest, authorization: Opti
         val_str = "true" if body.require_activation else "false"
         supabase.table("system_settings").upsert({"key": "require_activation", "value": val_str}).execute()
         response["require_activation"] = body.require_activation
+
+    if body.signup_enabled is not None:
+        val_str = "true" if body.signup_enabled else "false"
+        supabase.table("system_settings").upsert({"key": "signup_enabled", "value": val_str}).execute()
+        response["signup_enabled"] = body.signup_enabled
 
     # Evict cache immediately
     from app.core.cache import evict_system_settings_cache

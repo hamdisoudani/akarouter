@@ -44,7 +44,8 @@ import {
   Edit,
   Trash2,
   X,
-  Settings
+  Settings,
+  UserPlus
 } from 'lucide-react'
 import { DashboardSidebar } from '@/components/DashboardSidebar'
 
@@ -1680,6 +1681,54 @@ export default function AdminDashboard() {
                       }`}
                     >
                       {systemSettings.require_activation === 'true' ? 'DISABLE REQUIRE ACTIVATION' : 'ENABLE REQUIRE ACTIVATION'}
+                    </button>
+                  </div>
+                </div>
+                {/* User signup enable/disable Card (2026-06-20) */}
+                <div className="col-span-12 lg:col-span-5 bg-card border border-border p-6 crosshair-corners space-y-6">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <UserPlus className="w-4 h-4 text-[#ef4444]" />
+                      USER_SIGNUP_GLOBAL_TOGGLE
+                    </h2>
+                    <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">
+                      Globally enable or disable new account activation. When off, /user/activate rejects everyone (even with valid invitation codes). Use this to close the platform during incidents or capacity freezes.
+                    </p>
+                  </div>
+
+                  <div className="p-5 bg-muted/40 border border-border flex flex-col gap-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-mono text-xs text-muted-foreground uppercase tracking-wider font-bold">
+                        NEW SIGNUP STATUS:
+                      </span>
+                      <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
+                        systemSettings.signup_enabled !== 'false'
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          : 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]'
+                      }`}>
+                        {systemSettings.signup_enabled !== 'false' ? 'OPEN (ACCEPTING NEW USERS)' : 'CLOSED (BLOCKING NEW USERS)'}
+                      </span>
+                    </div>
+
+                    <div className="border-t border-border my-2" />
+
+                    <button
+                      onClick={async () => {
+                        const nextVal = systemSettings.signup_enabled === 'false';
+                        try {
+                          await adminUpdateSettings(token, { signup_enabled: nextVal });
+                          setSystemSettings((prev: any) => ({ ...prev, signup_enabled: nextVal ? 'true' : 'false' }));
+                        } catch (err: any) {
+                          setError(err.message);
+                        }
+                      }}
+                      className={`w-full font-mono text-xs font-bold py-3 transition-all crosshair-corners flex items-center justify-center gap-2 ${
+                        systemSettings.signup_enabled === 'false'
+                          ? 'bg-emerald-600 text-black hover:bg-emerald-500'
+                          : 'bg-[#ef4444] text-black hover:bg-[#ef4444]'
+                      }`}
+                    >
+                      {systemSettings.signup_enabled === 'false' ? 'REOPEN SIGNUPS' : 'CLOSE SIGNUPS (BLOCK NEW USERS)'}
                     </button>
                   </div>
                 </div>
