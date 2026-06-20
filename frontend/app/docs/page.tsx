@@ -174,7 +174,7 @@ claude`
 5. Toggle off other models and enjoy AkaRouter routing!`
 
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex antialiased selection:bg-[#ef4444]/30 selection:text-white">
+    <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-white">
       
       {/* SideNavBar */}
 
