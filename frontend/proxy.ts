@@ -39,13 +39,12 @@ import { env } from '@/lib/env'
  */
 
 // Pages that require an authenticated Supabase session
+// All authenticated pages now live under /dashboard/* (auth-required surface
+// for end users). /dashboard/admin/* is the operator-only sub-tree.
+// The legacy top-level /keys, /usage, /upgrade, /admin paths 301-redirect
+// to /dashboard/* in next.config.mjs so existing bookmarks still work.
 const PROTECTED_PREFIXES = [
   '/dashboard',
-  '/admin',
-  '/keys',
-  '/usage',
-  '/upgrade',
-  '/agents',
   '/account',
 ]
 

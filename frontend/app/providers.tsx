@@ -112,7 +112,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           // Public pages: anyone can browse (marketing site).
           // /models and /models/[id] MUST be public so prospects can see specs/pricing
           // before signing up. Locked pages are gated inside their own client component
-          // by calling requireAuth() — see e.g. /keys, /dashboard, /usage, /agents, /upgrade.
+          // by calling requireAuth() — see e.g. /dashboard, /dashboard/keys, /dashboard/usage,
+          // /dashboard/upgrade, /dashboard/admin.
           const publicPaths = [
             '/',
             '/auth/login',
@@ -160,7 +161,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // Public pages: anyone can browse (marketing site).
         // /models and /models/[id] MUST be public so prospects can see specs/pricing
         // before signing up. Locked pages are gated inside their own client component
-        // by calling requireAuth() — see e.g. /keys, /dashboard, /usage, /agents, /upgrade.
+        // by calling requireAuth() — see e.g. /dashboard, /dashboard/keys, /dashboard/usage, /dashboard/upgrade, /dashboard/admin.
         const publicPaths = [
           '/',
           '/auth/login',

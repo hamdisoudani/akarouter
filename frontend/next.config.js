@@ -57,6 +57,21 @@ const nextConfig = {
     ]
   },
 
+  // Authenticated routes were moved under /dashboard/*. Redirect the
+  // legacy top-level paths with 301 (permanent) so existing bookmarks,
+  // search results, and outbound links keep working. /agents is dropped
+  // entirely (Hosted Agents was deprecated) — redirect to the dashboard
+  // home so users have somewhere to land.
+  async redirects() {
+    return [
+      { source: '/keys', destination: '/dashboard/keys', permanent: true },
+      { source: '/usage', destination: '/dashboard/usage', permanent: true },
+      { source: '/upgrade', destination: '/dashboard/upgrade', permanent: true },
+      { source: '/admin', destination: '/dashboard/admin', permanent: true },
+      { source: '/agents', destination: '/dashboard', permanent: true },
+    ]
+  },
+
   // Image optimization configuration. Empty for now — add remotePatterns when
   // you start serving remote images.
   images: {

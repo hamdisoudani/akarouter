@@ -205,25 +205,18 @@ claude`
             <span className="tracking-widest font-mono uppercase text-[11px]">Telemetry</span>
           </Link>
 
-          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/keys">
+          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/dashboard/keys">
             <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
               <KeyRound className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
             </span>
             <span className="tracking-widest font-mono uppercase text-[11px]">API Keys</span>
           </Link>
 
-          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/usage">
+          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/dashboard/usage">
             <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
               <Layers className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
             </span>
             <span className="tracking-widest font-mono uppercase text-[11px]">Usage</span>
-          </Link>
-
-          <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/agents">
-            <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
-              <Cpu className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
-            </span>
-            <span className="tracking-widest font-mono uppercase text-[11px]">Hosted Agents</span>
           </Link>
 
           <Link className="flex items-center gap-3 px-3 py-2 w-full text-white nav-item-active" href="/docs">
@@ -235,7 +228,7 @@ claude`
 
 
           {user?.role === 'admin' && (
-            <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/admin">
+            <Link className="flex items-center gap-3 px-3 py-2 w-full text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors group" href="/dashboard/admin">
               <span className="border border-zinc-800 p-1 group-hover:border-zinc-500 transition-colors flex items-center justify-center">
                 <Shield className="w-3.5 h-3.5 text-zinc-400 group-hover:text-white" />
               </span>
@@ -287,7 +280,7 @@ claude`
             <Link 
               onClick={() => setMobileOpen(false)}
               className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
-              href="/keys"
+              href="/dashboard/keys"
             >
               <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
                 <KeyRound className="w-3.5 h-3.5 text-zinc-455" />
@@ -298,23 +291,12 @@ claude`
             <Link 
               onClick={() => setMobileOpen(false)}
               className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
-              href="/usage"
+              href="/dashboard/usage"
             >
               <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
                 <Layers className="w-3.5 h-3.5 text-zinc-450" />
               </span>
               <span className="tracking-widest font-mono uppercase text-xs">Usage</span>
-            </Link>
-
-            <Link 
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
-              href="/agents"
-            >
-              <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
-                <Cpu className="w-3.5 h-3.5 text-zinc-450" />
-              </span>
-              <span className="tracking-widest font-mono uppercase text-xs">Hosted Agents</span>
             </Link>
 
             <Link 
@@ -333,7 +315,7 @@ claude`
               <Link 
                 onClick={() => setMobileOpen(false)}
                 className="flex items-center gap-3 px-4 py-3 w-full border border-zinc-850 bg-zinc-950 text-zinc-400 hover:text-white transition-colors group"
-                href="/admin"
+                href="/dashboard/admin"
               >
                 <span className="border border-zinc-850 p-1 bg-zinc-900 text-zinc-400 flex items-center justify-center">
                   <Shield className="w-3.5 h-3.5 text-zinc-450" />
@@ -374,7 +356,7 @@ claude`
 
           <div className="hidden md:flex font-mono text-[11px] text-zinc-400 items-center gap-4">
             <Link href="/models" className="text-zinc-400 hover:text-white transition-colors uppercase tracking-wider">Models</Link>
-            <Link href="/upgrade" className="text-zinc-400 hover:text-white transition-colors uppercase tracking-wider">Pricing</Link>
+            <Link href="/dashboard/upgrade" className="text-zinc-400 hover:text-white transition-colors uppercase tracking-wider">Pricing</Link>
             <div className="w-[2px] h-4 bg-[#ef4444]"></div>
             <span className="tracking-[0.2em] uppercase font-bold text-zinc-300">INTEGRATION MANUALS & API DOCS</span>
           </div>

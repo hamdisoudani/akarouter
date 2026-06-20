@@ -72,7 +72,7 @@ export default async function ModelsPage() {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
-              href="/upgrade"
+              href="/dashboard/upgrade"
               className="bg-[#ef4444] text-black font-mono text-xs font-bold py-3 px-6 hover:bg-[#ff5451] transition-all red-glow uppercase tracking-wider"
             >
               [+] View Plans

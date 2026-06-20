@@ -278,7 +278,7 @@ export default function PlaygroundPage() {
             </p>
           </div>
           <Link
-            href="/usage"
+            href="/dashboard/usage"
             className="font-mono text-[10px] uppercase tracking-wider text-zinc-500 hover:text-amber-400 transition-colors"
           >
             Full usage ledger →
@@ -534,7 +534,7 @@ export default function PlaygroundPage() {
               <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-2">
                 <div className="flex items-center justify-between">
                   <h3 className="font-mono text-[11px] text-white uppercase tracking-[0.2em] font-bold">RECENT ACTIVITY</h3>
-                  <Link href="/usage" className="text-[9px] font-mono uppercase text-zinc-600 hover:text-amber-400 tracking-wider">
+                  <Link href="/dashboard/usage" className="text-[9px] font-mono uppercase text-zinc-600 hover:text-amber-400 tracking-wider">
                     View all →
                   </Link>
                 </div>
@@ -563,7 +563,7 @@ export default function PlaygroundPage() {
             )}
 
             <Link
-              href="/upgrade"
+              href="/dashboard/upgrade"
               className="block bg-amber-500/5 border border-amber-500/30 px-4 py-3 text-center hover:bg-amber-500/10 transition-colors group"
             >
               <div className="font-mono text-[10px] text-amber-300 uppercase tracking-wider flex items-center justify-center gap-1.5">
