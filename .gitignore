@@ -24,3 +24,4 @@ backend/token.json
 
 # Dev screenshots (debug only)
 screenshot-*.png
+_debug/

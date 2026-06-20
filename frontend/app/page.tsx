@@ -160,7 +160,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-  model="akarouter-pro",
+  model="step-37-flash",
   messages=[{"role": "user", "content": "Hello AkaRouter!"}]
 )`
 

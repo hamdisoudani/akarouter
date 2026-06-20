@@ -95,16 +95,16 @@ curl ${origin}/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer YOUR_AKAROUTER_API_KEY" \\
   -d '{
-    "model": "akarouter-large",
+    "model": "owl-alpha",
     "messages": [{"role": "user", "content": "Hello via curl"}]
   }'
 
-# 2. Vision (Image Analysis) Example - Only supported on akarouter-pro
+# 2. Vision (Image Analysis) Example - Only supported on step-37-flash
 curl ${origin}/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer YOUR_AKAROUTER_API_KEY" \\
   -d '{
-    "model": "akarouter-pro",
+    "model": "step-37-flash",
     "messages": [
       {
         "role": "user",
@@ -127,14 +127,14 @@ const openai = new OpenAI({
 async function main() {
   // 1. Text Completion Example
   const textCompletion = await openai.chat.completions.create({
-    model: 'akarouter-large',
+    model: 'owl-alpha',
     messages: [{ role: 'user', content: 'Hello via Node.js!' }],
   });
   console.log('Text:', textCompletion.choices[0].message.content);
 
-  // 2. Vision (Image Analysis) Example - Only supported on akarouter-pro
+  // 2. Vision (Image Analysis) Example - Only supported on step-37-flash
   const visionCompletion = await openai.chat.completions.create({
-    model: 'akarouter-pro',
+    model: 'step-37-flash',
     messages: [
       {
         role: 'user',
@@ -161,7 +161,7 @@ claude`
   "apiProvider": "openai",
   "openAiBaseUrl": "${origin}/v1",
   "openAiApiKey": "YOUR_AKAROUTER_API_KEY",
-  "openAiModelId": "akarouter-large"
+  "openAiModelId": "owl-alpha"
 }`
 
   const cursorSettings = `1. Open Cursor Settings -> Models
@@ -169,9 +169,9 @@ claude`
    ${origin}/v1
 3. In 'API Key', enter your AkaRouter Key.
 4. Under 'Model Names', add:
-   - akarouter-pro
-   - akarouter-large
-   - akarouter-flash
+   - step-37-flash
+   - owl-alpha
+   - nemotron-ultra
 5. Toggle off other models and enjoy AkaRouter routing!`
 
   return (
@@ -243,7 +243,7 @@ claude`
                   <div className="space-y-2">
                     <div className="text-foreground font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
                       <Cpu className="w-3.5 h-3.5 text-[#ef4444] red-glow" />
-                      akarouter-pro (Reasoning & Vision)
+                      step-37-flash (Reasoning & Vision)
                     </div>
                     <p className="text-muted-foreground leading-relaxed text-[10px] uppercase">
                       High-intelligence model supporting complex reasoning, coding, and **multimodal vision (text & images)**.
@@ -261,7 +261,7 @@ claude`
                   <div className="space-y-2 border-t md:border-t-0 md:border-l border-border pt-4 md:pt-0 md:pl-4">
                     <div className="text-foreground font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
                       <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                      akarouter-large (Long-Context)
+                      owl-alpha (Long-Context)
                     </div>
                     <p className="text-muted-foreground leading-relaxed text-[10px] uppercase">
                       Massive context window optimized for agentic tool use, multi-file editing, and complex workflows.
@@ -279,7 +279,7 @@ claude`
                   <div className="space-y-2 border-t md:border-t-0 md:border-l border-border pt-4 md:pt-0 md:pl-4">
                     <div className="text-foreground font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
                       <Zap className="w-3.5 h-3.5 text-muted-foreground/80" />
-                      akarouter-flash (Low-Latency)
+                      nemotron-ultra (Low-Latency)
                     </div>
                     <p className="text-muted-foreground leading-relaxed text-[10px] uppercase">
                       Ultra-fast completions built for high-concurrency workloads, summarization, and real-time agent responses.

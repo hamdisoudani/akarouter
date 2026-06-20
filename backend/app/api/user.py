@@ -20,9 +20,7 @@ from app.core.cache import (
     check_and_increment_activation_rate_limit,
     evict_jwt_cache,
     evict_api_key_cache,
-    calculate_account_budget,
     is_gateway_enabled,
-    get_budget_cycles
 )
 from app.core.http_client import get_http_client
 
@@ -280,43 +278,49 @@ async def get_my_usage(request: Request):
         raise HTTPException(status_code=404, detail="Account not found")
 
     account = result.data[0]
-    
-    # 1. Fetch budget consumption using calculate_account_budget
+
+    # Per user directive 2026-06-20: 5h/7d caps are GONE. The point-based
+    # monthly allowance is the ONLY budget. The frontend usage page shows
+    # only: tier, points remaining/limit/reset, RPM ceiling, request count.
+    # We do NOT call calculate_account_budget anymore — it computed 5h/7d
+    # numbers, which we no longer surface.
     now_dt = datetime.now(timezone.utc)
-    budget_reset_at = account.get("budget_reset_at")
-    
-    budget = await calculate_account_budget(account_id, budget_reset_at)
-    consumed_5h = budget["consumed_5h"]
-    consumed_7d = budget["consumed_7d"]
-    consumed_month = budget["consumed_month"]
-    
-    # Calculate cycle reset times for frontend
-    bounds = get_budget_cycles(budget_reset_at, now_dt)
-    cycle_5h_reset = bounds["cycle_5h_reset"]
-    cycle_7d_reset = bounds["cycle_7d_reset"]
-    
-    next_reset_5h = max(0, int((cycle_5h_reset - now_dt).total_seconds()))
-    full_reset_5h = next_reset_5h
-
-    next_reset_7d = max(0, int((cycle_7d_reset - now_dt).total_seconds()))
-    full_reset_7d = next_reset_7d
-
-    # 2. Fetch input/output token counts since last reset
-    start_dt_tokens = None
-    if budget_reset_at:
+    points_reset_at = account.get("points_reset_at")
+    points_reset_iso = points_reset_at.isoformat() if points_reset_at else None
+    seconds_until_points_reset: int | None = None
+    if points_reset_at:
         try:
-            start_dt_tokens = datetime.fromisoformat(budget_reset_at.replace("Z", "+00:00"))
+            reset_dt = points_reset_at if isinstance(points_reset_at, datetime) else datetime.fromisoformat(str(points_reset_at).replace("Z", "+00:00"))
+            if reset_dt.tzinfo is None:
+                reset_dt = reset_dt.replace(tzinfo=timezone.utc)
+            seconds_until_points_reset = max(0, int((reset_dt - now_dt).total_seconds()))
         except Exception:
-            pass
-            
+            seconds_until_points_reset = None
+
+    monthly_points_remaining = int(account.get("monthly_points_remaining") or 0)
+    monthly_points_limit = int(account.get("monthly_points_limit") or 0)
+    rpm_limit = int(account.get("rpm_limit") or 0)
+    is_trialing = bool(account.get("is_trialing", False))
+    daily_free_requests_remaining = int(account.get("daily_free_requests_remaining") or 0)
+    daily_free_requests_reset_at = account.get("daily_free_requests_reset_at")
+    daily_free_requests_reset_iso = daily_free_requests_reset_at.isoformat() if daily_free_requests_reset_at else None
+
+    # Token counts since the last point reset (still useful for "X input tokens used")
+    start_dt_tokens: datetime | None = None
+    if points_reset_at:
+        try:
+            start_dt_tokens = points_reset_at if isinstance(points_reset_at, datetime) else datetime.fromisoformat(str(points_reset_at).replace("Z", "+00:00"))
+            if start_dt_tokens.tzinfo is None:
+                start_dt_tokens = start_dt_tokens.replace(tzinfo=timezone.utc)
+        except Exception:
+            start_dt_tokens = None
+
     tokens_query = supabase.table("request_logs").select("prompt_tokens, completion_tokens").eq("account_id", account_id)
     if start_dt_tokens:
         tokens_query = tokens_query.gte("created_at", start_dt_tokens.isoformat())
-    
     tokens_query = tokens_query.limit(1000)
-    
     tokens_res = tokens_query.execute()
-    
+
     consumed_tokens_input = 0
     consumed_tokens_output = 0
     if tokens_res and tokens_res.data:
@@ -324,48 +328,35 @@ async def get_my_usage(request: Request):
             consumed_tokens_input += log.get("prompt_tokens") or 0
             consumed_tokens_output += log.get("completion_tokens") or 0
 
-    rpm_limit = account.get("rpm_limit") or 60
-    tokens_5h_limit = account.get("tokens_5h_limit") or 1.0
-    tokens_7d_limit = account.get("tokens_7d_limit") or 5.0
-    monthly_limit = account.get("monthly_limit") or 10.0
-    
-    progress_percentage_5h = min(100.0, round((consumed_5h / tokens_5h_limit) * 100.0, 2)) if tokens_5h_limit > 0 else 0.0
-    progress_percentage_7d = min(100.0, round((consumed_7d / tokens_7d_limit) * 100.0, 2)) if tokens_7d_limit > 0 else 0.0
-    progress_percentage_month = min(100.0, round((consumed_month / monthly_limit) * 100.0, 2)) if monthly_limit > 0 else 0.0
-    remaining_percentage_month = max(0.0, 100.0 - progress_percentage_month)
+    monthly_requests = int(account.get("monthly_requests") or 0)
+    total_requests = int(account.get("total_requests") or 0)
+    tier = account.get("tier", "free")
 
-    gateway_enabled = is_gateway_enabled()
+    points_spent_this_period = max(0, monthly_points_limit - monthly_points_remaining)
+    points_pct_used = round((points_spent_this_period / monthly_points_limit) * 100, 2) if monthly_points_limit > 0 else 0.0
 
     return {
-        "tier": account["tier"],
+        "tier": tier,
         "role": account.get("role", "user"),
-        "monthly_requests": account["monthly_requests"],
-        "monthly_limit": monthly_limit,
-        "total_requests": account["total_requests"],
-        "remaining": max(0.0, monthly_limit - consumed_month),
+        "monthly_requests": monthly_requests,
+        "total_requests": total_requests,
+        # Point-based budget (the only budget that matters)
+        "monthly_points_remaining": monthly_points_remaining,
+        "monthly_points_limit": monthly_points_limit,
+        "points_spent_this_period": points_spent_this_period,
+        "points_pct_used": points_pct_used,
+        "points_reset_at": points_reset_iso,
+        "seconds_until_points_reset": seconds_until_points_reset,
+        "daily_free_requests_remaining": daily_free_requests_remaining,
+        "daily_free_requests_reset_at": daily_free_requests_reset_iso,
+        # Rate limit ceiling
         "rpm_limit": rpm_limit,
-        "tokens_5h_limit": tokens_5h_limit,
-        "tokens_7d_limit": tokens_7d_limit,
+        # Free-tier trial flag
+        "is_trialing": is_trialing,
+        # Token counters (still useful for "I made X million tokens of inference this month")
         "consumed_tokens_input": consumed_tokens_input,
         "consumed_tokens_output": consumed_tokens_output,
-        "consumed_budget_5h": round(consumed_5h, 6),
-        "consumed_budget_7d": round(consumed_7d, 6),
-        "consumed_budget_month": round(consumed_month, 6),
-        "progress_percentage_5h": progress_percentage_5h,
-        "progress_percentage_7d": progress_percentage_7d,
-        "progress_percentage_month": progress_percentage_month,
-        "remaining_percentage_month": remaining_percentage_month,
-        "gateway_enabled": gateway_enabled,
-        "next_reset_5h": next_reset_5h,
-        "full_reset_5h": full_reset_5h,
-        "next_reset_7d": next_reset_7d,
-        "full_reset_7d": full_reset_7d,
-        "is_trialing": account.get("is_trialing", False),
-        "monthly_points_remaining": account.get("monthly_points_remaining", 0),
-        "monthly_points_limit": account.get("monthly_points_limit", 0),
-        "points_reset_at": account.get("points_reset_at"),
-        "daily_free_requests_remaining": account.get("daily_free_requests_remaining", 0),
-        "daily_free_requests_reset_at": account.get("daily_free_requests_reset_at"),
+        "gateway_enabled": is_gateway_enabled(),
     }
 
 

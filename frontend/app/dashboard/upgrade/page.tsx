@@ -268,6 +268,14 @@ function PlanCard({ plan, matrix, isCurrent, isLoading, onCheckout }: PlanCardPr
   // point values; until then, dash is honest.
   const fmtLimit = (n: number, unit: string) => (n > 0 ? `${n} ${unit}` : '—')
 
+  // Map a model id (slug) to a human-friendly display name using the
+  // billing matrix. Falls back to the raw id if no match.
+  const modelDisplayName = (modelId: string, m: BillingMatrix | null): string => {
+    if (!m) return modelId
+    const found = m.models.find(mm => mm.id === modelId || mm.slug === modelId || mm.alias === modelId)
+    return found?.display_name || modelId
+  }
+
   return (
     <div
       className={`relative bg-card border ${isPopular ? 'border-[#ef4444]/60' : 'border-border'} p-5 flex flex-col transition-all hover:border-border`}
@@ -316,23 +324,21 @@ function PlanCard({ plan, matrix, isCurrent, isLoading, onCheckout }: PlanCardPr
           )}
         </div>
 
-        {/* Limits list */}
+        {/* Description — 'X plan + Y, Z' hierarchy from API */}
+        {plan.description && (
+          <div className="pt-1 text-[9px] font-mono text-muted-foreground/90 leading-relaxed">
+            {plan.description}
+          </div>
+        )}
+
+        {/* Limits list — per user directive 2026-06-20:
+            Point budget is shown above (X points/mo). The only limit worth
+            showing on the card is RPM (rate ceiling). No monthly_request cap,
+            no 5h cap, no 7d cap — those are gone. */}
         <ul className="space-y-1 font-mono text-[9px] text-muted-foreground">
           <li className="flex items-center gap-1.5">
             <span className="w-1 h-1 bg-[#ef4444] shrink-0" />
-            <span>{fmtLimit(plan.monthly_limit, 'req/mo')}</span>
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className="w-1 h-1 bg-[#ef4444] shrink-0" />
             <span>{fmtLimit(plan.rpm_limit, 'req/min')}</span>
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className="w-1 h-1 bg-[#ef4444] shrink-0" />
-            <span>5h cap: {fmtLimit(plan.tokens_5h_limit, 'pt')}</span>
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className="w-1 h-1 bg-[#ef4444] shrink-0" />
-            <span>7d cap: {fmtLimit(plan.tokens_7d_limit, 'pt')}</span>
           </li>
           {plan.has_trial && plan.trial_days && (
             <li className="flex items-center gap-1.5 text-emerald-400">
@@ -342,18 +348,24 @@ function PlanCard({ plan, matrix, isCurrent, isLoading, onCheckout }: PlanCardPr
           )}
         </ul>
 
-        {/* Included models hint */}
+        {/* Included models hint — 2026-06-20: included_model_aliases now uses
+            provider slugs (e.g. 'claude-opus-48'), the same id shown in
+            /models/[id]/page.tsx. Lookup display_name from billing matrix
+            so users see "Claude Opus 4.8" instead of the URL slug. */}
         {Array.isArray(plan.included_model_aliases) && plan.included_model_aliases.length > 0 && plan.included_model_aliases.length <= 12 && (
           <div className="pt-2 border-t border-border">
             <div className="text-[8px] font-mono text-muted-foreground/80 uppercase tracking-wider mb-1">
               {plan.included_model_aliases.length} models included
             </div>
             <div className="flex flex-wrap gap-1">
-              {plan.included_model_aliases.slice(0, 5).map(id => (
-                <span key={id} className="px-1.5 py-0.5 text-[8px] font-mono border border-border bg-muted/40 text-muted-foreground">
-                  {id.replace('akarouter-', '')}
-                </span>
-              ))}
+              {plan.included_model_aliases.slice(0, 5).map(slug => {
+                const display = modelDisplayName(slug, matrix)
+                return (
+                  <span key={slug} className="px-1.5 py-0.5 text-[8px] font-mono border border-border bg-muted/40 text-muted-foreground">
+                    {display}
+                  </span>
+                )
+              })}
               {plan.included_model_aliases.length > 5 && (
                 <span className="text-[8px] font-mono text-muted-foreground/70 self-center">
                   +{plan.included_model_aliases.length - 5}

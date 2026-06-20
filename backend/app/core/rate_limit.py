@@ -169,15 +169,15 @@ class InMemoryRateLimiter:
             return len(self._buckets)
 
 
-# Per-tier rate limit presets. Tuned to be lenient on legit usage
-# (a developer running an agent at 1 req/sec for a long task uses
-# ~60 req/min, well within "pro" tier), while being strict enough
-# to catch a stolen key firing 1000 req/min.
+# Per-tier rate limit presets (sliding-window log, in-memory).
+# Per user directive 2026-06-20: starter=20, pro=40, ultra=60.
+# Free=10 (enough to feel useful at 100 points/mo; aggressive enough to
+# prevent 100-point blowout in hour 1).
 TIER_RATE_LIMITS: Dict[str, Dict[str, int]] = {
-    "free":     {"limit": 20,  "window_seconds": 60},
-    "starter":  {"limit": 60,  "window_seconds": 60},
-    "pro":      {"limit": 120, "window_seconds": 60},
-    "ultra":    {"limit": 300, "window_seconds": 60},
+    "free":     {"limit": 10,  "window_seconds": 60},
+    "starter":  {"limit": 20,  "window_seconds": 60},
+    "pro":      {"limit": 40,  "window_seconds": 60},
+    "ultra":    {"limit": 60,  "window_seconds": 60},
 }
 
 # Per-endpoint rate limit presets (where the bucket is per-IP,

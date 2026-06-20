@@ -518,15 +518,81 @@ def evict_system_settings_cache() -> None:
         _system_settings_cache.clear()
 
 
+def resolve_model_id_to_alias(model_id: str) -> str:
+    """Resolve a user-facing model id (slug or alias) to the internal alias.
+
+    The user-facing API uses provider slugs (e.g. 'claude-opus-48') as the
+    canonical model id (in /v1/models responses and in the frontend). Internally
+    the DB uses 'akarouter-opus'-style aliases. This function transparently
+    resolves either to the alias.
+
+    Caches the slug -> alias mapping for 5 minutes to avoid a DB hit per chat.
+    Falls back to the input unchanged if neither alias nor slug match (caller
+    will see 'model not found' from the DB layer).
+    """
+    if not model_id:
+        return model_id
+    # Aliases start with 'akarouter-' — if it does, return as-is
+    if model_id.startswith("akarouter-"):
+        return model_id
+    # Otherwise treat as slug and look up the alias
+    now = time.time()
+    with _lock:
+        cached = _slug_to_alias_cache.get(model_id)
+        if cached:
+            alias, fetched_at = cached
+            if now - fetched_at < 300.0:
+                return alias
+    try:
+        supabase = get_supabase()
+        res = (
+            supabase.table("model_mapping")
+            .select("alias")
+            .eq("slug", model_id)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            alias = res.data[0]["alias"]
+            with _lock:
+                _slug_to_alias_cache[model_id] = (alias, now)
+            return alias
+    except Exception as e:
+        logger.warning(f"resolve_model_id_to_alias: failed to resolve {model_id!r}: {e}")
+    # Fallback: return input unchanged. Caller will see 'model not found'
+    # from the next DB query (which is the right user-facing error).
+    return model_id
+
+
+# Slug -> alias cache (added 2026-06-20).
+# Maps user-facing provider slug (e.g. 'claude-opus-48') to internal alias
+# (e.g. 'akarouter-opus'). 5-minute TTL.
+_slug_to_alias_cache: dict[str, tuple[str, float]] = {}
+_SLUG_ALIAS_TTL = 300.0
+
+
+def evict_slug_alias_cache() -> None:
+    """Evict the slug -> alias cache. Call after model_mapping migrations."""
+    with _lock:
+        _slug_to_alias_cache.clear()
+
+
 def get_model_metadata(model_alias: str) -> dict[str, Any]:
-    """Retrieve model metadata (is_active, input_cost, output_cost) from cache or DB (TTL 60s)."""
+    """Retrieve model metadata (is_active, input_cost, output_cost) from cache or DB (TTL 60s).
+
+    Accepts EITHER the internal alias (e.g. 'akarouter-opus') OR the provider
+    slug (e.g. 'claude-opus-48'). The slug is the user-facing model id
+    (the same one used in /models/[id]/page.tsx), so this function resolves
+    slug -> alias transparently before querying the DB.
+    """
+    model_alias = resolve_model_id_to_alias(model_alias)
     now = time.time()
     with _lock:
         if model_alias in _model_meta_cache:
             val, fetched_at = _model_meta_cache[model_alias]
             if now - fetched_at < 60.0:
                 return val
-    
+
     # Cache miss, query DB
     try:
         supabase = get_supabase()

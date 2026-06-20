@@ -17,7 +17,7 @@ from app.core.router import select_provider, release_provider, select_endpoint, 
 from app.core.rate_limit_middleware import enforce_tier_rate_limit, rate_limit_429
 from app.core.supabase import get_supabase
 from app.core.http_client import get_http_client
-from app.core.cache import is_model_active, get_model_metadata
+from app.core.cache import is_model_active, get_model_metadata, resolve_model_id_to_alias
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -311,12 +311,17 @@ async def proxy_chat(req: Request):
         # printed by Pydantic). Don't echo internal model fields back to clients.
         raise HTTPException(status_code=422, detail="Invalid request body")
 
-    model_alias = body.model
+    # 2026-06-20: Accept either provider slug (e.g. 'claude-opus-48') or
+    # internal alias (e.g. 'akarouter-opus'). The slug is the user-facing
+    # model id (the same one used in /models/[id]/page.tsx); alias is the
+    # legacy identifier. resolve_model_id_to_alias maps slug -> alias so
+    # downstream rate-limit + billing code keeps working with aliases.
+    model_alias = resolve_model_id_to_alias(body.model)
     if model_alias not in settings.model_mapping:
-        raise HTTPException(status_code=400, detail=f"Unknown model '{model_alias}'")
+        raise HTTPException(status_code=400, detail=f"Unknown model '{body.model}'")
 
     if not is_model_active(model_alias):
-        raise HTTPException(status_code=400, detail=f"Model '{model_alias}' is disabled by administrator")
+        raise HTTPException(status_code=400, detail=f"Model '{body.model}' is disabled by administrator")
 
     # Re-serialize the validated body to a dict for downstream use. `body.model_dump(exclude_none=True)`
     # strips None values, matching OpenAI's wire format.

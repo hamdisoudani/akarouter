@@ -217,6 +217,8 @@ CREATE TABLE IF NOT EXISTS plan_presets (
     points_cost_multiplier NUMERIC(4,3) NOT NULL DEFAULT 1.0
         CHECK (points_cost_multiplier > 0 AND points_cost_multiplier <= 1.0),
     included_model_aliases TEXT[],
+    -- Visibility flag (added 2026-06-20): hide enterprise from public /v1/plans
+    is_visible BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -626,6 +628,37 @@ UPDATE plan_presets SET monthly_point_allowance = 100,  daily_free_requests_limi
 UPDATE plan_presets SET monthly_point_allowance = 500,  daily_free_requests_limit = 0   WHERE tier = 'starter';
 UPDATE plan_presets SET monthly_point_allowance = 2500, daily_free_requests_limit = 0   WHERE tier = 'pro';
 UPDATE plan_presets SET monthly_point_allowance = 7500, daily_free_requests_limit = 0   WHERE tier = 'ultra';
+
+-- ============================================
+-- 2026-06-20: Pricing revision — point-based, drop 5h/7d, correct prices
+-- ============================================
+-- Per user directive: the previous $19/$49/$149 prices + 5h/7d caps were
+-- over-engineered. The new model:
+--   * Point-based monthly allowance is the ONLY budget
+--   * RPM is the ONLY rate limit
+--   * No 5h/7d caps (users spend their allowance freely)
+--   * Prices: free $0, starter $4.99, pro $19.99, ultra $99.99
+--   * RPM: free 2, starter 20, pro 40, ultra 60
+--   * Enterprise kept in DB for legacy accounts, hidden from /v1/plans
+-- Visibility column
+ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;
+-- Hide enterprise from public pricing surface
+UPDATE plan_presets SET is_visible = FALSE WHERE tier = 'enterprise';
+UPDATE plan_presets SET is_visible = TRUE  WHERE tier IN ('free','starter','pro','ultra');
+-- Correct prices (match 2026-06-19 agreement + 2026-06-20 confirmation)
+UPDATE plan_presets SET price = '$0'      WHERE tier = 'free';
+UPDATE plan_presets SET price = '$4.99'   WHERE tier = 'starter';
+UPDATE plan_presets SET price = '$19.99'  WHERE tier = 'pro';
+UPDATE plan_presets SET price = '$99.99'  WHERE tier = 'ultra';
+-- RPM ceilings (sliding-window log enforced in app/core/rate_limit.py)
+UPDATE plan_presets SET rpm_limit = 2   WHERE tier = 'free';
+UPDATE plan_presets SET rpm_limit = 20  WHERE tier = 'starter';
+UPDATE plan_presets SET rpm_limit = 40  WHERE tier = 'pro';
+UPDATE plan_presets SET rpm_limit = 60  WHERE tier = 'ultra';
+-- Drop 5h/7d semantics. Set columns to 0 (sentinel for "not enforced")
+-- rather than dropping them — the columns remain for backward compat.
+UPDATE plan_presets SET tokens_5h_limit = 0, tokens_7d_limit = 0;
+UPDATE plan_presets SET monthly_limit = 0;  -- legacy dollar-era cap, unused now
 
 -- Add per-account point balance + daily free counter (separate from t1/t2/t3 caps)
 ALTER TABLE accounts
@@ -1041,26 +1074,47 @@ GRANT EXECUTE ON FUNCTION generate_model_slug TO service_role;
 -- ============================================
 -- 2026-06-20: plan_presets.included_model_aliases
 -- ============================================
--- Array of model aliases included in each plan. NULL = all active models.
--- Admin can edit which models are in each tier; checkout endpoints should respect this.
+-- Array of model ids (provider slugs, NOT internal aliases) included in
+-- each plan. NULL = all active models. The slug is the user-facing model
+-- id (the same one used in /models/[id]/page.tsx and in /v1/chat/completions
+-- calls). Per user directive 2026-06-20: pay-per-token models (owl, nomotron,
+-- flash 3.7) are accessible in EVERY plan.
 
 ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS included_model_aliases TEXT[];
 
--- Seed: keep current hardcoded values from upgrade/page.tsx
--- (these are the UI hints — backend enforcement may be added later)
-UPDATE plan_presets SET included_model_aliases = NULL WHERE tier = 'free';  -- free gets all
-UPDATE plan_presets SET included_model_aliases = ARRAY['akarouter-mini'] WHERE tier = 'starter';
-UPDATE plan_presets SET included_model_aliases = ARRAY['akarouter-mini', 'akarouter-haiku', 'akarouter-sonnet', 'akarouter-gpt54'] WHERE tier = 'pro';
+-- Seed: provider slugs (not branded aliases). Free plan gets the two
+-- cheapest baseline models (Haiku + MiniMax). Each subsequent tier adds
+-- the pay-per-token trio + premium models.
+UPDATE plan_presets SET included_model_aliases = ARRAY['claude-haiku-45','minimax-m3'] WHERE tier = 'free';
 UPDATE plan_presets SET included_model_aliases = ARRAY[
-  'akarouter-mini', 'akarouter-haiku', 'akarouter-sonnet', 'akarouter-gpt54',
-  'akarouter-gemini31', 'akarouter-gpt55', 'akarouter-opus'
+    'claude-haiku-45','minimax-m3','owl-alpha','nemotron-ultra','step-37-flash'
+] WHERE tier = 'starter';
+UPDATE plan_presets SET included_model_aliases = ARRAY[
+    'claude-haiku-45','minimax-m3','owl-alpha','nemotron-ultra','step-37-flash',
+    'claude-sonnet-46','gpt-54','gemini-31-pro'
+] WHERE tier = 'pro';
+UPDATE plan_presets SET included_model_aliases = ARRAY[
+    'claude-haiku-45','minimax-m3','owl-alpha','nemotron-ultra','step-37-flash',
+    'claude-sonnet-46','gpt-54','gemini-31-pro',
+    'gpt-55','gpt-53-codex-spark','claude-opus-48'
 ] WHERE tier = 'ultra';
 UPDATE plan_presets SET included_model_aliases = ARRAY[
-  'akarouter-mini', 'akarouter-haiku', 'akarouter-sonnet', 'akarouter-gpt54',
-  'akarouter-gemini31', 'akarouter-gpt55', 'akarouter-opus', 'akarouter-gpt53-codex'
+    'claude-haiku-45','minimax-m3','owl-alpha','nemotron-ultra','step-37-flash',
+    'claude-sonnet-46','gpt-54','gemini-31-pro',
+    'gpt-55','gpt-53-codex-spark','claude-opus-48'
 ] WHERE tier = 'enterprise';
 
-COMMENT ON COLUMN plan_presets.included_model_aliases IS 'Model aliases included in this plan. NULL = all active models. Admin editable via /admin/plans.';
+-- Plan descriptions (the "X plan + Y, Z" hierarchy)
+UPDATE plan_presets SET description = '100 points/month. Try the cheapest models for free.' WHERE tier = 'free';
+UPDATE plan_presets SET description = 'Starter + Owl Alpha, Nemotron Ultra, Step 3.7 Flash' WHERE tier = 'starter';
+UPDATE plan_presets SET description = 'Starter + Claude Sonnet 4.6, GPT-5.4, Gemini 3.1 Pro' WHERE tier = 'pro';
+UPDATE plan_presets SET description = 'Pro + GPT-5.5, GPT-5.3 Codex Spark, Claude Opus 4.8' WHERE tier = 'ultra';
+
+-- Plan badges
+UPDATE plan_presets SET badge = 'Most popular • 7-day free trial' WHERE tier = 'pro';
+UPDATE plan_presets SET badge = 'Elite performance' WHERE tier = 'ultra';
+
+COMMENT ON COLUMN plan_presets.included_model_aliases IS 'Model slugs (provider ids) included in this plan. NULL = all active models. Admin editable via /admin/plans.';
 
 -- ============================================
 -- 2026-06-20: is_upcoming flag for "feature upcoming" models

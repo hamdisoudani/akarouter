@@ -16,10 +16,7 @@ export default function UsagePage() {
   const router = useRouter()
   const { user, token, usage, loading: authLoading, signOut, refetchUsage } = useApp()
 
-  const [secondsLeft5h, setSecondsLeft5h] = useState<number | null>(null)
-  const [fullSecondsLeft5h, setFullSecondsLeft5h] = useState<number | null>(null)
-  const [secondsLeft7d, setSecondsLeft7d] = useState<number | null>(null)
-  const [fullSecondsLeft7d, setFullSecondsLeft7d] = useState<number | null>(null)
+  const [secondsUntilPointsReset, setSecondsUntilPointsReset] = useState<number | null>(null)
 
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
@@ -98,19 +95,13 @@ export default function UsagePage() {
 
   useEffect(() => {
     if (usage) {
-      setSecondsLeft5h(usage.next_reset_5h ?? null)
-      setFullSecondsLeft5h(usage.full_reset_5h ?? null)
-      setSecondsLeft7d(usage.next_reset_7d ?? null)
-      setFullSecondsLeft7d(usage.full_reset_7d ?? null)
+      setSecondsUntilPointsReset(usage.seconds_until_points_reset ?? null)
     }
   }, [usage])
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setSecondsLeft5h(prev => (prev !== null && prev > 0 ? prev - 1 : prev))
-      setFullSecondsLeft5h(prev => (prev !== null && prev > 0 ? prev - 1 : prev))
-      setSecondsLeft7d(prev => (prev !== null && prev > 0 ? prev - 1 : prev))
-      setFullSecondsLeft7d(prev => (prev !== null && prev > 0 ? prev - 1 : prev))
+      setSecondsUntilPointsReset(prev => (prev !== null && prev > 0 ? prev - 1 : prev))
     }, 1000)
     return () => clearInterval(timer)
   }, [])
@@ -174,12 +165,6 @@ export default function UsagePage() {
         billing: 'monthly',
         desc: 'Essential API limits for developers starting out.',
         badge: null,
-        limits: [
-          'Monthly Budget: $10.00',
-          'RPM Limit: 60 RPM',
-          '5-Hour Limit: $1.00',
-          '7-Day Limit: $5.00',
-        ]
       },
       {
         name: 'Pro Plan',
@@ -188,12 +173,6 @@ export default function UsagePage() {
         billing: 'monthly',
         desc: 'Perfect for production apps and agent deployments.',
         badge: 'Popular • 7-Day Free Trial',
-        limits: [
-          'Monthly Budget: $100.00',
-          'RPM Limit: 300 RPM',
-          '5-Hour Limit: $10.00',
-          '7-Day Limit: $50.00',
-        ]
       },
       {
         name: 'Ultra Plan',
@@ -202,12 +181,6 @@ export default function UsagePage() {
         billing: 'monthly',
         desc: 'Ultimate capacity for high-scale agent networks.',
         badge: 'Elite Performance',
-        limits: [
-          'Monthly Budget: $1,000.00',
-          'RPM Limit: 1,000 RPM',
-          '5-Hour Limit: $100.00',
-          '7-Day Limit: $500.00',
-        ]
       }
     ]
 
@@ -220,16 +193,10 @@ export default function UsagePage() {
       return {
         name: matchingFallback?.name || `${plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1)} Plan`,
         key: plan.tier,
-        price: matchingFallback?.price || '$0.00',
+        price: matchingFallback?.price || plan.price || '$0.00',
         billing: matchingFallback?.billing || 'monthly',
         desc: matchingFallback?.desc || 'Custom limits tier.',
         badge: matchingFallback?.badge || null,
-        limits: [
-          `Monthly Budget: $${plan.monthly_limit.toFixed(2)}`,
-          `RPM Limit: ${plan.rpm_limit} RPM`,
-          `5-Hour Limit: $${plan.tokens_5h_limit.toFixed(2)}`,
-          `7-Day Limit: $${plan.tokens_7d_limit.toFixed(2)}`
-        ]
       }
     })
   }
@@ -543,76 +510,43 @@ export default function UsagePage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* 5-Hour budget progress */}
-                <div className="bg-card/80 border border-border p-5 space-y-4">
+
+                {/* Monthly Points budget (the only budget that matters) */}
+                <div className="bg-card/80 border border-border p-5 space-y-4 md:col-span-2">
                   <div className="flex justify-between items-center text-xs font-mono">
-                    <span className="text-muted-foreground font-bold uppercase tracking-wider">5-Hour Strict Fixed Cycle</span>
+                    <span className="text-muted-foreground font-bold uppercase tracking-wider">Monthly Points Budget</span>
                     <span className="text-[#ef4444] font-bold">
-                      {usage ? `${(usage.progress_percentage_5h ?? 0).toFixed(1)}%` : <span className="animate-pulse">0.0%</span>}
-                    </span>
-                  </div>
-                  
-                  {/* Bar progress */}
-                  <div className="w-full h-2.5 bg-muted/40 border border-border overflow-hidden">
-                    <div 
-                      className={`h-full bg-[#ef4444] red-glow transition-all duration-500 ${!usage ? 'animate-pulse bg-muted' : ''}`}
-                      style={{ width: `${usage ? (usage.progress_percentage_5h ?? 0) : 0}%` }}
-                    />
-                  </div>
-
-                  <div className="flex justify-between items-center text-[10px] font-mono text-muted-foreground/80 uppercase">
-                    <span>QUOTA CONSUMED</span>
-                    <span>LIMIT: 100%</span>
-                  </div>
-
-                  {usage && (secondsLeft5h !== null && secondsLeft5h > 0) ? (
-                    <div className="border-t border-border pt-3 flex justify-between items-center text-[9px] font-mono">
-                      <span className="text-muted-foreground/80 uppercase tracking-wide">[TIME_UNTIL_RESET]</span>
-                      <span className="text-[#ef4444] font-bold tracking-wider">{formatRemainingTime(secondsLeft5h)}</span>
-                    </div>
-                  ) : (
-                    usage && (
-                      <div className="border-t border-border pt-3 flex justify-between items-center text-[9px] font-mono">
-                        <span className="text-muted-foreground/60 uppercase tracking-wide">[STATUS]</span>
-                        <span className="text-emerald-500 font-bold uppercase tracking-widest">[WINDOW_IDLE_CLEAN]</span>
-                      </div>
-                    )
-                  )}
-                </div>
-
-                {/* 7-Day budget progress */}
-                <div className="bg-card/80 border border-border p-5 space-y-4">
-                  <div className="flex justify-between items-center text-xs font-mono">
-                    <span className="text-muted-foreground font-bold uppercase tracking-wider">7-Day Strict Fixed Cycle</span>
-                    <span className="text-[#ef4444] font-bold">
-                      {usage ? `${(usage.progress_percentage_7d ?? 0).toFixed(1)}%` : <span className="animate-pulse">0.0%</span>}
+                      {usage ? `${(usage.points_pct_used ?? 0).toFixed(1)}%` : <span className="animate-pulse">0.0%</span>}
                     </span>
                   </div>
 
                   {/* Bar progress */}
                   <div className="w-full h-2.5 bg-muted/40 border border-border overflow-hidden">
-                    <div 
+                    <div
                       className={`h-full bg-[#ef4444] red-glow transition-all duration-500 ${!usage ? 'animate-pulse bg-muted' : ''}`}
-                      style={{ width: `${usage ? (usage.progress_percentage_7d ?? 0) : 0}%` }}
+                      style={{ width: `${usage ? (usage.points_pct_used ?? 0) : 0}%` }}
                     />
                   </div>
 
                   <div className="flex justify-between items-center text-[10px] font-mono text-muted-foreground/80 uppercase">
-                    <span>QUOTA CONSUMED</span>
-                    <span>LIMIT: 100%</span>
+                    <span>
+                      {usage ? `${(usage.monthly_points_remaining ?? 0).toLocaleString()} OF ${(usage.monthly_points_limit ?? 0).toLocaleString()} POINTS LEFT` : 'POINTS LEFT'}
+                    </span>
+                    <span>
+                      {usage ? `RPM: ${usage.rpm_limit ?? 0}` : 'RPM'}
+                    </span>
                   </div>
 
-                  {usage && (secondsLeft7d !== null && secondsLeft7d > 0) ? (
+                  {usage && (secondsUntilPointsReset !== null && secondsUntilPointsReset > 0) ? (
                     <div className="border-t border-border pt-3 flex justify-between items-center text-[9px] font-mono">
                       <span className="text-muted-foreground/80 uppercase tracking-wide">[TIME_UNTIL_RESET]</span>
-                      <span className="text-[#ef4444] font-bold tracking-wider">{formatRemainingTime(secondsLeft7d)}</span>
+                      <span className="text-[#ef4444] font-bold tracking-wider">{formatRemainingTime(secondsUntilPointsReset)}</span>
                     </div>
                   ) : (
                     usage && (
                       <div className="border-t border-border pt-3 flex justify-between items-center text-[9px] font-mono">
                         <span className="text-muted-foreground/60 uppercase tracking-wide">[STATUS]</span>
-                        <span className="text-emerald-500 font-bold uppercase tracking-widest">[WINDOW_IDLE_CLEAN]</span>
+                        <span className="text-emerald-500 font-bold uppercase tracking-widest">[POINTS_AVAILABLE]</span>
                       </div>
                     )
                   )}
@@ -712,14 +646,7 @@ export default function UsagePage() {
                           <span className="font-mono text-[9px] text-muted-foreground/80 uppercase">/ {plan.billing}</span>
                         </div>
 
-                        <ul className="space-y-2 font-mono text-[9px] text-muted-foreground">
-                          {plan.limits.map((limit, idx) => (
-                            <li key={idx} className="flex items-center gap-2">
-                              <span className="w-1 h-1 bg-[#ef4444] red-glow"></span>
-                              <span className="uppercase">{limit}</span>
-                            </li>
-                          ))}
-                        </ul>
+                        <p className="text-[9px] font-mono text-muted-foreground/80 uppercase leading-relaxed">{plan.desc}</p>
                       </div>
 
                       <div className="pt-6 mt-auto">

@@ -39,10 +39,12 @@ async def list_models(request: Request) -> dict:
                 "object": "list",
                 "data": [
                     {
-                        "id": row["alias"],
-                        # URL-friendly slug derived from display_name (e.g. "minimax-m3")
-                        # Frontend should prefer this for /models/[slug] URLs.
-                        "slug": row.get("slug") or row["alias"],
+                        # 2026-06-20: `id` is now the provider slug (e.g. 'claude-opus-48'),
+                        # NOT the internal alias. The slug is the user-facing identifier
+                        # used in /models/[id]/page.tsx and in /v1/chat/completions calls.
+                        # Internal alias is kept in `alias` for backward compat / admin tools.
+                        "id": row.get("slug") or row["alias"],
+                        "alias": row["alias"],
                         "object": "model",
                         "owned_by": "akarouter",
                         "display_name": row.get("display_name", row["alias"]),
@@ -126,9 +128,10 @@ async def get_billing_matrix() -> dict:
 
     Response shape:
       {
-        "tiers": ["free", "starter", "pro", "ultra", "enterprise"],
+        "tiers": ["free", "starter", "pro", "ultra"],  # enterprise hidden
         "plan_multipliers": { tier: float },
         "monthly_allowances": { tier: int },
+        "rpm_limits": { tier: int },
         "models": [
           { alias, display_name, provider_name, is_upcoming, is_promotional,
             promotional_discount_pct, costs: { tier: { base, effective } } }
@@ -137,29 +140,36 @@ async def get_billing_matrix() -> dict:
     """
     try:
         from app.core.chat_billing import get_effective_points_cost
-        tiers = ["free", "starter", "pro", "ultra", "enterprise"]
+        tiers = ["free", "starter", "pro", "ultra"]  # enterprise not shown publicly
         # Read plans fresh from DB (bypass cache — values must reflect post-migration state)
         supabase = get_supabase()
         plans_res = supabase.table("plan_presets").select(
-            "tier, points_cost_multiplier, monthly_point_allowance, daily_free_requests_limit"
-        ).execute()
+            "tier, points_cost_multiplier, monthly_point_allowance, daily_free_requests_limit, rpm_limit, price, billing_period"
+        ).eq("is_visible", True).execute()
         multipliers: dict[str, float] = {}
         allowances: dict[str, int] = {}
+        rpm_limits: dict[str, int] = {}
+        prices: dict[str, str] = {}
+        billing_periods: dict[str, str] = {}
         for row in (plans_res.data or []):
             t = row.get("tier")
             if t:
                 multipliers[t] = float(row.get("points_cost_multiplier") or 1.0)
                 allowances[t] = int(row.get("monthly_point_allowance") or 0)
+                rpm_limits[t] = int(row.get("rpm_limit") or 0)
+                prices[t] = row.get("price") or "$0"
+                billing_periods[t] = row.get("billing_period") or "mo"
         # Fetch models (active + upcoming only)
         supabase = get_supabase()
         result = supabase.table("model_mapping").select(
-            "alias, display_name, provider_name, is_upcoming, is_promotional, "
+            "alias, slug, display_name, provider_name, is_upcoming, is_promotional, "
             "promotional_discount_pct, points_cost, pricing_mode"
         ).or_("is_active.eq.true,is_upcoming.eq.true").execute()
         models_out: list[dict] = []
         if result.data:
             for row in result.data:
                 alias = row.get("alias")
+                slug = row.get("slug") or alias
                 base_pts = int(row.get("points_cost") or 1)
                 costs: dict[str, dict[str, int]] = {}
                 for tier in tiers:
@@ -172,7 +182,11 @@ async def get_billing_matrix() -> dict:
                         "effective": effective,
                     }
                 models_out.append({
+                    # 2026-06-20: `id` is the user-facing provider slug (e.g. 'claude-opus-48').
+                    # `alias` kept for admin / internal use. Frontend uses `id` for display.
+                    "id": slug,
                     "alias": alias,
+                    "slug": slug,
                     "display_name": row.get("display_name") or alias,
                     "provider_name": row.get("provider_name") or "",
                     "is_upcoming": bool(row.get("is_upcoming")),
@@ -185,11 +199,14 @@ async def get_billing_matrix() -> dict:
             "tiers": tiers,
             "plan_multipliers": multipliers,
             "monthly_allowances": allowances,
+            "rpm_limits": rpm_limits,
+            "prices": prices,
+            "billing_periods": billing_periods,
             "models": models_out,
         }
     except Exception as e:
         logger.error(f"billing matrix fetch failed: {e}")
-        return {"tiers": [], "plan_multipliers": {}, "monthly_allowances": {}, "models": [], "error": str(e)}
+        return {"tiers": [], "plan_multipliers": {}, "monthly_allowances": {}, "rpm_limits": {}, "prices": {}, "billing_periods": {}, "models": [], "error": str(e)}
 
 
 @router.get("/v1/plans")

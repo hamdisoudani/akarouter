@@ -112,10 +112,17 @@ export interface UsageStats {
   next_reset_7d?: number
   full_reset_7d?: number
   is_trialing?: boolean
-  // Point system (NEW)
+  // Point system (NEW) — these are the authoritative fields. 5h/7d kept
+  // for backward compat but no longer rendered anywhere.
   monthly_points_remaining?: number
   monthly_points_limit?: number
   points_reset_at?: string | null
+  /** Seconds until the monthly point budget resets (counted down client-side). */
+  seconds_until_points_reset?: number | null
+  /** 0-100 percent of monthly point budget consumed. */
+  points_pct_used?: number
+  /** Total points charged this period (for display in the recap card). */
+  points_spent_this_period?: number
   daily_free_requests_remaining?: number
   daily_free_requests_reset_at?: string | null
 }
@@ -286,6 +293,8 @@ export async function getPlans(): Promise<{ plans: PlanPreset[] }> {
 export interface PlanPreset {
   id: string
   tier: string
+  // Legacy dollar-era limits (kept for backward compat, but NOT enforced
+  // per user directive 2026-06-20 — point budget + RPM is the whole story).
   monthly_limit: number
   rpm_limit: number
   tokens_5h_limit: number
@@ -293,7 +302,7 @@ export interface PlanPreset {
   monthly_requests_limit?: number
   per_request_cost_cents?: number
   pricing_mode?: 'per_token' | 'per_request' | 'mixed'
-  // Point system (NEW) — monthly allowance + daily free-model cap
+  // Point system — monthly allowance + daily free-model cap (the only budget).
   monthly_point_allowance?: number
   daily_free_requests_limit?: number
   // NEW (2026-06-20): per-tier discount multiplier on points_cost.
@@ -308,6 +317,8 @@ export interface PlanPreset {
   badge?: string
   has_trial?: boolean
   trial_days?: number
+  /** Show this plan on public /v1/plans endpoint. Enterprise is hidden. */
+  is_visible?: boolean
   created_at: string
   updated_at: string
 }
@@ -319,7 +330,12 @@ export interface BillingMatrixTier {
 }
 
 export interface BillingMatrixModel {
+  /** 2026-06-20: User-facing model id (provider slug, e.g. 'claude-opus-48'). Same as /models/[id]. */
+  id: string
+  /** Internal alias (e.g. 'akarouter-opus'). Used by admin / backend. */
   alias: string
+  /** Same as id; kept for backward compat. */
+  slug?: string
   display_name: string
   provider_name: string
   is_upcoming: boolean
@@ -333,6 +349,9 @@ export interface BillingMatrix {
   tiers: string[]
   plan_multipliers: Record<string, number>  // { free: 1.0, pro: 0.75, ... }
   monthly_allowances: Record<string, number>
+  rpm_limits: Record<string, number>  // NEW 2026-06-20
+  prices: Record<string, string>      // NEW 2026-06-20
+  billing_periods: Record<string, string>  // NEW 2026-06-20
   models: BillingMatrixModel[]
 }
 

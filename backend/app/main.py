@@ -480,9 +480,108 @@ async def startup():
                 EXCEPTION WHEN others THEN NULL; END $$;
             """)
             logger.info("migration step 15: banned status + ban_reason column applied")
+            # 16. 2026-06-20: REVISE pricing tiers per user directive.
+            # The previous values ($19/$49/$149, RPM 60/60/60, 5h+7d caps)
+            # were over-engineered. The new model is:
+            #   - Point-based monthly allowance is the ONLY budget
+            #   - RPM is the ONLY rate limit
+            #   - No 5h/7d caps (users spend their allowance freely)
+            #   - Prices: free $0, starter $4.99, pro $19.99, ultra $99.99
+            #   - RPM: free 2, starter 20, pro 40, ultra 60
+            #   - Enterprise: kept in DB for legacy users, but hidden from /v1/plans
+            # Idempotent: every UPDATE is conditional so re-running does nothing
+            # if the values are already correct.
+            _safe_update("ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT TRUE;")
+            _safe_update("UPDATE plan_presets SET is_visible = TRUE  WHERE tier IN ('free','starter','pro','ultra') AND is_visible = FALSE;")
+            _safe_update("UPDATE plan_presets SET is_visible = FALSE WHERE tier = 'enterprise';")
+            # Prices (correct ones — confirmed from 2026-06-19 memory)
+            _safe_update("UPDATE plan_presets SET price = '$0'      WHERE tier = 'free'       AND price <> '$0';")
+            _safe_update("UPDATE plan_presets SET price = '$4.99'   WHERE tier = 'starter'    AND price <> '$4.99';")
+            _safe_update("UPDATE plan_presets SET price = '$19.99'  WHERE tier = 'pro'        AND price <> '$19.99';")
+            _safe_update("UPDATE plan_presets SET price = '$99.99'  WHERE tier = 'ultra'      AND price <> '$99.99';")
+            # RPM (point-rate-based: 1 cheap model = 1 pt, so rpm * 1 = pts/min)
+            _safe_update("UPDATE plan_presets SET rpm_limit = 2   WHERE tier = 'free'    AND rpm_limit <> 2;")
+            _safe_update("UPDATE plan_presets SET rpm_limit = 20  WHERE tier = 'starter' AND rpm_limit <> 20;")
+            _safe_update("UPDATE plan_presets SET rpm_limit = 40  WHERE tier = 'pro'     AND rpm_limit <> 40;")
+            _safe_update("UPDATE plan_presets SET rpm_limit = 60  WHERE tier = 'ultra'   AND rpm_limit <> 60;")
+            # Drop 5h/7d semantics — set to 0 (sentinel for "not enforced") rather than
+            # dropping the column. The columns remain in DB for backward compat and
+            # for any future re-introduction, but the rate-limit middleware ignores them.
+            _safe_update("UPDATE plan_presets SET tokens_5h_limit = 0, tokens_7d_limit = 0 WHERE tokens_5h_limit <> 0 OR tokens_7d_limit <> 0;")
+            # monthly_limit is the legacy "requests/mo" dollar-era cap. Drop its
+            # enforcement value to 0 (sentinel). The point-based budget is now
+            # `monthly_point_allowance`, which is already populated.
+            _safe_update("UPDATE plan_presets SET monthly_limit = 0 WHERE monthly_limit <> 0;")
+            # 2026-06-20: Migrate `included_model_aliases` from branded ids
+            # (e.g. 'akarouter-opus') to provider slugs (e.g. 'claude-opus-48')
+            # — the new system of record is the provider's own model name, the
+            # same one used in /models/[id]/page.tsx. All pay-per-token models
+            # (owl, nomotron, flash 3.7) are now accessible on EVERY plan.
+            _safe_update("""
+                UPDATE plan_presets SET included_model_aliases = ARRAY['claude-haiku-45','minimax-m3']
+                WHERE tier = 'free' AND (
+                    included_model_aliases IS NULL
+                    OR 'akarouter-haiku' = ANY(included_model_aliases)
+                    OR 'akarouter-mini' = ANY(included_model_aliases)
+                );
+            """)
+            _safe_update("""
+                UPDATE plan_presets SET included_model_aliases = ARRAY[
+                    'claude-haiku-45','minimax-m3','owl-alpha','nemotron-ultra','step-37-flash'
+                ]
+                WHERE tier = 'starter' AND (
+                    included_model_aliases IS NULL
+                    OR 'akarouter-haiku' = ANY(included_model_aliases)
+                    OR 'akarouter-mini' = ANY(included_model_aliases)
+                );
+            """)
+            _safe_update("""
+                UPDATE plan_presets SET included_model_aliases = ARRAY[
+                    'claude-haiku-45','minimax-m3','owl-alpha','nemotron-ultra','step-37-flash',
+                    'claude-sonnet-46','gpt-54','gemini-31-pro'
+                ]
+                WHERE tier = 'pro' AND (
+                    included_model_aliases IS NULL
+                    OR 'akarouter-haiku' = ANY(included_model_aliases)
+                    OR 'akarouter-mini' = ANY(included_model_aliases)
+                );
+            """)
+            _safe_update("""
+                UPDATE plan_presets SET included_model_aliases = ARRAY[
+                    'claude-haiku-45','minimax-m3','owl-alpha','nemotron-ultra','step-37-flash',
+                    'claude-sonnet-46','gpt-54','gemini-31-pro',
+                    'gpt-55','gpt-53-codex-spark','claude-opus-48'
+                ]
+                WHERE tier = 'ultra' AND (
+                    included_model_aliases IS NULL
+                    OR 'akarouter-haiku' = ANY(included_model_aliases)
+                    OR 'akarouter-mini' = ANY(included_model_aliases)
+                );
+            """)
+            _safe_update("""
+                UPDATE plan_presets SET included_model_aliases = ARRAY[
+                    'claude-haiku-45','minimax-m3','owl-alpha','nemotron-ultra','step-37-flash',
+                    'claude-sonnet-46','gpt-54','gemini-31-pro',
+                    'gpt-55','gpt-53-codex-spark','claude-opus-48'
+                ]
+                WHERE tier = 'enterprise' AND (
+                    included_model_aliases IS NULL
+                    OR 'akarouter-haiku' = ANY(included_model_aliases)
+                    OR 'akarouter-mini' = ANY(included_model_aliases)
+                );
+            """)
+            # Plan descriptions (the "X plan + Y, Z" hierarchy)
+            _safe_update("UPDATE plan_presets SET description = '100 points/month. Try the cheapest models for free.' WHERE tier = 'free' AND (description IS NULL OR description NOT LIKE '100 points/month%');")
+            _safe_update("UPDATE plan_presets SET description = 'Starter + Owl Alpha, Nemotron Ultra, Step 3.7 Flash' WHERE tier = 'starter' AND (description IS NULL OR description NOT LIKE 'Starter +%');")
+            _safe_update("UPDATE plan_presets SET description = 'Starter + Claude Sonnet 4.6, GPT-5.4, Gemini 3.1 Pro' WHERE tier = 'pro' AND (description IS NULL OR description NOT LIKE 'Starter + Claude%');")
+            _safe_update("UPDATE plan_presets SET description = 'Pro + GPT-5.5, GPT-5.3 Codex Spark, Claude Opus 4.8' WHERE tier = 'ultra' AND (description IS NULL OR description NOT LIKE 'Pro + GPT%');")
+            # Badges
+            _safe_update("UPDATE plan_presets SET badge = 'Most popular • 7-day free trial' WHERE tier = 'pro' AND (badge IS NULL OR badge <> 'Most popular • 7-day free trial');")
+            _safe_update("UPDATE plan_presets SET badge = 'Elite performance' WHERE tier = 'ultra' AND (badge IS NULL OR badge <> 'Elite performance');")
+            logger.info("migration step 16: pricing tiers revised (correct prices, RPM 2/20/40/60, no 5h/7d, enterprise hidden, included_model_aliases = provider slugs, descriptions added)")
             cur.close()
             conn.close()
-            logger.info("model_mapping migrations applied (slug + included_model_aliases + is_upcoming + 2x markup + tier multiplier + promotional + per_token→per_request + banned status)")
+            logger.info("model_mapping migrations applied (slug + included_model_aliases + is_upcoming + 2x markup + tier multiplier + promotional + per_token→per_request + banned status + pricing revision)")
     except Exception as e:
         # Don't fail startup — log and continue. The /api/v1/models endpoint already
         # falls back to alias if slug is missing in a row.
