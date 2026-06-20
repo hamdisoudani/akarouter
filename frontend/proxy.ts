@@ -75,6 +75,21 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
 
+// /dashboard/upgrade is the upgrade pricing page — it should be
+// publicly viewable so prospects can see the plan catalog and cost
+// matrix before signing up. The page itself renders the entire
+// catalog UI but disables checkout buttons for unauthenticated users
+// (handleCheckout() checks `!token` and routes to /auth/login).
+// Other /dashboard/* pages (keys, usage, admin, root /dashboard) stay
+// auth-gated.
+const PUBLIC_DASHBOARD_EXCEPTIONS: string[] = [
+  '/dashboard/upgrade',
+]
+
+function isPublicDashboardException(pathname: string): boolean {
+  return PUBLIC_DASHBOARD_EXCEPTIONS.some((p) => pathname === p)
+}
+
 /**
  * Generate a cryptographically random 16-byte nonce, base64url-encoded.
  *
@@ -224,6 +239,12 @@ export async function proxy(request: NextRequest) {
 
   // Skip public paths and static assets
   if (isPublic(pathname)) {
+    return buildResponse()
+  }
+
+  // Public dashboard exceptions: pages under /dashboard/* that don't
+  // require auth (e.g. /dashboard/upgrade is the public pricing page).
+  if (isProtected(pathname) && isPublicDashboardException(pathname)) {
     return buildResponse()
   }
 
