@@ -436,3 +436,84 @@ def _build_chain_mock(final_data=None, final_count=0):
     sb.execute = MagicMock(return_value=result)
     sb.rpc = MagicMock(return_value=sb)  # rpc is special
     return sb
+
+# ---------------------------------------------------------------------------
+# Regression test: Supabase returns timestamptz columns as ISO STRINGS,
+# not datetime objects. get_my_usage() must normalize them before calling
+# .isoformat() or doing arithmetic.
+#
+# Bug discovered: 2026-06-20 23:19 UTC
+# Error: AttributeError: 'str' object has no attribute 'isoformat'
+# on every authenticated GET /user/usage.
+# ---------------------------------------------------------------------------
+class TestUsageTimestampParsing:
+    """Regression: Supabase timestamptz arrives as ISO strings, not datetimes."""
+
+    @patch("app.core.rate_limit_middleware.get_rate_limiter")
+    @patch("app.api.user.get_supabase")
+    def test_usage_handles_string_timestamps_from_supabase(
+        self, mock_get_supabase, mock_limiter
+    ):
+        """points_reset_at / daily_free_requests_reset_at as ISO strings
+        must not crash .isoformat() or the seconds_until calculation."""
+        from app.api.user import get_my_usage
+
+        sb = MagicMock()
+
+        # Account row with ISO-STRING timestamps (Supabase default for timestamptz)
+        account_row = {
+            "monthly_requests": 0,
+            "monthly_limit": 0,
+            "total_requests": 0,
+            "tier": "free",
+            "role": "user",
+            "rpm_limit": 10,
+            "tokens_5h_limit": 0,
+            "tokens_7d_limit": 0,
+            "budget_reset_at": None,
+            "is_trialing": False,
+            "monthly_points_remaining": 100,
+            "monthly_points_limit": 100,
+            # The exact shape Supabase returns for timestamptz columns:
+            "points_reset_at": "2027-01-01T00:00:00+00:00",
+            "daily_free_requests_remaining": 10,
+            "daily_free_requests_reset_at": "2026-06-21T00:00:00+00:00",
+        }
+        accounts_result = MagicMock()
+        accounts_result.data = [account_row]
+
+        logs_result = MagicMock()
+        logs_result.data = []
+
+        def table_router(tbl):
+            chain = MagicMock()
+            if tbl == "accounts":
+                # .select(...).eq("id", X).execute()
+                chain.select.return_value.eq.return_value.execute.return_value = (
+                    accounts_result
+                )
+            elif tbl == "request_logs":
+                # .select(...).eq(...).gte(...).execute()
+                chain.select.return_value.eq.return_value.gte.return_value.execute.return_value = (
+                    logs_result
+                )
+            else:
+                chain.select.return_value.eq.return_value.execute.return_value = MagicMock(
+                    data=[]
+                )
+            return chain
+
+        sb.table.side_effect = table_router
+
+        mock_get_supabase.return_value = sb
+        mock_limiter.return_value = _allow_limiter(mock_limiter)
+
+        req = _make_request(account_id="acc-test-string-ts")
+        resp = await_run(get_my_usage(req))
+
+        # Both timestamps must round-trip as ISO strings (not crash)
+        assert resp["points_reset_at"] == "2027-01-01T00:00:00+00:00"
+        assert resp["daily_free_requests_reset_at"] == "2026-06-21T00:00:00+00:00"
+        # seconds_until_points_reset must be a positive int (future date)
+        assert isinstance(resp["seconds_until_points_reset"], int)
+        assert resp["seconds_until_points_reset"] > 0
