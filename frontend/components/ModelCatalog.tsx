@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { Search, Filter, Zap, DollarSign, Code2, Eye, Brain, Cpu, X } from 'lucide-react'
+import { Search, Filter, Zap, Coins, Code2, Eye, Brain, Cpu, X, Star } from 'lucide-react'
+import { detectProvider } from '@/lib/providers'
 
 interface CatalogModel {
   id: string
@@ -44,17 +45,15 @@ function formatPerTokenPrice(input?: number, output?: number) {
   return `IN ${fmt(input)} · OUT ${fmt(output)}`
 }
 
-function getProvider(_model: CatalogModel) {
-  // All models are AkaRouter-owned — single branding, no upstream leak
-  return { name: 'AkaRouter', color: 'text-foreground/80 border-zinc-500/30 bg-zinc-500/10' }
-}
-
 function getCapabilityIcon(cap: string) {
   if (cap === 'vision') return <Eye className="w-3 h-3" />
   if (cap === 'code' || cap === 'completion') return <Code2 className="w-3 h-3" />
   if (cap === 'chat') return <Brain className="w-3 h-3" />
   return <Cpu className="w-3 h-3" />
 }
+
+// Removed: local getProvider() — now uses detectProvider() from lib/providers
+// to surface the real upstream vendor (Anthropic, OpenAI, Google, etc.)
 
 export function ModelCatalog({ models }: ModelCatalogProps) {
   const [search, setSearch] = useState('')
@@ -149,13 +148,13 @@ export function ModelCatalog({ models }: ModelCatalogProps) {
         </span>
         <span className="text-muted-foreground/60">|</span>
         <span className="inline-flex items-center gap-1.5">
-          <DollarSign className="w-3 h-3" />
-          {perTokenCount} per-token
+          <Coins className="w-3 h-3 text-emerald-500" />
+          <span className="text-emerald-500 font-bold">{perTokenCount}</span> per-token
         </span>
         <span className="text-muted-foreground/60">|</span>
         <span className="inline-flex items-center gap-1.5">
-          <Zap className="w-3 h-3" />
-          {perRequestCount} per-request
+          <Zap className="w-3 h-3 text-[#ef4444]" />
+          <span className="text-[#ef4444] font-bold">{perRequestCount}</span> per-request
         </span>
       </div>
 
@@ -180,13 +179,22 @@ export function ModelCatalog({ models }: ModelCatalogProps) {
       {/* Model grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
         {filtered.map((m) => {
-          const provider = getProvider(m)
+          const provider = detectProvider(m)
           const isPerRequest = m.pricing_mode === 'per_request'
+          const isFree = isPerRequest && (m.cost_per_request_cents ?? 0) === 0
+          const accent = isFree ? '#f59e0b' : isPerRequest ? '#ef4444' : '#10b981'
           return (
             <div
               key={m.id}
-              className="group p-4 bg-background border border-border hover:border-border transition-all flex flex-col"
+              className="group relative p-4 bg-background border border-border hover:border-foreground/40 transition-all flex flex-col overflow-hidden"
             >
+              {/* Top accent bar — visually distinguishes pricing mode */}
+              <div
+                className="absolute top-0 left-0 right-0 h-0.5"
+                style={{ backgroundColor: accent, boxShadow: `0 0 8px ${accent}80` }}
+              />
+
+              <div className="pt-1">
               {/* Header: name + pricing mode badge */}
               <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex-1 min-w-0">
@@ -196,19 +204,21 @@ export function ModelCatalog({ models }: ModelCatalogProps) {
                   <p className="text-[9px] text-muted-foreground/70 font-mono truncate mt-0.5">{m.id}</p>
                 </div>
                 <span
-                  className={`shrink-0 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border ${
-                    isPerRequest
-                      ? 'border-[#ef4444]/30 bg-[#ef4444]/10 text-[#ef4444]'
-                      : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-                  }`}
+                  className="shrink-0 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border inline-flex items-center gap-1"
+                  style={{ borderColor: `${accent}50`, backgroundColor: `${accent}15`, color: accent }}
                 >
-                  {isPerRequest ? 'Per-Request' : 'Per-Token'}
+                  {isFree ? <Star className="w-2.5 h-2.5" /> : isPerRequest ? <Zap className="w-2.5 h-2.5" /> : <Coins className="w-2.5 h-2.5" />}
+                  {isFree ? 'Free' : isPerRequest ? 'Per-Request' : 'Per-Token'}
                 </span>
               </div>
 
               {/* Provider badge + context */}
               <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-                <span className={`inline-flex items-center px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border ${provider.color}`}>
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border"
+                  style={{ borderColor: `${provider.color}50`, backgroundColor: `${provider.color}15`, color: provider.color }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: provider.color }} />
                   {provider.name}
                 </span>
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider border border-border text-muted-foreground/80">
@@ -237,7 +247,7 @@ export function ModelCatalog({ models }: ModelCatalogProps) {
               <div className="mt-auto pt-3 border-t border-border space-y-1">
                 <div className="flex items-baseline justify-between">
                   <span className="text-[8px] font-mono text-muted-foreground/70 uppercase tracking-wider">PRICE</span>
-                  <span className={`text-xs font-mono font-bold ${isPerRequest ? 'text-[#ef4444]' : 'text-emerald-400'}`}>
+                  <span className="text-xs font-mono font-bold" style={{ color: accent }}>
                     {isPerRequest
                       ? formatPerRequestPrice(m.cost_per_request_cents)
                       : formatPerTokenPrice(m.input_cost_per_million, m.output_cost_per_million)}
@@ -258,6 +268,7 @@ export function ModelCatalog({ models }: ModelCatalogProps) {
                 {(m.points_cost ?? 5) <= 1 && (
                   <div className="text-[8px] font-mono text-emerald-500 text-right uppercase">⚡ Free model · 10/day cap</div>
                 )}
+              </div>
               </div>
             </div>
           )

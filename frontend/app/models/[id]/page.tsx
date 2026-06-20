@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { fetchServerModels } from '@/lib/server-api'
-import { ChevronLeft, Brain, Code2, Eye, Cpu, Zap, DollarSign, Globe, Copy } from 'lucide-react'
+import { ChevronLeft, Brain, Code2, Eye, Cpu, Zap, Coins, Star, DollarSign, Globe, Copy } from 'lucide-react'
 import { CodeBlock } from '@/components/CodeBlock'
+import { detectProvider } from '@/lib/providers'
 
 export const revalidate = 60
 
@@ -34,6 +35,7 @@ export default async function ModelDetailPage({ params }: PageProps) {
 
   const isPerRequest = m.pricing_mode === 'per_request'
   const isFree = isPerRequest && (m.cost_per_request_cents ?? 0) === 0
+  const provider = detectProvider(m)
   const ctxK = m.context_length ? Math.round(m.context_length / 1000) : 0
   const ctxDisplay = m.context_length
     ? m.context_length >= 1_000_000
@@ -105,18 +107,27 @@ console.log(response.choices[0].message.content);`,
         <div className="max-w-6xl mx-auto space-y-6">
           <div className="flex flex-wrap items-center gap-2">
             <span
-              className={`inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-mono uppercase tracking-wider border ${
+              className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-mono uppercase tracking-wider border"
+              style={
                 isFree
-                  ? 'border-zinc-500 bg-muted text-foreground/80'
+                  ? { borderColor: 'rgb(245 158 11 / 0.4)', backgroundColor: 'rgb(245 158 11 / 0.1)', color: '#fbbf24' }
                   : isPerRequest
-                  ? 'border-[#ef4444]/30 bg-[#ef4444]/10 text-[#ef4444]'
-                  : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-              }`}
+                  ? { borderColor: 'rgb(239 68 68 / 0.4)', backgroundColor: 'rgb(239 68 68 / 0.1)', color: '#ef4444' }
+                  : { borderColor: 'rgb(16 185 129 / 0.4)', backgroundColor: 'rgb(16 185 129 / 0.1)', color: '#34d399' }
+              }
             >
-              {isFree ? 'Free' : isPerRequest ? 'Per-Request Billing' : 'Per-Token Billing'}
+              {isFree ? <Star className="w-3 h-3" /> : isPerRequest ? <Zap className="w-3 h-3" /> : <Coins className="w-3 h-3" />}
+              {isFree ? 'Free Tier' : isPerRequest ? 'Per-Request Billing' : 'Per-Token Billing'}
+            </span>
+            <span
+              className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-mono uppercase tracking-wider border"
+              style={{ borderColor: `${provider.color}50`, backgroundColor: `${provider.color}15`, color: provider.color }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: provider.color, boxShadow: `0 0 4px ${provider.color}80` }} />
+              {provider.name}
             </span>
             <span className="inline-flex items-center px-2 py-1 text-[10px] font-mono uppercase tracking-wider border border-border bg-muted text-muted-foreground">
-              AkaRouter
+              via AkaRouter
             </span>
             {m.capabilities?.map((cap) => (
               <span key={cap} className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-mono uppercase tracking-wider border border-border text-muted-foreground">
