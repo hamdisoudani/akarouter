@@ -21,7 +21,7 @@
  */
 
 import { useState } from 'react'
-import { Save, Power, DollarSign, Coins, Loader2 } from 'lucide-react'
+import { Save, Power, DollarSign, Coins, Loader2, Trash2 } from 'lucide-react'
 import { adminUpdateModel, type AdminModelMapping } from '@/lib/api'
 
 interface Props {
@@ -29,11 +29,12 @@ interface Props {
   token: string
   onUpdated: (next: AdminModelMapping) => void
   onError: (msg: string) => void
+  onDelete?: () => void
 }
 
 type PricingMode = 'per_token' | 'per_request'
 
-export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
+export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: Props) {
   const initialMode: PricingMode = (model.pricing_mode as PricingMode) || 'per_token'
   const [isActive, setIsActive] = useState(model.is_active)
   const [mode, setMode] = useState<PricingMode>(initialMode)
@@ -122,6 +123,16 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
             <Power className="w-3 h-3 inline mr-1" />
             {isActive ? 'DISABLE' : 'ENABLE'}
           </button>
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              disabled={saving}
+              className="px-2 py-1 font-mono text-[10px] font-bold border border-red-500/20 bg-red-500/5 text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-50"
+              title="Delete model permanently"
+            >
+              <Trash2 className="w-3 h-3" />
+            </button>
+          )}
         </div>
       </div>
 

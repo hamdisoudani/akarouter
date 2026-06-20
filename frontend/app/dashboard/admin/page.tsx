@@ -18,6 +18,8 @@ import {
   adminUpdateSettings,
   adminGetModels,
   adminUpdateModel,
+  adminCreateModel,
+  adminDeleteModel,
   adminGetInvitations,
   adminCreateInvitation,
   adminUpdateInvitation,
@@ -184,6 +186,23 @@ export default function AdminDashboard() {
   const [systemSettings, setSystemSettings] = useState<any>({ gateway_enabled: 'true' })
   const [adminModels, setAdminModels] = useState<AdminModelMapping[]>([])
   const [loadingSettings, setLoadingSettings] = useState(false)
+  const [newModel, setNewModel] = useState({
+    alias: '',
+    display_name: '',
+    slug: '',
+    description: '',
+    provider_name: '',
+    upstream_model: '',
+    pricing_mode: 'per_token' as 'per_token' | 'per_request',
+    input_cost_per_million: 0.10,
+    output_cost_per_million: 0.40,
+    cost_per_request_cents: 5,
+    points_cost: 1,
+    context_window_tokens: 128000,
+    max_output_tokens: 8192,
+    is_free_provider: false,
+  })
+  const [creatingModel, setCreatingModel] = useState(false)
 
   // Plans state
   const [plans, setPlans] = useState<PlanPreset[]>([])
@@ -343,6 +362,59 @@ export default function AdminDashboard() {
       setNewInvCode('')
       setNewInvMaxUses(1)
       await loadInvitations()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleCreateModel = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newModel.alias.trim() || !newModel.display_name.trim()) {
+      setError('Alias and display name are required')
+      return
+    }
+    setCreatingModel(true)
+    try {
+      await adminCreateModel(token, {
+        alias: newModel.alias.trim(),
+        display_name: newModel.display_name.trim(),
+        slug: newModel.slug.trim() || undefined,
+        description: newModel.description.trim() || undefined,
+        provider_name: newModel.provider_name.trim() || undefined,
+        upstream_model: newModel.upstream_model.trim() || undefined,
+        pricing_mode: newModel.pricing_mode,
+        input_cost_per_million: newModel.input_cost_per_million,
+        output_cost_per_million: newModel.output_cost_per_million,
+        cost_per_request_cents: newModel.pricing_mode === 'per_request' ? newModel.cost_per_request_cents : null,
+        points_cost: newModel.points_cost,
+        context_window_tokens: newModel.context_window_tokens,
+        max_output_tokens: newModel.max_output_tokens,
+        is_free_provider: newModel.is_free_provider,
+        is_active: true,
+      })
+      // Reset form (keep pricing mode)
+      setNewModel(prev => ({
+        ...prev,
+        alias: '',
+        display_name: '',
+        slug: '',
+        description: '',
+        provider_name: '',
+        upstream_model: '',
+      }))
+      await loadAdminModels()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setCreatingModel(false)
+    }
+  }
+
+  const handleDeleteModel = async (alias: string) => {
+    if (!confirm(`Delete model "${alias}"? Users with this alias in their history will still see it, but new requests will fail.`)) return
+    try {
+      await adminDeleteModel(token, alias)
+      await loadAdminModels()
     } catch (err: any) {
       setError(err.message)
     }
@@ -1528,7 +1600,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 {/* Model active switches Card */}
-                <div className="col-span-12 lg:col-span-6 bg-card border border-border p-6 crosshair-corners space-y-6">
+                <div className="col-span-12 lg:col-span-7 bg-card border border-border p-6 crosshair-corners space-y-6">
                   <div className="space-y-1">
                     <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                       <Cpu className="w-4 h-4 text-[#ef4444]" />
@@ -1554,10 +1626,98 @@ export default function AdminDashboard() {
                             )
                           }}
                           onError={(msg) => setError(msg)}
+                          onDelete={() => handleDeleteModel(m.alias)}
                         />
                       ))
                     )}
                   </div>
+                </div>
+
+                {/* Create Model Card */}
+                <div className="col-span-12 lg:col-span-5 bg-card border border-border p-6 crosshair-corners space-y-6">
+                  <div className="space-y-1">
+                    <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <Plus className="w-4 h-4 text-[#ef4444]" />
+                      REGISTER_NEW_MODEL
+                    </h2>
+                    <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">
+                      Add a new routing alias. Slug auto-generates from display name. Pricing mode & fields are required.
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleCreateModel} className="space-y-3 font-mono text-[11px] text-foreground/80">
+                    <div className="space-y-1">
+                      <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Alias * <span className="text-muted-foreground/60">(used as routing key)</span></label>
+                      <input type="text" required value={newModel.alias} onChange={e => setNewModel({ ...newModel, alias: e.target.value })} placeholder="claude-opus-48" className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Display Name * <span className="text-muted-foreground/60">(shown to users)</span></label>
+                      <input type="text" required value={newModel.display_name} onChange={e => setNewModel({ ...newModel, display_name: e.target.value })} placeholder="Claude Opus 4.8" className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Slug <span className="text-muted-foreground/60">(URL — blank=auto)</span></label>
+                      <input type="text" value={newModel.slug} onChange={e => setNewModel({ ...newModel, slug: e.target.value })} placeholder="claude-opus-48" className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Upstream Model</label>
+                        <input type="text" value={newModel.upstream_model} onChange={e => setNewModel({ ...newModel, upstream_model: e.target.value })} placeholder="claude-opus-4-8" className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Provider</label>
+                        <input type="text" value={newModel.provider_name} onChange={e => setNewModel({ ...newModel, provider_name: e.target.value })} placeholder="Anthropic" className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none" />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Description</label>
+                      <input type="text" value={newModel.description} onChange={e => setNewModel({ ...newModel, description: e.target.value })} placeholder="Most capable model for complex tasks" className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Context Window</label>
+                        <input type="number" value={newModel.context_window_tokens} onChange={e => setNewModel({ ...newModel, context_window_tokens: Number(e.target.value) })} className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Max Output</label>
+                        <input type="number" value={newModel.max_output_tokens} onChange={e => setNewModel({ ...newModel, max_output_tokens: Number(e.target.value) })} className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none" />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Pricing Mode *</label>
+                      <select value={newModel.pricing_mode} onChange={e => setNewModel({ ...newModel, pricing_mode: e.target.value as 'per_token' | 'per_request' })} className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none">
+                        <option value="per_token">Per-Token (charge by input+output tokens)</option>
+                        <option value="per_request">Per-Request (flat fee per call)</option>
+                      </select>
+                    </div>
+                    {newModel.pricing_mode === 'per_token' ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">$ / 1M input</label>
+                          <input type="number" step="0.01" value={newModel.input_cost_per_million} onChange={e => setNewModel({ ...newModel, input_cost_per_million: Number(e.target.value) })} className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">$ / 1M output</label>
+                          <input type="number" step="0.01" value={newModel.output_cost_per_million} onChange={e => setNewModel({ ...newModel, output_cost_per_million: Number(e.target.value) })} className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Cents / request</label>
+                        <input type="number" step="0.1" value={newModel.cost_per_request_cents} onChange={e => setNewModel({ ...newModel, cost_per_request_cents: Number(e.target.value) })} className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none" />
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Points / call <span className="text-muted-foreground/60">(charge to user account)</span></label>
+                      <input type="number" min="0" value={newModel.points_cost} onChange={e => setNewModel({ ...newModel, points_cost: Number(e.target.value) })} className="w-full bg-muted/40 border border-border px-2.5 py-1.5 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none" />
+                    </div>
+                    <label className="flex items-center gap-2 text-muted-foreground/80 text-[9px] uppercase tracking-wider">
+                      <input type="checkbox" checked={newModel.is_free_provider} onChange={e => setNewModel({ ...newModel, is_free_provider: e.target.checked })} className="accent-[#ef4444]" />
+                      Free Provider (eligible for daily free cap)
+                    </label>
+                    <button type="submit" disabled={creatingModel} className="w-full bg-[#ef4444] text-black font-bold py-2.5 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all crosshair-corners uppercase tracking-wider rounded-none text-[11px]">
+                      {creatingModel ? '[ CREATING... ]' : '[+] Register Model'}
+                    </button>
+                  </form>
                 </div>
               </section>
               )
