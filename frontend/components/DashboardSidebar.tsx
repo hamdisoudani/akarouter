@@ -85,10 +85,23 @@ function isActive(pathname: string, item: NavItem): boolean {
   return pathname === item.href || pathname.startsWith(item.href + '/')
 }
 
-export function DashboardSidebar() {
+export function DashboardSidebar({ headerLabel }: { headerLabel?: string } = {}) {
   const { user, usage, signOut } = useApp()
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+
+  // Derive a sensible default label from the current route.
+  // e.g. /dashboard/usage → [USAGE], /dashboard/keys → [API KEYS].
+  // Pages can override via the headerLabel prop (e.g. /dashboard/upgrade → [UPGRADE]).
+  const derivedLabel = (() => {
+    if (pathname === '/dashboard' || pathname === '/dashboard/') return 'DASHBOARD'
+    if (pathname.startsWith('/dashboard/usage')) return 'USAGE'
+    if (pathname.startsWith('/dashboard/keys')) return 'API KEYS'
+    if (pathname.startsWith('/dashboard/admin')) return 'ADMIN'
+    if (pathname.startsWith('/dashboard/upgrade')) return 'UPGRADE'
+    return 'DASHBOARD'
+  })()
+  const label = (headerLabel || derivedLabel).toUpperCase()
 
   const navItems = [...NAV_ITEMS]
   if (user?.role === 'admin') navItems.push(ADMIN_NAV_ITEM)
@@ -192,7 +205,7 @@ export function DashboardSidebar() {
             <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
           </div>
           <span className="hidden md:inline font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            [DASHBOARD]
+            [{label}]
           </span>
         </div>
         <div className="flex items-center gap-2">

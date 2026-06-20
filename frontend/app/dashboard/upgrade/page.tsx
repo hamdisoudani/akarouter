@@ -22,7 +22,6 @@ import {
 } from 'lucide-react'
 
 import { DashboardSidebar } from '@/components/DashboardSidebar'
-import { TopNav } from '@/components/TopNav'
 
 export default function UpgradePage() {
   const router = useRouter()
@@ -97,12 +96,9 @@ export default function UpgradePage() {
 
   return (
     <div className="relative min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <TopNav />
+      <DashboardSidebar />
 
-      <div className="flex flex-1 pt-16">
-        <DashboardSidebar />
-
-        <main className="flex-1 md:ml-64 overflow-x-hidden">
+      <main className="flex-1 md:ml-64 overflow-x-hidden">
           <div className="p-6 max-w-7xl mx-auto w-full space-y-6">
 
             {/* Header */}
@@ -190,7 +186,6 @@ export default function UpgradePage() {
             </div>
           </div>
         </main>
-      </div>
     </div>
   )
 }
