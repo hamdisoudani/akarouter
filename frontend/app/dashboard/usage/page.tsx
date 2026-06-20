@@ -256,7 +256,7 @@ export default function UsagePage() {
 
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col md:ml-64 w-full relative">
+      <div className="flex-1 flex flex-col md:ml-64 md:w-[calc(100%-16rem)] w-full relative">
         
 
 
