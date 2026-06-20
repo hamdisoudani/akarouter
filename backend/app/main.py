@@ -371,10 +371,15 @@ async def startup():
                     cur.execute(sql)
                 except Exception as e:
                     logger.warning(f"migration update skipped (non-fatal): {sql[:80]}... — {e}")
-            # First: fix any rows that violate model_mapping_free_provider_cost_check
-            # (is_free_provider=true with points_cost>1). Mark them as non-free so
-            # the CHECK constraint allows the rest of the pricing changes.
-            _safe_update("UPDATE model_mapping SET is_free_provider = FALSE WHERE is_free_provider = TRUE AND points_cost > 1;")
+            # First: fix any rows that would violate model_mapping_free_provider_cost_check
+            # when the upcoming pricing changes land. The constraint requires that
+            # if is_free_provider=true then points_cost <= 1. Several rows currently
+            # have is_free_provider=true with points_cost=1 (which is fine) but our
+            # pricing migration wants to set points_cost=3+ on them. To unblock the
+            # constraint we flip is_free_provider=false on the specific aliases we
+            # are about to price. This preserves the "is_free_provider" intent on
+            # models we DO NOT touch (e.g. the true free tier).
+            _safe_update("UPDATE model_mapping SET is_free_provider = FALSE WHERE alias IN ('akarouter-flash','akarouter-pro','akarouter-large') AND is_free_provider = TRUE;")
             # Then: Opus → upcoming + deactivated
             _safe_update("UPDATE model_mapping SET is_upcoming = TRUE, is_active = FALSE WHERE alias = 'akarouter-opus';")
             # Then: 2x CNY→USD markup on every active model
