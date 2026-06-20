@@ -642,16 +642,31 @@ def get_plan_meta(tier: str) -> dict[str, Any]:
         # column when the schema cache is stale after ADD COLUMN) propagate as
         # exceptions. With maybe_single(), a 400 is silently converted to
         # data=None and we fall through to the default 1.0/0 dict.
-        res = (
-            supabase.table("plan_presets")
-            .select("tier, points_cost_multiplier, monthly_point_allowance, "
-                    "daily_free_requests_limit, included_model_aliases, "
-                    "monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, "
-                    "price, billing_period, description, badge, has_trial, trial_days")
-            .eq("tier", tier)
-            .limit(1)
-            .execute()
-        )
+        # CRITICAL: Only request columns that exist in the LIVE plan_presets table.
+        # The price/billing_period/description/badge/has_trial/trial_days columns
+        # are in schema.sql but haven't been added to production yet, so requesting
+        # them causes 42703 errors. Use try/except pattern to opt-in for columns
+        # once they're migrated to live.
+        try:
+            res = (
+                supabase.table("plan_presets")
+                .select("tier, points_cost_multiplier, monthly_point_allowance, "
+                        "daily_free_requests_limit, included_model_aliases, "
+                        "monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit")
+                .eq("tier", tier)
+                .limit(1)
+                .execute()
+            )
+        except Exception as inner_e:
+            # Fall back to the absolute minimum query — should never fail
+            logger.error(f"get_plan_meta minimal query also failed for tier={tier}: {inner_e}")
+            res = (
+                supabase.table("plan_presets")
+                .select("tier, points_cost_multiplier, monthly_point_allowance")
+                .eq("tier", tier)
+                .limit(1)
+                .execute()
+            )
         rows = res.data or []
         if rows:
             row = rows[0]
