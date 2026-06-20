@@ -16,11 +16,11 @@ export default function Error({
 
   return (
     <div className="flex items-center justify-center min-h-[400px]">
-      <div className="bg-[#0e0e10] border border-[#27272a] p-6 max-w-md w-full">
-        <h2 className="text-sm font-mono tracking-widest text-zinc-300 uppercase mb-2">
+      <div className="bg-card border border-border p-6 max-w-md w-full">
+        <h2 className="text-sm font-mono tracking-widest text-foreground/80 uppercase mb-2">
           [ERROR]
         </h2>
-        <p className="text-[11px] text-zinc-500 font-mono mb-4">
+        <p className="text-[11px] text-muted-foreground/80 font-mono mb-4">
           Something went wrong. Please try again.
         </p>
         <button

@@ -35,15 +35,15 @@ export default function GlobalError({
   }, [error])
 
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex items-center justify-center px-6">
+    <div className="relative min-h-screen bg-background text-foreground flex items-center justify-center px-6">
       <div className="w-full max-w-md z-10">
-        <div className="bg-[#0e0e10] border border-[#27272a] p-8 md:p-10">
+        <div className="bg-card border border-border p-8 md:p-10">
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-sm font-mono tracking-widest text-zinc-300 uppercase">
+              <h2 className="text-sm font-mono tracking-widest text-foreground/80 uppercase">
                 [INTERNAL_ERROR]
               </h2>
-              <p className="text-[11px] text-zinc-500 font-mono uppercase tracking-wide mt-2">
+              <p className="text-[11px] text-muted-foreground/80 font-mono uppercase tracking-wide mt-2">
                 Something went wrong on our end. Our team has been notified.
               </p>
             </div>
@@ -58,7 +58,7 @@ export default function GlobalError({
             <div className="text-center">
               <Link
                 href="/"
-                className="text-[10px] font-mono text-zinc-500 hover:text-zinc-300 uppercase tracking-widest"
+                className="text-[10px] font-mono text-muted-foreground/80 hover:text-foreground/80 uppercase tracking-widest"
               >
                 ← Back to home
               </Link>

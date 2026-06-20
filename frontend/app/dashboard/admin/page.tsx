@@ -71,7 +71,7 @@ function StatusDot({ status }: { status: string }) {
   return (
     <span className="flex items-center gap-2 font-mono">
       <span className={`w-1.5 h-1.5 rounded-full status-pulse ${colors[status] || 'bg-zinc-550'}`} />
-      <span className="text-zinc-400 capitalize text-[10px] tracking-wider">{status}</span>
+      <span className="text-muted-foreground capitalize text-[10px] tracking-wider">{status}</span>
     </span>
   )
 }
@@ -79,12 +79,12 @@ function StatusDot({ status }: { status: string }) {
 function AdminTableSkeleton({ rows = 4, cols = 5 }: { rows?: number; cols?: number }) {
   return (
     <div className="w-full space-y-3 animate-pulse font-mono">
-      <div className="h-10 bg-zinc-900 border border-zinc-800 rounded-sm w-full" />
+      <div className="h-10 bg-muted border border-border rounded-sm w-full" />
       <div className="space-y-2">
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="flex gap-4">
             {Array.from({ length: cols }).map((_, j) => (
-              <div key={j} className="h-9 bg-zinc-900/50 rounded-sm flex-1" />
+              <div key={j} className="h-9 bg-muted/50 rounded-sm flex-1" />
             ))}
           </div>
         ))}
@@ -97,12 +97,12 @@ function AdminCardsSkeleton({ count = 3 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse font-mono">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="h-44 bg-[#0e0e10] border border-zinc-900 rounded-sm p-6 space-y-4">
-          <div className="h-4 bg-zinc-850 rounded-sm w-24" />
-          <div className="h-6 bg-zinc-900 rounded-sm w-36" />
+        <div key={i} className="h-44 bg-card border border-border rounded-sm p-6 space-y-4">
+          <div className="h-4 bg-muted rounded-sm w-24" />
+          <div className="h-6 bg-muted rounded-sm w-36" />
           <div className="space-y-2">
-            <div className="h-3 bg-zinc-900/50 rounded-sm w-full" />
-            <div className="h-3 bg-zinc-900/50 rounded-sm w-3/4" />
+            <div className="h-3 bg-muted/50 rounded-sm w-full" />
+            <div className="h-3 bg-muted/50 rounded-sm w-3/4" />
           </div>
         </div>
       ))}
@@ -114,12 +114,12 @@ function AdminListSkeleton({ count = 3 }: { count?: number }) {
   return (
     <div className="space-y-3 animate-pulse font-mono">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="p-4 bg-zinc-950 border border-zinc-900 rounded-sm flex justify-between items-center">
+        <div key={i} className="p-4 bg-muted/40 border border-border rounded-sm flex justify-between items-center">
           <div className="space-y-2 flex-1">
-            <div className="h-4 bg-zinc-850 rounded-sm w-1/3" />
-            <div className="h-3 bg-zinc-900 rounded-sm w-1/2" />
+            <div className="h-4 bg-muted rounded-sm w-1/3" />
+            <div className="h-3 bg-muted rounded-sm w-1/2" />
           </div>
-          <div className="h-6 bg-zinc-900 rounded-sm w-16" />
+          <div className="h-6 bg-muted rounded-sm w-16" />
         </div>
       ))}
     </div>
@@ -129,19 +129,19 @@ function AdminListSkeleton({ count = 3 }: { count?: number }) {
 function AdminSettingsSkeleton() {
   return (
     <div className="grid grid-cols-12 gap-6 animate-pulse w-full font-mono">
-      <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 rounded-sm space-y-6">
+      <div className="col-span-12 lg:col-span-6 bg-card border border-border p-6 rounded-sm space-y-6">
         <div className="space-y-2">
-          <div className="h-4 bg-zinc-850 rounded-sm w-1/3" />
-          <div className="h-3 bg-zinc-900 rounded-sm w-2/3" />
+          <div className="h-4 bg-muted rounded-sm w-1/3" />
+          <div className="h-3 bg-muted rounded-sm w-2/3" />
         </div>
-        <div className="h-24 bg-zinc-950 border border-zinc-900 rounded-sm" />
+        <div className="h-24 bg-muted/40 border border-border rounded-sm" />
       </div>
-      <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 rounded-sm space-y-6">
+      <div className="col-span-12 lg:col-span-6 bg-card border border-border p-6 rounded-sm space-y-6">
         <div className="space-y-2">
-          <div className="h-4 bg-zinc-850 rounded-sm w-1/3" />
-          <div className="h-3 bg-zinc-900 rounded-sm w-2/3" />
+          <div className="h-4 bg-muted rounded-sm w-1/3" />
+          <div className="h-3 bg-muted rounded-sm w-2/3" />
         </div>
-        <div className="h-24 bg-zinc-950 border border-zinc-900 rounded-sm" />
+        <div className="h-24 bg-muted/40 border border-border rounded-sm" />
       </div>
     </div>
   )
@@ -629,9 +629,9 @@ export default function AdminDashboard() {
 
   if (!authChecked) {
     return (
-      <div className="relative min-h-screen bg-[#09090b] flex items-center justify-center overflow-hidden">
+      <div className="relative min-h-screen bg-background flex items-center justify-center overflow-hidden">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-[#ef4444]/5 rounded-full blur-[80px]" />
-        <div className="text-zinc-500 font-mono text-xs flex items-center gap-2 z-10 uppercase tracking-widest">
+        <div className="text-muted-foreground/80 font-mono text-xs flex items-center gap-2 z-10 uppercase tracking-widest">
           <Activity className="w-5 h-5 animate-pulse text-[#ef4444] red-glow" />
           Verifying credentials...
         </div>
@@ -641,17 +641,17 @@ export default function AdminDashboard() {
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
-        <div className="bg-[#0e0e10] border border-[#ef4444]/30 p-6 text-center max-w-sm crosshair-corners">
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="bg-card border border-[#ef4444]/30 p-6 text-center max-w-sm crosshair-corners">
           <p className="text-[#ef4444] font-mono font-bold text-xs uppercase tracking-widest">Access Denied</p>
-          <p className="text-zinc-500 font-mono text-[10px] mt-2 uppercase tracking-wide">You must possess administrator privileges to access this area.</p>
+          <p className="text-muted-foreground/80 font-mono text-[10px] mt-2 uppercase tracking-wide">You must possess administrator privileges to access this area.</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-white">
+    <div className="relative min-h-screen bg-background text-foreground flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-foreground">
       
       {/* SideNavBar */}
 
@@ -682,43 +682,43 @@ export default function AdminDashboard() {
             {/* Admin Stats Grid */}
             {stats && (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 animate-slide-in">
-                <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative">
-                  <span className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[7px] text-zinc-600">ST_01</span>
-                  <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Total Providers</p>
-                  <p className="text-2xl font-bold text-white font-mono">{stats.providers?.total || 0}</p>
+                <div className="bg-card border border-border p-5 space-y-1 relative">
+                  <span className="absolute right-0 top-0 p-1 bg-muted border-b border-l border-border font-mono text-[7px] text-muted-foreground/70">ST_01</span>
+                  <p className="text-[9px] text-muted-foreground/80 font-mono uppercase tracking-wider">Total Providers</p>
+                  <p className="text-2xl font-bold text-foreground font-mono">{stats.providers?.total || 0}</p>
                   <p className="text-[9px] text-emerald-400 font-mono uppercase">{stats.providers?.active || 0} active connections</p>
                 </div>
-                <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative">
-                  <span className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[7px] text-zinc-600">ST_02</span>
-                  <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Routed Requests</p>
-                  <p className="text-2xl font-bold text-white font-mono">{(stats.providers?.total_requests || 0).toLocaleString()}</p>
-                  <p className="text-[9px] text-zinc-600 font-mono uppercase">all provider channels</p>
+                <div className="bg-card border border-border p-5 space-y-1 relative">
+                  <span className="absolute right-0 top-0 p-1 bg-muted border-b border-l border-border font-mono text-[7px] text-muted-foreground/70">ST_02</span>
+                  <p className="text-[9px] text-muted-foreground/80 font-mono uppercase tracking-wider">Routed Requests</p>
+                  <p className="text-2xl font-bold text-foreground font-mono">{(stats.providers?.total_requests || 0).toLocaleString()}</p>
+                  <p className="text-[9px] text-muted-foreground/70 font-mono uppercase">all provider channels</p>
                 </div>
-                <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative">
-                  <span className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[7px] text-zinc-600">ST_03</span>
-                  <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Request Errors</p>
-                  <p className={`text-2xl font-bold font-mono ${stats.providers?.total_errors > 0 ? 'text-[#ef4444] red-glow-text' : 'text-zinc-400'}`}>
+                <div className="bg-card border border-border p-5 space-y-1 relative">
+                  <span className="absolute right-0 top-0 p-1 bg-muted border-b border-l border-border font-mono text-[7px] text-muted-foreground/70">ST_03</span>
+                  <p className="text-[9px] text-muted-foreground/80 font-mono uppercase tracking-wider">Request Errors</p>
+                  <p className={`text-2xl font-bold font-mono ${stats.providers?.total_errors > 0 ? 'text-[#ef4444] red-glow-text' : 'text-muted-foreground'}`}>
                     {stats.providers?.total_errors || 0}
                   </p>
-                  <p className="text-[9px] text-zinc-650 font-mono uppercase">aggregated fail logs</p>
+                  <p className="text-[9px] text-muted-foreground/60 font-mono uppercase">aggregated fail logs</p>
                 </div>
-                <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative">
-                  <span className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[7px] text-zinc-600">ST_04</span>
-                  <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Active Users</p>
+                <div className="bg-card border border-border p-5 space-y-1 relative">
+                  <span className="absolute right-0 top-0 p-1 bg-muted border-b border-l border-border font-mono text-[7px] text-muted-foreground/70">ST_04</span>
+                  <p className="text-[9px] text-muted-foreground/80 font-mono uppercase tracking-wider">Active Users</p>
                   <p className="text-2xl font-bold text-[#ef4444] font-mono red-glow-text">{stats.accounts?.total || 0}</p>
                   <p className="text-[9px] text-emerald-400 font-mono uppercase">{stats.accounts?.active || 0} active sessions</p>
                 </div>
-                <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative">
-                  <span className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[7px] text-zinc-600">ST_05</span>
-                  <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider">Global consumed Tokens</p>
-                  <p className="text-2xl font-bold text-white font-mono">
+                <div className="bg-card border border-border p-5 space-y-1 relative">
+                  <span className="absolute right-0 top-0 p-1 bg-muted border-b border-l border-border font-mono text-[7px] text-muted-foreground/70">ST_05</span>
+                  <p className="text-[9px] text-muted-foreground/80 font-mono uppercase tracking-wider">Global consumed Tokens</p>
+                  <p className="text-2xl font-bold text-foreground font-mono">
                     {stats.global_telemetry?.total_consumed_million_tokens ? `${stats.global_telemetry.total_consumed_million_tokens.toFixed(3)}M` : '0.000M'}
                   </p>
-                  <p className="text-[9px] text-zinc-600 font-mono uppercase">million tokens count</p>
+                  <p className="text-[9px] text-muted-foreground/70 font-mono uppercase">million tokens count</p>
                 </div>
-                <div className="bg-[#0e0e10] border border-zinc-900 p-5 space-y-1 relative bg-emerald-500/5">
+                <div className="bg-card border border-border p-5 space-y-1 relative bg-emerald-500/5">
                   <span className="absolute right-0 top-0 p-1 bg-emerald-500/20 border-b border-l border-emerald-500/30 font-mono text-[7px] text-emerald-450 font-bold">ST_06</span>
-                  <p className="text-[9px] text-zinc-400 font-mono uppercase tracking-wider">global consumed cost</p>
+                  <p className="text-[9px] text-muted-foreground font-mono uppercase tracking-wider">global consumed cost</p>
                   <p className="text-2xl font-bold text-emerald-400 font-mono">
                     ${stats.global_telemetry?.total_cost ? stats.global_telemetry.total_cost.toFixed(4) : '0.0000'}
                   </p>
@@ -727,13 +727,13 @@ export default function AdminDashboard() {
               </div>
             )}
             {/* Tabs Selector Navigation */}
-            <div className="flex border-b border-zinc-900 bg-zinc-950/40 p-1 mb-6 overflow-x-auto whitespace-nowrap scrollbar-none">
+            <div className="flex border-b border-border bg-muted/40/40 p-1 mb-6 overflow-x-auto whitespace-nowrap scrollbar-none">
               <button
                 onClick={() => setActiveTab('providers')}
                 className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 ${
                   activeTab === 'providers'
                     ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
-                    : 'text-zinc-500 hover:text-white'
+                    : 'text-muted-foreground/80 hover:text-foreground'
                 }`}
               >
                 [01_PROVIDERS]
@@ -743,7 +743,7 @@ export default function AdminDashboard() {
                 className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 ${
                   activeTab === 'users'
                     ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
-                    : 'text-zinc-500 hover:text-white'
+                    : 'text-muted-foreground/80 hover:text-foreground'
                 }`}
               >
                 [02_USER_MATRIX]
@@ -753,7 +753,7 @@ export default function AdminDashboard() {
                 className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 ${
                   activeTab === 'plans'
                     ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
-                    : 'text-zinc-500 hover:text-white'
+                    : 'text-muted-foreground/80 hover:text-foreground'
                 }`}
               >
                 [03_PLAN_PRESETS]
@@ -763,7 +763,7 @@ export default function AdminDashboard() {
                 className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 ${
                   activeTab === 'settings'
                     ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
-                    : 'text-zinc-500 hover:text-white'
+                    : 'text-muted-foreground/80 hover:text-foreground'
                 }`}
               >
                 [04_SYSTEM_CONTROL]
@@ -773,7 +773,7 @@ export default function AdminDashboard() {
                 className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 ${
                   activeTab === 'invitations'
                     ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
-                    : 'text-zinc-500 hover:text-white'
+                    : 'text-muted-foreground/80 hover:text-foreground'
                 }`}
               >
                 [05_INVITATION_CODES]
@@ -782,27 +782,27 @@ export default function AdminDashboard() {
 
             {/* Tab Panel: Providers */}
             {activeTab === 'providers' && (
-              <section className="bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-5 animate-slide-in relative">
+              <section className="bg-card border border-border p-6 crosshair-corners space-y-5 animate-slide-in relative">
                 <div className="absolute inset-0 opacity-[0.03] micro-grid pointer-events-none" />
                 
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                       <Cpu className="w-4 h-4 text-[#ef4444]" />
                       HERMES_PROVIDER_CONNECTIONS
                     </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Connect and manage provider accounts, balance weights, and trigger manual key syncs.</p>
+                    <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Connect and manage provider accounts, balance weights, and trigger manual key syncs.</p>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1.5 text-[9px] text-zinc-500 font-mono uppercase tracking-wider bg-zinc-950 border border-zinc-900 px-2.5 py-1">
+                    <span className="flex items-center gap-1.5 text-[9px] text-muted-foreground/80 font-mono uppercase tracking-wider bg-muted/40 border border-border px-2.5 py-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       REALTIME_STREAM
                     </span>
                     <button
                       onClick={handleAddAccount}
                       disabled={addingAccount}
-                      className="bg-[#ef4444] text-black font-mono text-xs font-bold py-2 px-4 hover:bg-[#ff5451] transition-all disabled:opacity-50 flex items-center gap-1.5"
+                      className="bg-[#ef4444] text-black font-mono text-xs font-bold py-2 px-4 hover:bg-[#ef4444] transition-all disabled:opacity-50 flex items-center gap-1.5"
                     >
                       <Plus className="w-4 h-4" />
                       {addingAccount ? 'CONNECTING...' : 'ADD PROVIDER'}
@@ -811,21 +811,21 @@ export default function AdminDashboard() {
                 </div>
 
                 {deviceCodeInfo && (
-                  <div className="p-5 bg-[#090506] border border-[#ef4444]/20 text-[11px] font-mono space-y-4 animate-fade-in relative">
+                  <div className="p-5 bg-background border border-[#ef4444]/20 text-[11px] font-mono space-y-4 animate-fade-in relative">
                     <div className="absolute right-2 top-2 w-2 h-2 bg-[#ef4444] red-glow" />
                     <div className="space-y-1 border-b border-[#ef4444]/10 pb-3">
                       <h3 className="font-bold text-[#ef4444] uppercase tracking-wider">[SYSTEM_OVERRIDE_OAUTH_REQUIRED]</h3>
-                      <p className="text-zinc-500 text-[9px] uppercase">Follow authorization matrix to connect new Hermes provider account.</p>
+                      <p className="text-muted-foreground/80 text-[9px] uppercase">Follow authorization matrix to connect new Hermes provider account.</p>
                     </div>
 
-                    <ol className="space-y-2 text-zinc-300 list-decimal list-inside leading-relaxed uppercase">
+                    <ol className="space-y-2 text-foreground/80 list-decimal list-inside leading-relaxed uppercase">
                       <li>
                         Open verification URL: 
                         <a 
                           href={deviceCodeInfo.verification_uri_complete || deviceCodeInfo.verification_uri} 
                           target="_blank" 
                           rel="noopener noreferrer" 
-                          className="inline-flex items-center gap-1 text-[#ef4444] hover:text-[#ff5451] font-bold underline ml-1.5"
+                          className="inline-flex items-center gap-1 text-[#ef4444] hover:text-[#ef4444] font-bold underline ml-1.5"
                         >
                           {deviceCodeInfo.verification_uri}
                           <ExternalLink className="w-3 h-3" />
@@ -838,7 +838,7 @@ export default function AdminDashboard() {
                         </code>
                         <button 
                           onClick={() => copyToClipboard(deviceCodeInfo.user_code, setCopiedUserCode)}
-                          className="p-1 border border-zinc-800 bg-zinc-950 hover:text-white text-zinc-500 transition-all shrink-0"
+                          className="p-1 border border-border bg-muted/40 hover:text-foreground text-muted-foreground/80 transition-all shrink-0"
                           title="Copy Code"
                         >
                           {copiedUserCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -849,7 +849,7 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-3 pt-2">
                       <StatusDot status={pollStatus} />
                       {pollStatus === 'polling' && (
-                        <span className="text-[9px] text-zinc-500 animate-pulse font-mono uppercase">
+                        <span className="text-[9px] text-muted-foreground/80 animate-pulse font-mono uppercase">
                           Waiting for provider authorization code input…
                         </span>
                       )}
@@ -865,12 +865,12 @@ export default function AdminDashboard() {
                 {loading ? (
                   <AdminTableSkeleton rows={4} cols={6} />
                 ) : providers.length === 0 ? (
-                  <p className="text-xs text-zinc-650 py-6 font-mono uppercase text-center">[NO_ACTIVE_Hermes_CONNECTIONS_CONNECTED_GENERATE_DEVICE_AUTH]</p>
+                  <p className="text-xs text-muted-foreground/60 py-6 font-mono uppercase text-center">[NO_ACTIVE_Hermes_CONNECTIONS_CONNECTED_GENERATE_DEVICE_AUTH]</p>
                 ) : (
-                  <div className="overflow-x-auto border border-zinc-900 bg-zinc-950/20">
+                  <div className="overflow-x-auto border border-border bg-muted/40/20">
                     <table className="w-full text-left text-xs border-collapse font-mono">
                       <thead>
-                        <tr className="border-b border-zinc-900 bg-zinc-950/60 text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">
+                        <tr className="border-b border-border bg-muted/40/60 text-[9px] text-muted-foreground/80 uppercase tracking-wider font-semibold">
                           <th className="p-4">Label</th>
                           <th className="p-4">Status</th>
                           <th className="p-4">Concurrency Load</th>
@@ -881,17 +881,17 @@ export default function AdminDashboard() {
                       </thead>
                       <tbody className="divide-y divide-zinc-900/40">
                         {providers.map(a => (
-                          <tr key={a.id} className="hover:bg-zinc-900/10 transition-colors">
-                            <td className="p-4 font-bold text-white uppercase">{a.account_label || '—'}</td>
+                          <tr key={a.id} className="hover:bg-muted/10 transition-colors">
+                            <td className="p-4 font-bold text-foreground uppercase">{a.account_label || '—'}</td>
                             <td className="p-4"><StatusDot status={a.health_status} /></td>
-                            <td className="p-4 text-zinc-400">{a.in_flight}/{a.max_concurrent}</td>
-                            <td className="p-4 text-zinc-400 font-mono">{(a.total_requests || 0).toLocaleString()}</td>
+                            <td className="p-4 text-muted-foreground">{a.in_flight}/{a.max_concurrent}</td>
+                            <td className="p-4 text-muted-foreground font-mono">{(a.total_requests || 0).toLocaleString()}</td>
                             <td className="p-4 text-[#ef4444] font-mono">{(a.total_errors || 0).toLocaleString()}</td>
                             <td className="p-4 text-right">
                               <button 
                                 onClick={() => handleRefresh(a.id)} 
                                 disabled={refreshingId === a.id}
-                                className="inline-flex items-center gap-1.5 px-3 py-1 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-550 transition-all disabled:opacity-50 text-[10px]"
+                                className="inline-flex items-center gap-1.5 px-3 py-1 border border-border bg-muted text-muted-foreground hover:text-foreground hover:border-zinc-550 transition-all disabled:opacity-50 text-[10px]"
                               >
                                 <RefreshCw className={`w-3 h-3 ${refreshingId === a.id ? 'animate-spin' : ''}`} />
                                 SYNC
@@ -908,32 +908,32 @@ export default function AdminDashboard() {
 
             {/* Tab Panel: User Matrix */}
             {activeTab === 'users' && (
-              <section className="bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-5 animate-slide-in relative">
+              <section className="bg-card border border-border p-6 crosshair-corners space-y-5 animate-slide-in relative">
                 <div className="absolute inset-0 opacity-[0.03] micro-grid pointer-events-none" />
                 
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                       <Users className="w-4 h-4 text-[#ef4444]" />
                       USER_ACCOUNT_ADMINISTRATION
                     </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Search, filter, update details, adjust limitations, and ban/unban user accounts.</p>
+                    <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Search, filter, update details, adjust limitations, and ban/unban user accounts.</p>
                   </div>
 
                   <form onSubmit={handleSearchSubmit} className="flex gap-2 w-full md:max-w-md">
                     <div className="relative flex-1">
-                      <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-zinc-500" />
+                      <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground/80" />
                       <input
                         type="text"
                         placeholder="SEARCH BY EMAIL OR NAME..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-900 pl-9 pr-4 py-2 text-xs font-mono text-white placeholder-zinc-700 focus:outline-none focus:border-[#ef4444] transition-colors"
+                        className="w-full bg-muted/40 border border-border pl-9 pr-4 py-2 text-xs font-mono text-foreground placeholder-zinc-700 focus:outline-none focus:border-[#ef4444] transition-colors"
                       />
                     </div>
                     <button
                       type="submit"
-                      className="bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono text-[10px] font-bold px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white transition-all"
+                      className="bg-muted border border-border text-foreground/80 font-mono text-[10px] font-bold px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-foreground transition-all"
                     >
                       QUERY
                     </button>
@@ -943,13 +943,13 @@ export default function AdminDashboard() {
                 {loadingAccounts ? (
                   <AdminTableSkeleton rows={5} cols={6} />
                 ) : accounts.length === 0 ? (
-                  <div className="py-12 text-center font-mono text-xs text-zinc-600 uppercase">[NO_USER_ACCOUNTS_FOUND_MATCHING_FILTER]</div>
+                  <div className="py-12 text-center font-mono text-xs text-muted-foreground/70 uppercase">[NO_USER_ACCOUNTS_FOUND_MATCHING_FILTER]</div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="overflow-x-auto border border-zinc-900 bg-zinc-950/20">
+                    <div className="overflow-x-auto border border-border bg-muted/40/20">
                       <table className="w-full text-left text-xs border-collapse font-mono">
                         <thead>
-                          <tr className="border-b border-zinc-900 bg-zinc-950/60 text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">
+                          <tr className="border-b border-border bg-muted/40/60 text-[9px] text-muted-foreground/80 uppercase tracking-wider font-semibold">
                             <th className="p-4">Email</th>
                             <th className="p-4">Name</th>
                             <th className="p-4">Plan / Tier</th>
@@ -963,18 +963,18 @@ export default function AdminDashboard() {
                         </thead>
                         <tbody className="divide-y divide-zinc-900/40">
                           {accounts.map(acc => (
-                            <tr key={acc.id} className="hover:bg-zinc-900/10 transition-colors">
-                              <td className="p-4 text-white font-semibold">{acc.email}</td>
-                              <td className="p-4 text-zinc-400">{acc.display_name || '—'}</td>
+                            <tr key={acc.id} className="hover:bg-muted/10 transition-colors">
+                              <td className="p-4 text-foreground font-semibold">{acc.email}</td>
+                              <td className="p-4 text-muted-foreground">{acc.display_name || '—'}</td>
                               <td className="p-4">
-                                <span className="px-2 py-0.5 border border-zinc-800 bg-zinc-900 text-zinc-300 text-[10px] uppercase font-bold">
+                                <span className="px-2 py-0.5 border border-border bg-muted text-foreground/80 text-[10px] uppercase font-bold">
                                   {acc.tier}
                                 </span>
                               </td>
-                              <td className="p-4 text-zinc-400 font-mono">
+                              <td className="p-4 text-muted-foreground font-mono">
                                 {acc.monthly_limit >= 999999999 ? 'UNLIMITED' : `$${acc.monthly_limit.toFixed(2)}`}
                               </td>
-                              <td className="p-4 text-zinc-400 uppercase text-[10px]">
+                              <td className="p-4 text-muted-foreground uppercase text-[10px]">
                                 {acc.role || 'user'}
                               </td>
                               <td className="p-4">
@@ -983,7 +983,7 @@ export default function AdminDashboard() {
                                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
                                     : acc.status === 'suspended'
                                     ? 'bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444] red-glow-text'
-                                    : 'bg-zinc-800/40 border-zinc-800 text-zinc-500'
+                                    : 'bg-muted/40 border-border text-muted-foreground/80'
                                 }`}>
                                   {acc.status}
                                 </span>
@@ -993,7 +993,7 @@ export default function AdminDashboard() {
                                   </p>
                                 )}
                               </td>
-                              <td className="p-4 font-mono text-zinc-400">
+                              <td className="p-4 font-mono text-muted-foreground">
                                 {acc.consumption?.million_tokens ? `${acc.consumption.million_tokens.toFixed(3)}M` : '0.000M'}
                               </td>
                               <td className="p-4 font-mono text-emerald-400 font-semibold">
@@ -1002,7 +1002,7 @@ export default function AdminDashboard() {
                               <td className="p-4 text-right space-x-2">
                                 <button 
                                   onClick={() => handleEditAccountClick(acc)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 border border-zinc-800 bg-zinc-900 text-zinc-300 hover:text-white hover:border-zinc-550 transition-all text-[10px]"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 border border-border bg-muted text-foreground/80 hover:text-foreground hover:border-zinc-550 transition-all text-[10px]"
                                 >
                                   <Edit className="w-3 h-3" />
                                   EDIT
@@ -1032,7 +1032,7 @@ export default function AdminDashboard() {
                     </div>
 
                     {/* Pagination Controls */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-zinc-900 font-mono text-[11px] text-zinc-500">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-border font-mono text-[11px] text-muted-foreground/80">
                       <div>
                         SHOWING {Math.min(accountsTotal, (accountsPage - 1) * accountsLimit + 1)} - {Math.min(accountsTotal, accountsPage * accountsLimit)} OF {accountsTotal} USERS
                       </div>
@@ -1041,18 +1041,18 @@ export default function AdminDashboard() {
                           type="button"
                           onClick={() => setAccountsPage(prev => Math.max(1, prev - 1))}
                           disabled={accountsPage <= 1}
-                          className="px-3 py-1.5 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-550 disabled:opacity-30 disabled:hover:text-zinc-400 disabled:hover:border-zinc-800 transition-all"
+                          className="px-3 py-1.5 border border-border bg-muted text-muted-foreground hover:text-foreground hover:border-zinc-550 disabled:opacity-30 disabled:hover:text-muted-foreground disabled:hover:border-border transition-all"
                         >
                           [PREV]
                         </button>
-                        <span className="px-3 text-zinc-300">
+                        <span className="px-3 text-foreground/80">
                           PAGE {accountsPage} OF {Math.max(1, Math.ceil(accountsTotal / accountsLimit))}
                         </span>
                         <button
                           type="button"
                           onClick={() => setAccountsPage(prev => Math.min(Math.ceil(accountsTotal / accountsLimit), prev + 1))}
                           disabled={accountsPage * accountsLimit >= accountsTotal}
-                          className="px-3 py-1.5 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-550 disabled:opacity-30 disabled:hover:text-zinc-400 disabled:hover:border-zinc-800 transition-all"
+                          className="px-3 py-1.5 border border-border bg-muted text-muted-foreground hover:text-foreground hover:border-zinc-550 disabled:opacity-30 disabled:hover:text-muted-foreground disabled:hover:border-border transition-all"
                         >
                           [NEXT]
                         </button>
@@ -1068,24 +1068,24 @@ export default function AdminDashboard() {
               <section className="grid grid-cols-12 gap-6 animate-slide-in relative">
                 
                 {/* Plans Table */}
-                <div className="col-span-12 lg:col-span-8 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-4">
+                <div className="col-span-12 lg:col-span-8 bg-card border border-border p-6 crosshair-corners space-y-4">
                   <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                       <Shield className="w-4 h-4 text-[#ef4444]" />
                       PLAN_LIMITATIONS_TEMPLATES
                     </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Define global default limitation templates. Users assigned to these plans will pull their request limits from here.</p>
+                    <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Define global default limitation templates. Users assigned to these plans will pull their request limits from here.</p>
                   </div>
 
                   {loadingPlans ? (
                     <AdminCardsSkeleton count={3} />
                   ) : plans.length === 0 ? (
-                    <p className="text-xs text-zinc-600 py-6 font-mono uppercase text-center">[NO_PLAN_PRESETS_DEFINED]</p>
+                    <p className="text-xs text-muted-foreground/70 py-6 font-mono uppercase text-center">[NO_PLAN_PRESETS_DEFINED]</p>
                   ) : (
-                    <div className="overflow-x-auto border border-zinc-900 bg-zinc-950/20">
+                    <div className="overflow-x-auto border border-border bg-muted/40/20">
                       <table className="w-full text-left text-xs border-collapse font-mono">
                         <thead>
-                          <tr className="border-b border-zinc-900 bg-zinc-950/60 text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">
+                          <tr className="border-b border-border bg-muted/40/60 text-[9px] text-muted-foreground/80 uppercase tracking-wider font-semibold">
                             <th className="p-4">Plan Name</th>
                             <th className="p-4">Monthly Budget</th>
                             <th className="p-4">RPM Limit</th>
@@ -1098,20 +1098,20 @@ export default function AdminDashboard() {
                         </thead>
                         <tbody className="divide-y divide-zinc-900/40">
                           {plans.map(p => (
-                            <tr key={p.id} className="hover:bg-zinc-900/10 transition-colors">
-                              <td className="p-4 font-bold text-white uppercase">{p.tier}</td>
-                                  <td className="p-4 text-zinc-300">
+                            <tr key={p.id} className="hover:bg-muted/10 transition-colors">
+                              <td className="p-4 font-bold text-foreground uppercase">{p.tier}</td>
+                                  <td className="p-4 text-foreground/80">
                                     {p.monthly_limit >= 999999999 ? 'UNLIMITED' : `$${p.monthly_limit.toFixed(2)}`}
                                   </td>
-                                  <td className="p-4 text-zinc-300">{p.rpm_limit ?? 60} RPM</td>
-                                  <td className="p-4 text-zinc-300">${(p.tokens_5h_limit ?? 1.0).toFixed(2)}</td>
-                                  <td className="p-4 text-zinc-300">${(p.tokens_7d_limit ?? 5.0).toFixed(2)}</td>
+                                  <td className="p-4 text-foreground/80">{p.rpm_limit ?? 60} RPM</td>
+                                  <td className="p-4 text-foreground/80">${(p.tokens_5h_limit ?? 1.0).toFixed(2)}</td>
+                                  <td className="p-4 text-foreground/80">${(p.tokens_7d_limit ?? 5.0).toFixed(2)}</td>
                                   <td className="p-4 text-amber-400 font-bold">{(p.monthly_point_allowance ?? 0).toLocaleString()}</td>
                                   <td className="p-4 text-amber-400 font-bold">{(p.daily_free_requests_limit ?? 0).toLocaleString()}</td>
                               <td className="p-4 text-right space-x-2">
                                 {editingPlanId === p.id ? (
                                   <div className="inline-flex gap-2">
-                                    <button onClick={() => setEditingPlanId(null)} className="text-zinc-500 font-bold hover:underline">CANCEL</button>
+                                    <button onClick={() => setEditingPlanId(null)} className="text-muted-foreground/80 font-bold hover:underline">CANCEL</button>
                                   </div>
                                 ) : (
                                   <button 
@@ -1124,7 +1124,7 @@ export default function AdminDashboard() {
                                       setEditingPlanPointAllowance(p.monthly_point_allowance ?? 0);
                                       setEditingPlanDailyFree(p.daily_free_requests_limit ?? 0);
                                     }}
-                                    className="inline-flex items-center gap-1 px-2.5 py-1 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-550 transition-all text-[10px]"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 border border-border bg-muted text-muted-foreground hover:text-foreground hover:border-zinc-550 transition-all text-[10px]"
                                   >
                                     EDIT
                                   </button>
@@ -1150,98 +1150,98 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Plan Creation Panel */}
-                <div className="col-span-12 lg:col-span-4 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-4">
+                <div className="col-span-12 lg:col-span-4 bg-card border border-border p-6 crosshair-corners space-y-4">
                   <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                       <Plus className="w-4 h-4 text-[#ef4444]" />
                       NEW_PLAN_PRESET
                     </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Define a brand new subscription plan defaults.</p>
+                    <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Define a brand new subscription plan defaults.</p>
                   </div>
 
-                  <form onSubmit={handleCreatePlan} className="space-y-4 font-mono text-xs text-zinc-300">
+                  <form onSubmit={handleCreatePlan} className="space-y-4 font-mono text-xs text-foreground/80">
                     <div className="space-y-1">
-                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Plan Name / Identifier</label>
+                      <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Plan Name / Identifier</label>
                       <input
                         type="text"
                         placeholder="e.g. developer, startup, scale..."
                         value={newPlanTier}
                         onChange={e => setNewPlanTier(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white placeholder-zinc-800 focus:outline-none focus:border-[#ef4444]"
+                        className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground placeholder-zinc-800 focus:outline-none focus:border-[#ef4444]"
                         required
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Default Monthly USD Budget ($)</label>
+                      <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Default Monthly USD Budget ($)</label>
                       <input
                         type="number"
                         step="0.01"
                         value={newPlanLimit}
                         onChange={e => setNewPlanLimit(Number(e.target.value))}
-                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                        className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                         required
                       />
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
                       <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">RPM Limit</label>
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">RPM Limit</label>
                         <input
                           type="number"
                           value={newPlanRpm}
                           onChange={e => setNewPlanRpm(Number(e.target.value))}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                          className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                           required
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">5h Budget ($)</label>
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">5h Budget ($)</label>
                         <input
                           type="number"
                           step="0.01"
                           value={newPlan5h}
                           onChange={e => setNewPlan5h(Number(e.target.value))}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                          className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                           required
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">7d Budget ($)</label>
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">7d Budget ($)</label>
                         <input
                           type="number"
                           step="0.01"
                           value={newPlan7d}
                           onChange={e => setNewPlan7d(Number(e.target.value))}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                          className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                           required
                         />
                       </div>
                     </div>
 
                     {/* Point System */}
-                    <div className="border border-zinc-900 bg-[#050507]/40 p-4 rounded-sm space-y-3">
-                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider block">Point System</label>
+                    <div className="border border-border bg-card/80/40 p-4 rounded-sm space-y-3">
+                      <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider block">Point System</label>
                       <div className="grid grid-cols-3 gap-2">
                         <div className="space-y-1">
-                          <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Points/mo</label>
+                          <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Points/mo</label>
                           <input
                             type="number"
                             min="0"
                             value={newPlanPointAllowance}
                             onChange={e => setNewPlanPointAllowance(Math.max(0, Number(e.target.value)))}
-                            className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                            className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-amber-500"
                             required
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Daily Free Req</label>
+                          <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Daily Free Req</label>
                           <input
                             type="number"
                             min="0"
                             value={newPlanDailyFree}
                             onChange={e => setNewPlanDailyFree(Math.max(0, Number(e.target.value)))}
-                            className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                            className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-amber-500"
                             required
                           />
                         </div>
@@ -1250,7 +1250,7 @@ export default function AdminDashboard() {
 
                     <button
                       type="submit"
-                      className="w-full bg-[#ef4444] text-black font-bold py-3 hover:bg-[#ff5451] transition-all flex items-center justify-center gap-2 group crosshair-corners"
+                      className="w-full bg-[#ef4444] text-black font-bold py-3 hover:bg-[#ef4444] transition-all flex items-center justify-center gap-2 group crosshair-corners"
                     >
                       <Plus className="w-4 h-4" />
                       <span className="tracking-widest uppercase font-bold">CREATE TEMPLATE</span>
@@ -1261,157 +1261,157 @@ export default function AdminDashboard() {
                 {/* Plan Edit Modal */}
                 {editingPlanId && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                    <div className="bg-[#0e0e10] border border-zinc-900 w-full max-w-2xl max-h-[90vh] overflow-y-auto crosshair-corners p-6 shadow-2xl">
+                    <div className="bg-card border border-border w-full max-w-2xl max-h-[90vh] overflow-y-auto crosshair-corners p-6 shadow-2xl">
                       <div className="flex items-center justify-between mb-6">
-                        <h2 className="font-mono text-lg text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                        <h2 className="font-mono text-lg text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                           <Settings className="w-5 h-5 text-[#ef4444]" />
                           EDIT_PLAN_PRESET
                         </h2>
-                        <button onClick={() => setEditingPlanId(null)} className="text-zinc-500 hover:text-white transition-colors">
+                        <button onClick={() => setEditingPlanId(null)} className="text-muted-foreground/80 hover:text-foreground transition-colors">
                           <X className="w-6 h-6" />
                         </button>
                       </div>
 
-                      <div className="space-y-4 font-mono text-xs text-zinc-300">
+                      <div className="space-y-4 font-mono text-xs text-foreground/80">
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
-                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Monthly Budget ($)</label>
+                            <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Monthly Budget ($)</label>
                             <input
                               type="number"
                               step="0.01"
                               value={editingPlanLimit}
                               onChange={e => setEditingPlanLimit(Number(e.target.value))}
-                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">RPM Limit</label>
+                            <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">RPM Limit</label>
                             <input
                               type="number"
                               value={editingPlanRpm}
                               onChange={e => setEditingPlanRpm(Number(e.target.value))}
-                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">5h Budget ($)</label>
+                            <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">5h Budget ($)</label>
                             <input
                               type="number"
                               step="0.01"
                               value={editingPlan5h}
                               onChange={e => setEditingPlan5h(Number(e.target.value))}
-                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-zinc-500 uppercase text-[9px] tracking-wider">7d Budget ($)</label>
+                            <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">7d Budget ($)</label>
                             <input
                               type="number"
                               step="0.01"
                               value={editingPlan7d}
                               onChange={e => setEditingPlan7d(Number(e.target.value))}
-                              className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                              className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                             />
                           </div>
                         </div>
 
                         {/* UI Config Fields */}
-                        <div className="border border-zinc-900 bg-zinc-950 p-4 space-y-4">
+                        <div className="border border-border bg-muted/40 p-4 space-y-4">
                           <h3 className="text-[#ef4444] uppercase text-[10px] tracking-widest font-bold">UI Configuration</h3>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1">
-                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Display Price</label>
+                              <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Display Price</label>
                               <input
                                 type="text"
                                 value={editingPlanPrice}
                                 onChange={e => setEditingPlanPrice(e.target.value)}
                                 placeholder="$0"
-                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                                className="w-full bg-card/80 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                               />
                             </div>
                             <div className="space-y-1">
-                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Billing Period</label>
+                              <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Billing Period</label>
                               <input
                                 type="text"
                                 value={editingPlanBillingPeriod}
                                 onChange={e => setEditingPlanBillingPeriod(e.target.value)}
                                 placeholder="mo"
-                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                                className="w-full bg-card/80 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                               />
                             </div>
                             <div className="space-y-1 col-span-2">
-                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Description</label>
+                              <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Description</label>
                               <input
                                 type="text"
                                 value={editingPlanDescription}
                                 onChange={e => setEditingPlanDescription(e.target.value)}
-                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                                className="w-full bg-card/80 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                               />
                             </div>
                             <div className="space-y-1">
-                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Badge (e.g., POPULAR)</label>
+                              <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Badge (e.g., POPULAR)</label>
                               <input
                                 type="text"
                                 value={editingPlanBadge}
                                 onChange={e => setEditingPlanBadge(e.target.value)}
-                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                                className="w-full bg-card/80 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                               />
                             </div>
                             <div className="space-y-1">
-                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Free Trial Settings</label>
+                              <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Free Trial Settings</label>
                               <div className="flex items-center gap-2">
                                 <input
                                   type="checkbox"
                                   checked={editingPlanHasTrial}
                                   onChange={e => setEditingPlanHasTrial(e.target.checked)}
-                                  className="w-4 h-4 rounded border-zinc-800 bg-[#050507] text-[#ef4444] accent-[#ef4444]"
+                                  className="w-4 h-4 rounded border-border bg-card/80 text-[#ef4444] accent-[#ef4444]"
                                 />
-                                <span className="text-zinc-400 text-xs">Enable</span>
+                                <span className="text-muted-foreground text-xs">Enable</span>
                                 {editingPlanHasTrial && (
                                   <input
                                     type="number"
                                     value={editingPlanTrialDays}
                                     onChange={e => setEditingPlanTrialDays(Number(e.target.value))}
-                                    className="w-16 bg-[#050507] border border-zinc-900 px-2 py-1 text-white focus:outline-none focus:border-[#ef4444]"
+                                    className="w-16 bg-card/80 border border-border px-2 py-1 text-foreground focus:outline-none focus:border-[#ef4444]"
                                   />
                                 )}
-                                {editingPlanHasTrial && <span className="text-zinc-400 text-xs">days</span>}
+                                {editingPlanHasTrial && <span className="text-muted-foreground text-xs">days</span>}
                               </div>
                             </div>
                           </div>
                         </div>
 
                         {/* Point System (edit) */}
-                        <div className="border border-zinc-900 bg-zinc-950 p-4 space-y-4">
-                          <h3 className="text-zinc-400 uppercase text-[10px] tracking-widest font-bold">Point System</h3>
+                        <div className="border border-border bg-muted/40 p-4 space-y-4">
+                          <h3 className="text-muted-foreground uppercase text-[10px] tracking-widest font-bold">Point System</h3>
                           <div className="grid grid-cols-3 gap-2">
                             <div className="space-y-1">
-                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Points/mo</label>
+                              <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Points/mo</label>
                               <input
                                 type="number"
                                 min="0"
                                 value={editingPlanPointAllowance}
                                 onChange={e => setEditingPlanPointAllowance(Math.max(0, Number(e.target.value)))}
-                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                                className="w-full bg-card/80 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-amber-500"
                               />
                             </div>
                             <div className="space-y-1">
-                              <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Daily Free Req</label>
+                              <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Daily Free Req</label>
                               <input
                                 type="number"
                                 min="0"
                                 value={editingPlanDailyFree}
                                 onChange={e => setEditingPlanDailyFree(Math.max(0, Number(e.target.value)))}
-                                className="w-full bg-[#050507] border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                                className="w-full bg-card/80 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-amber-500"
                               />
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex gap-4 pt-4 border-t border-zinc-900">
+                        <div className="flex gap-4 pt-4 border-t border-border">
                           <button
                             onClick={() => handleUpdatePlan(editingPlanId)}
-                            className="flex-1 bg-[#ef4444] text-black font-bold py-3 hover:bg-[#ff5451] transition-all flex items-center justify-center gap-2 crosshair-corners"
+                            className="flex-1 bg-[#ef4444] text-black font-bold py-3 hover:bg-[#ef4444] transition-all flex items-center justify-center gap-2 crosshair-corners"
                           >
                             <span className="tracking-widest uppercase font-bold">SAVE CHANGES</span>
                           </button>
@@ -1430,20 +1430,20 @@ export default function AdminDashboard() {
               ) : (
                 <section className="grid grid-cols-12 gap-6 animate-slide-in relative">
                 {/* Global Gateway Status Switch Card */}
-                <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                <div className="col-span-12 lg:col-span-6 bg-card border border-border p-6 crosshair-corners space-y-6">
                   <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                       <Shield className="w-4 h-4 text-[#ef4444]" />
                       GLOBAL_GATEWAY_SUSPENSION
                     </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                    <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">
                       Stop the entire OpenAI compatibility endpoint. If offline, users will see an alert and all completions fail with 503.
                     </p>
                   </div>
 
-                  <div className="p-5 bg-zinc-950 border border-zinc-900 flex flex-col gap-4">
+                  <div className="p-5 bg-muted/40 border border-border flex flex-col gap-4">
                     <div className="flex justify-between items-center">
-                      <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider font-bold">
+                      <span className="font-mono text-xs text-muted-foreground uppercase tracking-wider font-bold">
                         API GATEWAY ENDPOINT STATUS:
                       </span>
                       <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
@@ -1455,7 +1455,7 @@ export default function AdminDashboard() {
                       </span>
                     </div>
 
-                    <div className="border-t border-zinc-900 my-2" />
+                    <div className="border-t border-border my-2" />
 
                     <button
                       onClick={async () => {
@@ -1470,7 +1470,7 @@ export default function AdminDashboard() {
                       }}
                       className={`w-full font-mono text-xs font-bold py-3 transition-all crosshair-corners flex items-center justify-center gap-2 ${
                         systemSettings.gateway_enabled === 'true'
-                          ? 'bg-red-950/15 border border-[#ef4444]/30 text-[#ef4444] hover:bg-[#ef4444]/15 hover:text-white'
+                          ? 'bg-red-950/15 border border-[#ef4444]/30 text-[#ef4444] hover:bg-[#ef4444]/15 hover:text-foreground'
                           : 'bg-emerald-500 text-black hover:bg-emerald-400'
                       }`}
                     >
@@ -1480,32 +1480,32 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Require User Activation Switch Card */}
-                <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                <div className="col-span-12 lg:col-span-6 bg-card border border-border p-6 crosshair-corners space-y-6">
                   <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                       <Shield className="w-4 h-4 text-[#ef4444]" />
                       USER_SIGNUP_ACTIVATION_CONTROL
                     </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                    <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">
                       Require new users to contact the administrator to activate their account and generate API keys.
                     </p>
                   </div>
 
-                  <div className="p-5 bg-zinc-950 border border-zinc-900 flex flex-col gap-4">
+                  <div className="p-5 bg-muted/40 border border-border flex flex-col gap-4">
                     <div className="flex justify-between items-center">
-                      <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider font-bold">
+                      <span className="font-mono text-xs text-muted-foreground uppercase tracking-wider font-bold">
                         ACTIVATION REQUIREMENT STATUS:
                       </span>
                       <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
                         systemSettings.require_activation === 'true'
                           ? 'bg-amber-500/10 border-amber-500/30 text-amber-450'
-                          : 'bg-zinc-500/10 border-zinc-500/30 text-zinc-400'
+                          : 'bg-zinc-500/10 border-zinc-500/30 text-muted-foreground'
                       }`}>
                         {systemSettings.require_activation === 'true' ? 'MANDATORY (PENDING)' : 'DISABLED (AUTO-ACTIVE)'}
                       </span>
                     </div>
 
-                    <div className="border-t border-zinc-900 my-2" />
+                    <div className="border-t border-border my-2" />
 
                     <button
                       onClick={async () => {
@@ -1519,8 +1519,8 @@ export default function AdminDashboard() {
                       }}
                       className={`w-full font-mono text-xs font-bold py-3 transition-all crosshair-corners flex items-center justify-center gap-2 ${
                         systemSettings.require_activation === 'true'
-                          ? 'bg-zinc-905 border border-zinc-800 text-zinc-400 hover:border-zinc-500 hover:text-white'
-                          : 'bg-[#ef4444] text-black hover:bg-[#ff5451]'
+                          ? 'bg-muted/40 border border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground'
+                          : 'bg-[#ef4444] text-black hover:bg-[#ef4444]'
                       }`}
                     >
                       {systemSettings.require_activation === 'true' ? 'DISABLE REQUIRE ACTIVATION' : 'ENABLE REQUIRE ACTIVATION'}
@@ -1528,20 +1528,20 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 {/* Model active switches Card */}
-                <div className="col-span-12 lg:col-span-6 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                <div className="col-span-12 lg:col-span-6 bg-card border border-border p-6 crosshair-corners space-y-6">
                   <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                       <Cpu className="w-4 h-4 text-[#ef4444]" />
                       MODEL_PRICING_CONFIG
                     </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                    <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">
                       Toggle activation, switch billing mode (per-token / per-request), and edit pricing per model. Changes take effect immediately and evict the cache.
                     </p>
                   </div>
 
                   <div className="space-y-3">
                     {adminModels.length === 0 ? (
-                      <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center">[SYNCHRONIZING_MODELS_LIST_WITH_SETTINGS_FALLBACK...]</p>
+                      <p className="text-xs text-muted-foreground/60 py-4 font-mono uppercase text-center">[SYNCHRONIZING_MODELS_LIST_WITH_SETTINGS_FALLBACK...]</p>
                     ) : (
                       adminModels.map((m) => (
                         <ModelConfigCard
@@ -1565,43 +1565,43 @@ export default function AdminDashboard() {
             {activeTab === 'invitations' && (
               <section className="grid grid-cols-12 gap-6 animate-slide-in relative">
                 {/* Create Invitation Card */}
-                <div className="col-span-12 lg:col-span-4 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                <div className="col-span-12 lg:col-span-4 bg-card border border-border p-6 crosshair-corners space-y-6">
                   <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                       <Plus className="w-4 h-4 text-[#ef4444]" />
                       GENERATE_INVITATION_CODE
                     </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                    <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">
                       Create new invitation keys with custom usage limits. Leave code blank to auto-generate a random key.
                     </p>
                   </div>
 
-                  <form onSubmit={handleCreateInvitation} className="space-y-4 font-mono text-xs text-zinc-300">
+                  <form onSubmit={handleCreateInvitation} className="space-y-4 font-mono text-xs text-foreground/80">
                     <div className="space-y-1">
-                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Invitation Code (Optional)</label>
+                      <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Invitation Code (Optional)</label>
                       <input
                         type="text"
                         value={newInvCode}
                         onChange={e => setNewInvCode(e.target.value)}
                         placeholder="AUTO-GENERATE IF BLANK"
-                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white placeholder-zinc-800 uppercase focus:outline-none focus:border-[#ef4444] rounded-none"
+                        className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground placeholder-zinc-800 uppercase focus:outline-none focus:border-[#ef4444] rounded-none"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Max Allowed Uses</label>
+                      <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Max Allowed Uses</label>
                       <input
                         type="number"
                         min="1"
                         value={newInvMaxUses}
                         onChange={e => setNewInvMaxUses(Number(e.target.value))}
-                        className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] rounded-none"
+                        className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444] rounded-none"
                       />
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full bg-[#ef4444] text-black font-bold py-3 hover:bg-[#ff5451] transition-all crosshair-corners uppercase tracking-wider rounded-none"
+                      className="w-full bg-[#ef4444] text-black font-bold py-3 hover:bg-[#ef4444] transition-all crosshair-corners uppercase tracking-wider rounded-none"
                     >
                       [+] Create Code
                     </button>
@@ -1609,13 +1609,13 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* List & Manage Invitations Card */}
-                <div className="col-span-12 lg:col-span-8 bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+                <div className="col-span-12 lg:col-span-8 bg-card border border-border p-6 crosshair-corners space-y-6">
                   <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                       <KeyRound className="w-4 h-4 text-[#ef4444]" />
                       ACTIVE_INVITATION_REGISTRY
                     </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">
+                    <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">
                       Manage active registration keys. You can delete, toggle active status, or edit/extend usage limits.
                     </p>
                   </div>
@@ -1624,13 +1624,13 @@ export default function AdminDashboard() {
                     {loadingInvitations ? (
                       <AdminListSkeleton count={3} />
                     ) : invitations.length === 0 ? (
-                      <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center">[NO_ACTIVE_INVITATION_CODES_FOUND]</p>
+                      <p className="text-xs text-muted-foreground/60 py-4 font-mono uppercase text-center">[NO_ACTIVE_INVITATION_CODES_FOUND]</p>
                     ) : (
                       invitations.map((inv) => (
-                        <div key={inv.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-zinc-950 border border-zinc-900 hover:border-zinc-850 transition-all group">
+                        <div key={inv.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-muted/40 border border-border hover:border-border transition-all group">
                           <div className="space-y-1.5">
                             <div className="flex items-center gap-3">
-                              <span className="font-mono text-sm font-bold text-white uppercase select-all tracking-wider">{inv.code}</span>
+                              <span className="font-mono text-sm font-bold text-foreground uppercase select-all tracking-wider">{inv.code}</span>
                               <span className={`px-2 py-0.5 font-mono text-[9px] font-bold uppercase rounded-sm border ${
                                 inv.is_active
                                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
@@ -1639,8 +1639,8 @@ export default function AdminDashboard() {
                                 {inv.is_active ? 'ACTIVE' : 'SUSPENDED'}
                               </span>
                             </div>
-                            <div className="font-mono text-[10px] text-zinc-550 uppercase">
-                              Uses: <span className="text-zinc-300 font-bold">{inv.used_count}</span> / <span className="text-zinc-350 font-bold">{inv.max_uses}</span> • Created: {new Date(inv.created_at).toLocaleDateString()}
+                            <div className="font-mono text-[10px] text-muted-foreground/50 uppercase">
+                              Uses: <span className="text-foreground/80 font-bold">{inv.used_count}</span> / <span className="text-muted-foreground/60 font-bold">{inv.max_uses}</span> • Created: {new Date(inv.created_at).toLocaleDateString()}
                             </div>
                           </div>
 
@@ -1652,17 +1652,17 @@ export default function AdminDashboard() {
                                   min={inv.used_count}
                                   value={editingInvMaxUses}
                                   onChange={e => setEditingInvMaxUses(Number(e.target.value))}
-                                  className="w-20 bg-zinc-900 border border-zinc-800 text-white text-xs px-2 py-1 focus:outline-none"
+                                  className="w-20 bg-muted border border-border text-foreground text-xs px-2 py-1 focus:outline-none"
                                 />
                                 <button
                                   onClick={() => handleUpdateInvitation(inv.id, editingInvMaxUses)}
-                                  className="px-2 py-1 bg-[#ef4444] text-black font-bold text-[9px] uppercase hover:bg-[#ff5451] transition-all"
+                                  className="px-2 py-1 bg-[#ef4444] text-black font-bold text-[9px] uppercase hover:bg-[#ef4444] transition-all"
                                 >
                                   Save
                                 </button>
                                 <button
                                   onClick={() => setEditingInvId(null)}
-                                  className="px-2 py-1 bg-zinc-900 border border-zinc-800 text-zinc-400 text-[9px] uppercase hover:text-white transition-all"
+                                  className="px-2 py-1 bg-muted border border-border text-muted-foreground text-[9px] uppercase hover:text-foreground transition-all"
                                 >
                                   Cancel
                                 </button>
@@ -1674,7 +1674,7 @@ export default function AdminDashboard() {
                                     setEditingInvId(inv.id)
                                     setEditingInvMaxUses(inv.max_uses)
                                   }}
-                                  className="px-2.5 py-1.5 border border-zinc-850 hover:border-zinc-500 hover:bg-zinc-900 font-mono text-[9px] font-bold text-zinc-350 hover:text-white transition-all uppercase"
+                                  className="px-2.5 py-1.5 border border-border hover:border-muted-foreground hover:bg-muted font-mono text-[9px] font-bold text-muted-foreground/60 hover:text-foreground transition-all uppercase"
                                 >
                                   Extend
                                 </button>
@@ -1690,7 +1690,7 @@ export default function AdminDashboard() {
                                 </button>
                                 <button
                                   onClick={() => handleDeleteInvitation(inv.id)}
-                                  className="p-1.5 border border-zinc-900 bg-zinc-950 text-zinc-650 hover:text-[#ef4444] hover:border-[#ef4444]/30 hover:bg-[#ef4444]/5 transition-all"
+                                  className="p-1.5 border border-border bg-muted/40 text-muted-foreground/60 hover:text-[#ef4444] hover:border-[#ef4444]/30 hover:bg-[#ef4444]/5 transition-all"
                                   title="Delete Code"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1706,31 +1706,31 @@ export default function AdminDashboard() {
               </section>
             )}
             {editingAccountId && (
-              <div className="fixed inset-0 z-50 bg-[#09090b]/80 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-[#0e0e10] border border-[#ef4444]/35 p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto crosshair-corners relative animate-fade-in space-y-4">
+              <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-card border border-[#ef4444]/35 p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto crosshair-corners relative animate-fade-in space-y-4">
                   <div className="absolute right-3 top-3 w-2.5 h-2.5 bg-[#ef4444] status-pulse red-glow" />
-                  <h3 className="font-mono text-sm text-white font-bold tracking-widest border-b border-zinc-900 pb-2">
+                  <h3 className="font-mono text-sm text-foreground font-bold tracking-widest border-b border-border pb-2">
                     [CONTROL_OVERRIDE_USER_METADATA]
                   </h3>
                   
-                  <form onSubmit={handleUpdateAccount} className="space-y-4 font-mono text-xs text-zinc-300">
+                  <form onSubmit={handleUpdateAccount} className="space-y-4 font-mono text-xs text-foreground/80">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Display Name</label>
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Display Name</label>
                         <input
                            type="text"
                            value={editingDisplayName}
                            onChange={e => setEditingDisplayName(e.target.value)}
-                           className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                           className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                         />
                       </div>
                       
                       <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Role</label>
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Role</label>
                         <select
                           value={editingRole}
                           onChange={e => setEditingRole(e.target.value)}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] uppercase"
+                          className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444] uppercase"
                         >
                           <option value="user">User</option>
                           <option value="admin">Admin</option>
@@ -1740,11 +1740,11 @@ export default function AdminDashboard() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Plan / Tier</label>
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Plan / Tier</label>
                         <select
                           value={editingTier}
                           onChange={e => handleTierChange(e.target.value)}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] uppercase"
+                          className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444] uppercase"
                         >
                           {plans.map(p => (
                             <option key={p.id} value={p.tier}>{p.tier.toUpperCase()}</option>
@@ -1756,47 +1756,47 @@ export default function AdminDashboard() {
                       </div>
                       
                       <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Monthly USD Budget ($)</label>
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Monthly USD Budget ($)</label>
                         <input
                           type="number"
                           step="0.01"
                           value={editingLimit}
                           onChange={e => setEditingLimit(Number(e.target.value))}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                          className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
                       <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">RPM Limit</label>
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">RPM Limit</label>
                         <input
                           type="number"
                           value={editingRpmLimit}
                           onChange={e => setEditingRpmLimit(Number(e.target.value))}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                          className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                         />
                       </div>
                       
                       <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">5h Budget ($)</label>
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">5h Budget ($)</label>
                         <input
                           type="number"
                           step="0.01"
                           value={editingTokens5hLimit}
                           onChange={e => setEditingTokens5hLimit(Number(e.target.value))}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                          className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">7d Budget ($)</label>
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">7d Budget ($)</label>
                         <input
                           type="number"
                           step="0.01"
                           value={editingTokens7dLimit}
                           onChange={e => setEditingTokens7dLimit(Number(e.target.value))}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444]"
+                          className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444]"
                         />
                       </div>
                     </div>
@@ -1804,11 +1804,11 @@ export default function AdminDashboard() {
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Status</label>
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Status</label>
                         <select
                           value={editingStatus}
                           onChange={e => setEditingStatus(e.target.value)}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] uppercase"
+                          className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444] uppercase"
                         >
                           <option value="active">Active</option>
                           <option value="suspended">Suspended (Banned)</option>
@@ -1819,13 +1819,13 @@ export default function AdminDashboard() {
 
                     {editingStatus === 'suspended' && (
                       <div className="space-y-1 animate-fade-in">
-                        <label className="text-zinc-500 uppercase text-[9px] tracking-wider">Suspension Reason</label>
+                        <label className="text-muted-foreground/80 uppercase text-[9px] tracking-wider">Suspension Reason</label>
                         <textarea
                           value={editingSuspendedReason}
                           onChange={e => setEditingSuspendedReason(e.target.value)}
                           placeholder="VIOLATION OF TERMS / MISUSE / QUOTA EXCEEDED..."
                           rows={2}
-                          className="w-full bg-zinc-950 border border-zinc-900 px-3 py-2 text-white focus:outline-none focus:border-[#ef4444] uppercase placeholder-zinc-800"
+                          className="w-full bg-muted/40 border border-border px-3 py-2 text-foreground focus:outline-none focus:border-[#ef4444] uppercase placeholder-zinc-800"
                         />
                       </div>
                     )}
@@ -1834,14 +1834,14 @@ export default function AdminDashboard() {
                       <button
                         type="button"
                         onClick={() => setEditingAccountId(null)}
-                        className="px-4 py-2 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors"
+                        className="px-4 py-2 border border-border bg-muted text-muted-foreground hover:text-foreground transition-colors"
                       >
                         CANCEL
                       </button>
                       <button
                         type="submit"
                         disabled={updatingAccount}
-                        className="px-4 py-2 bg-[#ef4444] text-black font-bold hover:bg-[#ff5451] transition-colors disabled:opacity-50"
+                        className="px-4 py-2 bg-[#ef4444] text-black font-bold hover:bg-[#ef4444] transition-colors disabled:opacity-50"
                       >
                         {updatingAccount ? 'SAVING...' : 'COMMIT CHANGES'}
                       </button>

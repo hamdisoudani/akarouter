@@ -40,7 +40,7 @@ export function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="p-1.5 border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-500 transition-all"
+      className="p-1.5 border border-border bg-muted text-muted-foreground hover:text-foreground hover:border-muted-foreground transition-all"
       title="Copy code"
       aria-label={copied ? 'Copied' : 'Copy code'}
     >

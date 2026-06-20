@@ -209,7 +209,7 @@ export default function UserDashboard() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#09090b] flex items-center justify-center font-mono text-xs text-zinc-500 uppercase tracking-widest">
+      <div className="min-h-screen bg-background flex items-center justify-center font-mono text-xs text-muted-foreground/80 uppercase tracking-widest">
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-1.5 bg-[#ef4444] status-pulse red-glow"></span>
           <span>[INITIALIZING_CONNECTION_PORTAL...]</span>
@@ -220,31 +220,31 @@ export default function UserDashboard() {
 
   if (user?.status === 'pending') {
     return (
-      <div className="min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col items-center justify-center p-4 selection:bg-[#ef4444]/30 selection:text-white relative grid-bg">
+      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center p-4 selection:bg-[#ef4444]/30 selection:text-foreground relative grid-bg">
         <div className="absolute top-4 right-4 z-20">
           <button 
             onClick={signOut}
-            className="bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white font-mono text-[10px] py-2 px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all flex items-center gap-2 crosshair-corners"
+            className="bg-muted border border-border text-foreground/80 hover:text-foreground font-mono text-[10px] py-2 px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all flex items-center gap-2 crosshair-corners"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="tracking-widest uppercase font-bold">Sign Out</span>
           </button>
         </div>
         
-        <div className="w-full max-w-md tech-border bg-[#0e0e10] p-8 space-y-6 crosshair-corners relative red-glow">
+        <div className="w-full max-w-md tech-border bg-card p-8 space-y-6 crosshair-corners relative red-glow">
           <div className="flex flex-col items-center gap-3">
             <div className="relative w-48 h-16 border border-[#ef4444]/30 bg-[#ef4444]/5 flex items-center justify-center overflow-hidden">
               <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
             </div>
             <div className="flex items-center gap-2 mt-2">
               <div className="w-2 h-2 bg-[#ef4444] red-glow animate-pulse rounded-full"></div>
-              <p className="font-mono text-[10px] text-zinc-400 tracking-widest uppercase font-bold">ACCOUNT PENDING ACTIVATION</p>
+              <p className="font-mono text-[10px] text-muted-foreground tracking-widest uppercase font-bold">ACCOUNT PENDING ACTIVATION</p>
             </div>
           </div>
 
-          <div className="space-y-4 font-mono text-xs text-zinc-400 border-y border-zinc-850 py-6">
-            <p className="leading-relaxed text-zinc-300">
-              Welcome to <span className="text-white font-bold">AkaRouter</span>. To maintain API reliability and prevent system abuse, new accounts require administrator activation.
+          <div className="space-y-4 font-mono text-xs text-muted-foreground border-y border-border py-6">
+            <p className="leading-relaxed text-foreground/80">
+              Welcome to <span className="text-foreground font-bold">AkaRouter</span>. To maintain API reliability and prevent system abuse, new accounts require administrator activation.
             </p>
             <p className="leading-relaxed">
               Please contact the admin via the official channels below to request your access keys:
@@ -254,26 +254,26 @@ export default function UserDashboard() {
                 href="https://t.me/mrdedatn" 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="flex items-center gap-3 p-2.5 border border-zinc-850 hover:border-[#ef4444]/35 hover:bg-[#ef4444]/5 transition-all group"
+                className="flex items-center gap-3 p-2.5 border border-border hover:border-[#ef4444]/35 hover:bg-[#ef4444]/5 transition-all group"
               >
                 <span className="text-[#ef4444] font-bold">[TELEGRAM]</span>
-                <span className="text-zinc-300 group-hover:text-white transition-colors">@mrdedatn</span>
+                <span className="text-foreground/80 group-hover:text-foreground transition-colors">@mrdedatn</span>
               </a>
               <a 
                 href="https://linkedin.com/in/hamdisoudani" 
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="flex items-center gap-3 p-2.5 border border-zinc-850 hover:border-[#ef4444]/35 hover:bg-[#ef4444]/5 transition-all group"
+                className="flex items-center gap-3 p-2.5 border border-border hover:border-[#ef4444]/35 hover:bg-[#ef4444]/5 transition-all group"
               >
                 <span className="text-[#ef4444] font-bold">[LINKEDIN]</span>
-                <span className="text-zinc-300 group-hover:text-white transition-colors">hamdisoudani</span>
+                <span className="text-foreground/80 group-hover:text-foreground transition-colors">hamdisoudani</span>
               </a>
             </div>
           </div>
 
           <form onSubmit={handleActivate} className="space-y-4">
             <div className="space-y-2">
-              <label className="block font-mono text-[9px] text-zinc-500 uppercase tracking-widest font-bold">
+              <label className="block font-mono text-[9px] text-muted-foreground/80 uppercase tracking-widest font-bold">
                 ENTER INVITATION CODE
               </label>
               <input 
@@ -282,7 +282,7 @@ export default function UserDashboard() {
                 onChange={(e) => setActivationCode(e.target.value)}
                 placeholder="AKAR-XXXX-XXXX"
                 disabled={activationLoading}
-                className="w-full bg-[#050507] border border-zinc-850 focus:border-[#ef4444] focus:outline-none text-white px-3 py-2.5 text-xs font-mono uppercase tracking-wider placeholder-zinc-700 transition-colors rounded-none"
+                className="w-full bg-card/80 border border-border focus:border-[#ef4444] focus:outline-none text-foreground px-3 py-2.5 text-xs font-mono uppercase tracking-wider placeholder-zinc-700 transition-colors rounded-none"
               />
             </div>
 
@@ -307,14 +307,14 @@ export default function UserDashboard() {
             <button 
               type="submit"
               disabled={activationLoading || !activationCaptcha}
-              className="w-full bg-[#ef4444] hover:bg-[#ef4444]/90 disabled:bg-zinc-800 disabled:border-zinc-700 disabled:text-zinc-500 text-white font-mono font-bold text-xs py-3 tracking-widest uppercase transition-all crosshair-corners red-glow"
+              className="w-full bg-[#ef4444] hover:bg-[#ef4444]/90 disabled:bg-muted disabled:border-border disabled:text-muted-foreground/80 text-foreground font-mono font-bold text-xs py-3 tracking-widest uppercase transition-all crosshair-corners red-glow"
             >
               {activationLoading ? 'ACTIVATING SYSTEM...' : 'SUBMIT ACTIVATION CODE'}
             </button>
           </form>
           
           <div className="text-center">
-            <p className="font-mono text-[8px] text-zinc-650 tracking-wider">
+            <p className="font-mono text-[8px] text-muted-foreground/60 tracking-wider">
               VERIFIED BY GOOGLE RECAPTCHA V3 • STRICT RATE LIMITS APPLY (5 RPM)
             </p>
           </div>
@@ -324,7 +324,7 @@ export default function UserDashboard() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-white">
+    <div className="relative min-h-screen bg-background text-foreground flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-foreground">
       
       <DashboardSidebar />
 
@@ -351,43 +351,43 @@ export default function UserDashboard() {
             </div>
           )}
           <div className="p-6">
-            <div className="grid grid-cols-12 gap-0 tech-border bg-[#0e0e10] crosshair-corners">
+            <div className="grid grid-cols-12 gap-0 tech-border bg-card crosshair-corners">
               
               {/* KPI Row */}
-              <div className="col-span-12 grid grid-cols-1 md:grid-cols-4 tech-border-b bg-[#0e0e10]">
-                <div className="p-5 md:tech-border-r border-b md:border-b-0 border-zinc-900 flex flex-col justify-center relative overflow-hidden group">
-                  <div className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[8px] text-zinc-600">CHN_01</div>
-                  <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+              <div className="col-span-12 grid grid-cols-1 md:grid-cols-4 tech-border-b bg-card">
+                <div className="p-5 md:tech-border-r border-b md:border-b-0 border-border flex flex-col justify-center relative overflow-hidden group">
+                  <div className="absolute right-0 top-0 p-1 bg-muted border-b border-l border-border font-mono text-[8px] text-muted-foreground/70">CHN_01</div>
+                  <span className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-widest mb-2 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 bg-[#ef4444] status-pulse red-glow"></span> SYSTEM TIER
                   </span>
-                  <div className="font-mono text-2xl text-white font-bold tracking-wider uppercase">
-                    {usage ? usage.tier : <span className="text-zinc-700 animate-pulse">[LOAD_VAULT...]</span>}
+                  <div className="font-mono text-2xl text-foreground font-bold tracking-wider uppercase">
+                    {usage ? usage.tier : <span className="text-muted-foreground/60 animate-pulse">[LOAD_VAULT...]</span>}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-600 mt-1 uppercase tracking-tighter">
+                  <span className="font-mono text-[9px] text-muted-foreground/70 mt-1 uppercase tracking-tighter">
                     {usage ? `RPM LIMIT: ${usage.rpm_limit ?? 60}` : 'PLAN STATUS: ACTIVE'}
                   </span>
                 </div>
 
-                <div className="p-5 md:tech-border-r border-b md:border-b-0 border-zinc-900 flex flex-col justify-center relative overflow-hidden group">
-                  <div className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[8px] text-zinc-600">CHN_02</div>
-                  <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-zinc-700"></span> MONTHLY QUOTA
+                <div className="p-5 md:tech-border-r border-b md:border-b-0 border-border flex flex-col justify-center relative overflow-hidden group">
+                  <div className="absolute right-0 top-0 p-1 bg-muted border-b border-l border-border font-mono text-[8px] text-muted-foreground/70">CHN_02</div>
+                  <span className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-muted"></span> MONTHLY QUOTA
                   </span>
-                  <div className="font-mono text-2xl text-white font-bold tracking-tight">
+                  <div className="font-mono text-2xl text-foreground font-bold tracking-tight">
                     {usage ? (
-                      <>{(usage.progress_percentage_month ?? 0).toFixed(1)}<span className="text-zinc-700 text-xs ml-1">%</span></>
+                      <>{(usage.progress_percentage_month ?? 0).toFixed(1)}<span className="text-muted-foreground/60 text-xs ml-1">%</span></>
                     ) : (
-                      <span className="text-zinc-700 animate-pulse">[LOAD_TX...]</span>
+                      <span className="text-muted-foreground/60 animate-pulse">[LOAD_TX...]</span>
                     )}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-650 mt-1 uppercase tracking-tighter">
+                  <span className="font-mono text-[9px] text-muted-foreground/60 mt-1 uppercase tracking-tighter">
                     {usage ? `CONSUMED` : '[READING_LIMIT]'}
                   </span>
                 </div>
 
-                <div className="p-5 md:tech-border-r border-b md:border-b-0 border-zinc-900 flex flex-col justify-center relative overflow-hidden bg-[#ef4444]/5">
+                <div className="p-5 md:tech-border-r border-b md:border-b-0 border-border flex flex-col justify-center relative overflow-hidden bg-[#ef4444]/5">
                   <div className="absolute right-0 top-0 p-1 bg-[#ef4444]/20 border-b border-l border-[#ef4444]/30 font-mono text-[8px] text-[#ef4444]">CHN_03</div>
-                  <span className="font-mono text-[9px] text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                  <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 bg-[#ef4444] status-pulse red-glow"></span> CONSUMED TOKENS
                   </span>
                   <div className="font-mono text-2xl text-[#ef4444] font-bold tracking-tight red-glow-text">
@@ -403,51 +403,51 @@ export default function UserDashboard() {
                 </div>
 
                 <div className="p-5 flex flex-col justify-center relative overflow-hidden group">
-                  <div className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[8px] text-zinc-600">CHN_04</div>
-                  <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2 font-mono">
-                    <span className="w-1.5 h-1.5 bg-zinc-700"></span> ALL-TIME COUNTER
+                  <div className="absolute right-0 top-0 p-1 bg-muted border-b border-l border-border font-mono text-[8px] text-muted-foreground/70">CHN_04</div>
+                  <span className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-widest mb-2 flex items-center gap-2 font-mono">
+                    <span className="w-1.5 h-1.5 bg-muted"></span> ALL-TIME COUNTER
                   </span>
-                  <div className="font-mono text-2xl text-white font-bold tracking-tight">
+                  <div className="font-mono text-2xl text-foreground font-bold tracking-tight">
                     {usage ? (
-                      <>{usage.total_requests.toLocaleString()}<span className="text-zinc-700 text-xs ml-1">REQ</span></>
+                      <>{usage.total_requests.toLocaleString()}<span className="text-muted-foreground/60 text-xs ml-1">REQ</span></>
                     ) : (
-                      <span className="text-zinc-700 animate-pulse">[LOAD_BUF...]</span>
+                      <span className="text-muted-foreground/60 animate-pulse">[LOAD_BUF...]</span>
                     )}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-600 mt-1 uppercase tracking-widest">TOTAL_LOGGED_TX</span>
+                  <span className="font-mono text-[9px] text-muted-foreground/70 mt-1 uppercase tracking-widest">TOTAL_LOGGED_TX</span>
                 </div>
               </div>
 
               {/* Symmetrical columns */}
-              <div className="col-span-12 lg:col-span-6 lg:tech-border-r border-b lg:border-b-0 border-zinc-900 p-6 space-y-6 flex flex-col justify-between">
+              <div className="col-span-12 lg:col-span-6 lg:tech-border-r border-b lg:border-b-0 border-border p-6 space-y-6 flex flex-col justify-between">
                 <div className="space-y-4">
-                  <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
-                    <div className="w-[3px] h-3 bg-zinc-800"></div>
+                  <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                    <div className="w-[3px] h-3 bg-muted"></div>
                     MODEL_METRIC_ROUTING
                   </h2>
                   <div className="space-y-2">
                     {loading ? (
                       <>
-                        <div className="h-11 bg-[#050507] border border-zinc-900 animate-pulse flex items-center justify-between px-3">
-                          <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">LOADING_METRICS_PRO...</span>
-                          <span className="w-12 h-3 bg-zinc-900 animate-pulse" />
+                        <div className="h-11 bg-card/80 border border-border animate-pulse flex items-center justify-between px-3">
+                          <span className="text-[10px] text-muted-foreground/80 font-mono uppercase tracking-wider">LOADING_METRICS_PRO...</span>
+                          <span className="w-12 h-3 bg-muted animate-pulse" />
                         </div>
-                        <div className="h-11 bg-[#050507] border border-zinc-900 animate-pulse flex items-center justify-between px-3">
-                          <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">LOADING_METRICS_FSH...</span>
-                          <span className="w-12 h-3 bg-zinc-900 animate-pulse" />
+                        <div className="h-11 bg-card/80 border border-border animate-pulse flex items-center justify-between px-3">
+                          <span className="text-[10px] text-muted-foreground/80 font-mono uppercase tracking-wider">LOADING_METRICS_FSH...</span>
+                          <span className="w-12 h-3 bg-muted animate-pulse" />
                         </div>
                       </>
                     ) : analytics.length === 0 ? (
-                      <p className="text-xs text-zinc-655 py-4 font-mono uppercase text-center">[NO_MODEL_ANALYTICS_YET]</p>
+                      <p className="text-xs text-muted-foreground py-4 font-mono uppercase text-center">[NO_MODEL_ANALYTICS_YET]</p>
                     ) : (
                       analytics.map((m) => (
-                        <div key={m.model} className="flex justify-between items-center p-3 bg-[#050507] border border-zinc-900 hover:border-zinc-800 transition-all group">
+                        <div key={m.model} className="flex justify-between items-center p-3 bg-card/80 border border-border hover:border-border transition-all group">
                           <div className="flex items-center gap-3">
                             <span className={`w-1.5 h-1.5 ${m.error_requests > 0 ? 'bg-[#ef4444] status-pulse red-glow' : 'bg-[#10b981]'}`} />
-                            <span className="font-mono text-[11px] text-zinc-400 group-hover:text-white uppercase transition-colors">{m.model}</span>
+                            <span className="font-mono text-[11px] text-muted-foreground group-hover:text-foreground uppercase transition-colors">{m.model}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-[11px] text-zinc-500">{(m.total_tokens ?? 0).toLocaleString()} TOKENS ({m.total_requests} TX)</span>
+                            <span className="font-mono text-[11px] text-muted-foreground/80">{(m.total_tokens ?? 0).toLocaleString()} TOKENS ({m.total_requests} TX)</span>
                             <span className="font-mono text-[11px] text-[#10b981]">{m.avg_latency_ms}ms</span>
                           </div>
                         </div>
@@ -456,38 +456,38 @@ export default function UserDashboard() {
                   </div>
                 </div>
 
-                <div className="mt-6 pt-6 border-t border-zinc-900">
+                <div className="mt-6 pt-6 border-t border-border">
                   <div className="flex justify-between items-center px-1 font-mono text-[9px]">
-                    <span className="text-zinc-600">LOAD_BALANCER_TYPE</span>
-                    <span className="text-white">RR_WEIGHTED</span>
+                    <span className="text-muted-foreground/70">LOAD_BALANCER_TYPE</span>
+                    <span className="text-foreground">RR_WEIGHTED</span>
                   </div>
                 </div>
               </div>
 
-              <div className="col-span-12 lg:col-span-6 p-6 space-y-6 flex flex-col justify-between bg-[#0e0e10]">
+              <div className="col-span-12 lg:col-span-6 p-6 space-y-6 flex flex-col justify-between bg-card">
                 <div className="space-y-4">
-                  <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                  <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                     <div className="w-[3px] h-3 bg-[#ef4444] red-glow"></div>
                     MODEL_CATALOG
                   </h2>
-                  <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider leading-relaxed">
+                  <p className="text-[10px] font-mono text-muted-foreground/80 uppercase tracking-wider leading-relaxed">
                     {modelsList.length} models available across {new Set(modelsList.map(m => m.owned_by || 'unknown')).size} providers.
                     Per-token and per-request billing supported.
                   </p>
 
                   <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                     {loading ? (
-                      <p className="text-[10px] font-mono text-zinc-650 uppercase py-2 text-center animate-pulse">[SYNCHRONIZING_REGISTRY...]</p>
+                      <p className="text-[10px] font-mono text-muted-foreground/60 uppercase py-2 text-center animate-pulse">[SYNCHRONIZING_REGISTRY...]</p>
                     ) : modelsList.length === 0 ? (
-                      <p className="text-[10px] font-mono text-zinc-650 uppercase py-2 text-center">[NO_ACTIVE_MODELS]</p>
+                      <p className="text-[10px] font-mono text-muted-foreground/60 uppercase py-2 text-center">[NO_ACTIVE_MODELS]</p>
                     ) : (
                       modelsList.slice(0, 6).map((m) => {
                         const isPerRequest = m.pricing_mode === 'per_request'
                         return (
-                          <Link key={m.id} href={`/models/${m.id}`} className="flex justify-between items-center p-2.5 bg-[#050507] border border-zinc-900 hover:border-zinc-700 transition-all group">
+                          <Link key={m.id} href={`/models/${m.id}`} className="flex justify-between items-center p-2.5 bg-card/80 border border-border hover:border-border transition-all group">
                             <div className="flex items-center gap-3 min-w-0">
                               <span className={`w-1.5 h-1.5 ${m.is_active ? 'bg-emerald-400 status-pulse' : 'bg-[#ef4444]'} shrink-0`} />
-                              <span className="font-mono text-[11px] text-zinc-300 group-hover:text-white uppercase truncate transition-colors">
+                              <span className="font-mono text-[11px] text-foreground/80 group-hover:text-foreground uppercase truncate transition-colors">
                                 {m.display_name || m.id}
                               </span>
                             </div>
@@ -507,7 +507,7 @@ export default function UserDashboard() {
 
                   <Link
                     href="/models"
-                    className="flex items-center justify-center gap-2 w-full py-2.5 mt-2 bg-zinc-900 border border-zinc-800 hover:border-[#ef4444] hover:bg-[#ef4444]/5 text-zinc-300 hover:text-white font-mono text-[10px] uppercase tracking-wider transition-all"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 mt-2 bg-muted border border-border hover:border-[#ef4444] hover:bg-[#ef4444]/5 text-foreground/80 hover:text-foreground font-mono text-[10px] uppercase tracking-wider transition-all"
                   >
                     Browse All {modelsList.length} Models →
                   </Link>
@@ -515,9 +515,9 @@ export default function UserDashboard() {
               </div>
 
               {/* Live request logs buffer */}
-              <div className="col-span-12 border-t border-[#27272a] bg-[#09090b]">
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 px-5 py-3 border-b border-[#27272a] bg-[#0e0e10]">
-                  <h2 className="font-mono text-[11px] text-zinc-300 flex items-center gap-2.5 tracking-[0.2em] uppercase font-bold">
+              <div className="col-span-12 border-t border-border bg-background">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 px-5 py-3 border-b border-border bg-card">
+                  <h2 className="font-mono text-[11px] text-foreground/80 flex items-center gap-2.5 tracking-[0.2em] uppercase font-bold">
                     <Terminal className="w-3.5 h-3.5 text-[#ef4444]" />
                     LIVE_TX_TRACE_BUFFER
                   </h2>
@@ -527,46 +527,46 @@ export default function UserDashboard() {
                   </div>
                 </div>
 
-                <div className="h-60 overflow-y-auto p-4 font-mono text-[11px] space-y-1 bg-[#050507]" id="trace-log">
+                <div className="h-60 overflow-y-auto p-4 font-mono text-[11px] space-y-1 bg-card/80" id="trace-log">
                   {loading ? (
-                    <div className="text-zinc-650 py-6 text-center animate-pulse tracking-widest uppercase">
+                    <div className="text-muted-foreground/60 py-6 text-center animate-pulse tracking-widest uppercase">
                       [INITIALIZING_BUFFER_STREAM_READING_HISTORICAL_METRICS...]
                     </div>
                   ) : traceLogs.length === 0 ? (
-                    <div className="text-zinc-700 py-6 text-center">[BUFFER_EMPTY_WAITING_FOR_TRAFFIC]</div>
+                    <div className="text-muted-foreground/60 py-6 text-center">[BUFFER_EMPTY_WAITING_FOR_TRAFFIC]</div>
                   ) : (
                     <div>
                       {traceLogs.map((log, index) => (
                         <div key={index}>
                           {/* Desktop View */}
-                          <div className={`hidden md:flex gap-6 p-1 group border-b border-zinc-900/50 ${log.isError ? 'bg-[#ef4444]/10 border-l-2 border-[#ef4444] my-1' : 'hover:bg-zinc-900/50'}`}>
-                            <span className="text-zinc-700 w-24">{log.time}</span> 
-                            <span className={`w-12 font-bold ${log.isError ? 'text-[#ef4444]' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-400'}`}>
+                          <div className={`hidden md:flex gap-6 p-1 group border-b border-border/50 ${log.isError ? 'bg-[#ef4444]/10 border-l-2 border-[#ef4444] my-1' : 'hover:bg-muted/50'}`}>
+                            <span className="text-muted-foreground/60 w-24">{log.time}</span> 
+                            <span className={`w-12 font-bold ${log.isError ? 'text-[#ef4444]' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-muted-foreground'}`}>
                               {log.type}
                             </span> 
-                            <span className="text-white w-48 truncate">{log.tx}</span> 
-                            <span className={`w-48 truncate ${log.isError ? 'text-[#ef4444] font-bold' : 'text-zinc-500'}`}>
+                            <span className="text-foreground w-48 truncate">{log.tx}</span> 
+                            <span className={`w-48 truncate ${log.isError ? 'text-[#ef4444] font-bold' : 'text-muted-foreground/80'}`}>
                               {log.dest}
                             </span> 
-                            <span className={`${log.isError ? 'text-[#ef4444] font-bold underline' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-700'} ml-auto`}>
+                            <span className={`${log.isError ? 'text-[#ef4444] font-bold underline' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-muted-foreground/60'} ml-auto`}>
                               {log.metric}
                             </span>
                           </div>
 
                           {/* Mobile View */}
-                          <div className={`md:hidden flex flex-col p-3 border-b border-zinc-900/50 space-y-1.5 ${log.isError ? 'bg-[#ef4444]/10 border-l-2 border-[#ef4444] my-1' : 'hover:bg-zinc-900/30'}`}>
+                          <div className={`md:hidden flex flex-col p-3 border-b border-border/50 space-y-1.5 ${log.isError ? 'bg-[#ef4444]/10 border-l-2 border-[#ef4444] my-1' : 'hover:bg-muted/30'}`}>
                             <div className="flex justify-between items-center text-[10px]">
-                              <span className="text-zinc-600 font-mono">{log.time}</span>
-                              <span className={`font-bold ${log.isError ? 'text-[#ef4444]' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-400'}`}>
+                              <span className="text-muted-foreground/70 font-mono">{log.time}</span>
+                              <span className={`font-bold ${log.isError ? 'text-[#ef4444]' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-muted-foreground'}`}>
                                 {log.type}
                               </span>
                             </div>
-                            <div className="text-white text-xs font-mono font-bold truncate">
+                            <div className="text-foreground text-xs font-mono font-bold truncate">
                               {log.tx}
                             </div>
-                            <div className="flex justify-between items-center text-[10px] text-zinc-500 font-mono">
+                            <div className="flex justify-between items-center text-[10px] text-muted-foreground/80 font-mono">
                               <span className="truncate max-w-[160px]">{log.dest}</span>
-                              <span className={`${log.isError ? 'text-[#ef4444] font-bold underline' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-zinc-400'}`}>
+                              <span className={`${log.isError ? 'text-[#ef4444] font-bold underline' : log.type === '[ACK]' ? 'text-[#10b981]' : 'text-muted-foreground'}`}>
                                 {log.metric}
                               </span>
                             </div>

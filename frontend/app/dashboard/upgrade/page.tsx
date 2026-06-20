@@ -169,7 +169,7 @@ export default function UpgradePage() {
 
   if (authLoading || !usage) {
     return (
-      <div className="min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col items-center justify-center font-mono text-xs uppercase tracking-widest gap-3 grid-bg">
+      <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center font-mono text-xs uppercase tracking-widest gap-3 grid-bg">
         <RefreshCw className="w-5 h-5 animate-spin text-[#ef4444]" />
         [VERIFYING_SECURE_VAULT_SESSION...]
       </div>
@@ -177,7 +177,7 @@ export default function UpgradePage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col overflow-hidden grid-bg">
+    <div className="relative min-h-screen bg-background text-foreground flex flex-col overflow-hidden grid-bg">
 
 
       {/* Main Container */}
@@ -187,27 +187,27 @@ export default function UpgradePage() {
           <span className="w-2.5 h-2.5 bg-[#ef4444] rounded-full status-pulse red-glow shrink-0" />
           <div className="space-y-1">
             <p className="font-bold tracking-wider">[ACCESS_RESTRICTED]: SUBSCRIPTION REQUIRED</p>
-            <p className="text-[10px] text-zinc-400 leading-relaxed normal-case">
+            <p className="text-[10px] text-muted-foreground leading-relaxed normal-case">
               Your account is currently on the free trial/tier. AkaRouter requires an active subscription to provision API keys and allocate request limits. Please select a plan below to activate your API gateway service.
             </p>
           </div>
         </div>
 
         {/* Pricing Selection Grid */}
-        <div className="bg-[#0e0e10] border border-zinc-900 p-8 crosshair-corners space-y-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-zinc-900 pb-5">
+        <div className="bg-card border border-border p-8 crosshair-corners space-y-8">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-5">
             <div className="space-y-1">
-              <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+              <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                 <div className="w-[3px] h-3 bg-[#ef4444] red-glow"></div>
                 SYSTEM_SUBSCRIPTION_PROFILES
               </h2>
-              <p className="text-[10px] font-mono text-zinc-500 uppercase font-medium">
+              <p className="text-[10px] font-mono text-muted-foreground/80 uppercase font-medium">
                 Choose a plan to instantly configure your gateway throughput and deploy agents.
               </p>
             </div>
             <button
               onClick={refetchUsage}
-              className="font-mono text-[9px] text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-550 px-3 py-1.5 bg-zinc-950 transition-colors uppercase tracking-widest font-bold"
+              className="font-mono text-[9px] text-muted-foreground hover:text-foreground border border-border hover:border-zinc-550 px-3 py-1.5 bg-muted/40 transition-colors uppercase tracking-widest font-bold"
             >
               Verify Active Subscription ↻
             </button>
@@ -228,49 +228,49 @@ export default function UpgradePage() {
               return (
                 <div
                   key={plan.key}
-                  className="relative bg-[#050507] border border-zinc-900 p-6 flex flex-col transition-all hover:border-zinc-700 crosshair-corners"
+                  className="relative bg-card/80 border border-border p-6 flex flex-col transition-all hover:border-border crosshair-corners"
                 >
                   {plan.badge && (
-                    <div className="absolute top-0 right-6 -translate-y-1/2 bg-[#ef4444] text-white font-mono text-[8px] font-bold px-2 py-0.5 tracking-widest uppercase red-glow">
+                    <div className="absolute top-0 right-6 -translate-y-1/2 bg-[#ef4444] text-foreground font-mono text-[8px] font-bold px-2 py-0.5 tracking-widest uppercase red-glow">
                       {plan.badge}
                     </div>
                   )}
 
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <h3 className="font-mono text-xs text-white font-bold uppercase tracking-wider">{plan.name}</h3>
-                      <p className="text-[9px] font-mono text-zinc-500 min-h-[30px] uppercase font-medium leading-relaxed">{plan.desc}</p>
+                      <h3 className="font-mono text-xs text-foreground font-bold uppercase tracking-wider">{plan.name}</h3>
+                      <p className="text-[9px] font-mono text-muted-foreground/80 min-h-[30px] uppercase font-medium leading-relaxed">{plan.desc}</p>
                     </div>
 
-                    <div className="flex items-baseline gap-1 py-2 border-y border-zinc-900">
-                      <span className="font-mono text-2xl text-white font-bold tracking-tighter">{plan.price}</span>
-                      <span className="font-mono text-[9px] text-zinc-500 uppercase">/ {plan.billing}</span>
+                    <div className="flex items-baseline gap-1 py-2 border-y border-border">
+                      <span className="font-mono text-2xl text-foreground font-bold tracking-tighter">{plan.price}</span>
+                      <span className="font-mono text-[9px] text-muted-foreground/80 uppercase">/ {plan.billing}</span>
                     </div>
 
                     {/* Headline meters: budget + requests */}
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="border border-zinc-900 bg-zinc-950/50 p-2.5">
-                        <div className="flex items-center gap-1 text-[8px] font-mono text-zinc-500 uppercase tracking-wider mb-1">
+                      <div className="border border-border bg-muted/40/50 p-2.5">
+                        <div className="flex items-center gap-1 text-[8px] font-mono text-muted-foreground/80 uppercase tracking-wider mb-1">
                           <DollarSign className="w-2.5 h-2.5" /> Budget
                         </div>
                         <div className="font-mono text-xs text-emerald-400 font-bold">
                           ${plan.limits.find(l => l.includes('Monthly Budget'))?.replace(/[^\d.]/g, '') || '—'}
                         </div>
-                        <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider">per month</div>
+                        <div className="text-[8px] font-mono text-muted-foreground/70 uppercase tracking-wider">per month</div>
                       </div>
-                      <div className="border border-zinc-900 bg-zinc-950/50 p-2.5">
-                        <div className="flex items-center gap-1 text-[8px] font-mono text-zinc-500 uppercase tracking-wider mb-1">
+                      <div className="border border-border bg-muted/40/50 p-2.5">
+                        <div className="flex items-center gap-1 text-[8px] font-mono text-muted-foreground/80 uppercase tracking-wider mb-1">
                           <Zap className="w-2.5 h-2.5" /> Requests
                         </div>
                         <div className="font-mono text-xs text-[#ef4444] font-bold">
                           {monthlyRequests != null ? monthlyRequests.toLocaleString() : '∞'}
                         </div>
-                        <div className="text-[8px] font-mono text-zinc-600 uppercase tracking-wider">per month</div>
+                        <div className="text-[8px] font-mono text-muted-foreground/70 uppercase tracking-wider">per month</div>
                       </div>
                     </div>
 
                     {/* Limits list */}
-                    <ul className="space-y-1.5 font-mono text-[9px] text-zinc-400">
+                    <ul className="space-y-1.5 font-mono text-[9px] text-muted-foreground">
                       {plan.limits.filter(l => !l.includes('Monthly Budget')).map((limit, idx) => (
                         <li key={idx} className="flex items-center gap-2">
                           <span className="w-1 h-1 bg-[#ef4444] red-glow shrink-0"></span>
@@ -281,9 +281,9 @@ export default function UpgradePage() {
 
                     {/* Included models */}
                     {models && (
-                      <div className="space-y-2 pt-3 border-t border-zinc-900">
+                      <div className="space-y-2 pt-3 border-t border-border">
                         <div className="flex items-center justify-between">
-                          <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-wider">INCLUDED_MODELS</span>
+                          <span className="text-[8px] font-mono text-muted-foreground/80 uppercase tracking-wider">INCLUDED_MODELS</span>
                           <Link href="/models" className="text-[8px] font-mono text-[#ef4444] hover:underline uppercase tracking-wider">
                             Browse all →
                           </Link>
@@ -302,10 +302,10 @@ export default function UpgradePage() {
                             </span>
                           ))}
                           {models.perRequest.length > 4 && (
-                            <span className="text-[8px] font-mono text-zinc-500">+{models.perRequest.length - 4} more</span>
+                            <span className="text-[8px] font-mono text-muted-foreground/80">+{models.perRequest.length - 4} more</span>
                           )}
                         </div>
-                        <p className="text-[8px] text-zinc-600 font-mono leading-relaxed">
+                        <p className="text-[8px] text-muted-foreground/70 font-mono leading-relaxed">
                           All per-token models included. Per-request models deduct from your monthly request quota.
                         </p>
                       </div>
@@ -316,7 +316,7 @@ export default function UpgradePage() {
                     <button
                       disabled={isLoading}
                       onClick={() => handleCheckout(plan.key)}
-                      className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white font-mono text-[9px] py-3 transition-all tracking-widest uppercase font-bold"
+                      className="w-full bg-muted border border-border text-foreground/80 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-foreground font-mono text-[9px] py-3 transition-all tracking-widest uppercase font-bold"
                     >
                       {isLoading
                         ? 'INITIALIZING...'
@@ -330,8 +330,8 @@ export default function UpgradePage() {
             })}
           </div>
 
-          <div className="pt-4 text-center border-t border-zinc-900">
-            <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest leading-relaxed">
+          <div className="pt-4 text-center border-t border-border">
+            <p className="text-[9px] font-mono text-muted-foreground/80 uppercase tracking-widest leading-relaxed">
               * Need custom limits or an enterprise setup? Please contact support at <a href="mailto:support@akarouter.com" className="text-[#ef4444] hover:underline font-bold">support@akarouter.com</a> to custom configure your plan.
             </p>
           </div>

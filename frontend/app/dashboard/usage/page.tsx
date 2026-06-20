@@ -81,7 +81,7 @@ export default function UsagePage() {
     if (kind === 'charge') return 'text-red-400'
     if (kind === 'refund') return 'text-emerald-400'
     if (kind === 'grant') return 'text-amber-400'
-    return 'text-zinc-400'
+    return 'text-muted-foreground'
   }
 
   const kindLabel = (kind: string) => {
@@ -248,7 +248,7 @@ export default function UsagePage() {
   // Removed fullscreen loading block to show proper page shell first
 
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-white">
+    <div className="relative min-h-screen bg-background text-foreground flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-foreground">
       
       {/* SideNavBar */}
 
@@ -288,41 +288,41 @@ export default function UsagePage() {
           <div className="p-6 space-y-6">
             
             {/* KPI Row */}
-            <div className="grid grid-cols-12 gap-0 tech-border bg-[#0e0e10] crosshair-corners">
-              <div className="col-span-12 grid grid-cols-1 md:grid-cols-4 bg-[#0e0e10]">
-                <div className="p-5 md:tech-border-r border-b md:border-b-0 border-zinc-900 flex flex-col justify-center relative overflow-hidden group">
-                  <div className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[8px] text-zinc-600">CHN_01</div>
-                  <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+            <div className="grid grid-cols-12 gap-0 tech-border bg-card crosshair-corners">
+              <div className="col-span-12 grid grid-cols-1 md:grid-cols-4 bg-card">
+                <div className="p-5 md:tech-border-r border-b md:border-b-0 border-border flex flex-col justify-center relative overflow-hidden group">
+                  <div className="absolute right-0 top-0 p-1 bg-muted border-b border-l border-border font-mono text-[8px] text-muted-foreground/70">CHN_01</div>
+                  <span className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-widest mb-2 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 bg-[#ef4444] status-pulse red-glow"></span> SYSTEM TIER
                   </span>
-                  <div className="font-mono text-2xl text-white font-bold tracking-wider uppercase">
-                    {usage ? usage.tier : <span className="text-zinc-700 animate-pulse">[LOAD_VAULT...]</span>}
+                  <div className="font-mono text-2xl text-foreground font-bold tracking-wider uppercase">
+                    {usage ? usage.tier : <span className="text-muted-foreground/60 animate-pulse">[LOAD_VAULT...]</span>}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-600 mt-1 uppercase tracking-tighter font-mono">
+                  <span className="font-mono text-[9px] text-muted-foreground/70 mt-1 uppercase tracking-tighter font-mono">
                     {usage ? `RPM LIMIT: ${usage.rpm_limit ?? 60}` : '[RPM_LIMIT: ...]'}
                   </span>
                 </div>
 
-                <div className="p-5 md:tech-border-r border-b md:border-b-0 border-zinc-900 flex flex-col justify-center relative overflow-hidden group">
-                  <div className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[8px] text-zinc-600">CHN_02</div>
-                  <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-zinc-700"></span> MONTHLY QUOTA
+                <div className="p-5 md:tech-border-r border-b md:border-b-0 border-border flex flex-col justify-center relative overflow-hidden group">
+                  <div className="absolute right-0 top-0 p-1 bg-muted border-b border-l border-border font-mono text-[8px] text-muted-foreground/70">CHN_02</div>
+                  <span className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-muted"></span> MONTHLY QUOTA
                   </span>
-                  <div className="font-mono text-2xl text-white font-bold tracking-tight">
+                  <div className="font-mono text-2xl text-foreground font-bold tracking-tight">
                     {usage ? (
-                      <>{(usage.progress_percentage_month ?? 0).toFixed(1)}<span className="text-zinc-700 text-xs ml-1">%</span></>
+                      <>{(usage.progress_percentage_month ?? 0).toFixed(1)}<span className="text-muted-foreground/60 text-xs ml-1">%</span></>
                     ) : (
-                      <span className="text-zinc-700 animate-pulse">[LOAD_TX...]</span>
+                      <span className="text-muted-foreground/60 animate-pulse">[LOAD_TX...]</span>
                     )}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-650 mt-1 uppercase tracking-tighter font-mono">
+                  <span className="font-mono text-[9px] text-muted-foreground/60 mt-1 uppercase tracking-tighter font-mono">
                     {usage ? `CONSUMED` : '[LIMIT: ...]'}
                   </span>
                 </div>
 
-                <div className="p-5 md:tech-border-r border-b md:border-b-0 border-zinc-900 flex flex-col justify-center relative overflow-hidden bg-[#ef4444]/5">
+                <div className="p-5 md:tech-border-r border-b md:border-b-0 border-border flex flex-col justify-center relative overflow-hidden bg-[#ef4444]/5">
                   <div className="absolute right-0 top-0 p-1 bg-[#ef4444]/20 border-b border-l border-[#ef4444]/30 font-mono text-[8px] text-[#ef4444]">CHN_03</div>
-                  <span className="font-mono text-[9px] text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                  <span className="font-mono text-[9px] text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 bg-[#ef4444] status-pulse red-glow"></span> CONSUMED TOKENS
                   </span>
                   <div className="font-mono text-2xl text-[#ef4444] font-bold tracking-tight red-glow-text">
@@ -338,35 +338,35 @@ export default function UsagePage() {
                 </div>
 
                 <div className="p-5 flex flex-col justify-center relative overflow-hidden group">
-                  <div className="absolute right-0 top-0 p-1 bg-zinc-900 border-b border-l border-zinc-800 font-mono text-[8px] text-zinc-600">CHN_04</div>
-                  <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest mb-2 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-zinc-700"></span> ALL-TIME COUNTER
+                  <div className="absolute right-0 top-0 p-1 bg-muted border-b border-l border-border font-mono text-[8px] text-muted-foreground/70">CHN_04</div>
+                  <span className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-muted"></span> ALL-TIME COUNTER
                   </span>
-                  <div className="font-mono text-2xl text-white font-bold tracking-tight">
+                  <div className="font-mono text-2xl text-foreground font-bold tracking-tight">
                     {usage ? (
-                      <>{usage.total_requests.toLocaleString()}<span className="text-zinc-700 text-xs ml-1">REQ</span></>
+                      <>{usage.total_requests.toLocaleString()}<span className="text-muted-foreground/60 text-xs ml-1">REQ</span></>
                     ) : (
-                      <span className="text-zinc-700 animate-pulse">[LOAD_BUF...]</span>
+                      <span className="text-muted-foreground/60 animate-pulse">[LOAD_BUF...]</span>
                     )}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-600 mt-1 uppercase tracking-widest font-mono">TOTAL_LOGGED_TX</span>
+                  <span className="font-mono text-[9px] text-muted-foreground/70 mt-1 uppercase tracking-widest font-mono">TOTAL_LOGGED_TX</span>
                 </div>
               </div>
             </div>
 
             {/* Points meter (point-based pricing) */}
-            <div className="bg-[#0e0e10] border border-amber-500/30 p-6 crosshair-corners space-y-4">
+            <div className="bg-card border border-amber-500/30 p-6 crosshair-corners space-y-4">
               <div className="space-y-1">
                 <h2 className="font-mono text-xs text-amber-400 flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                   <div className="w-[3px] h-3 bg-amber-500 red-glow"></div>
                   POINT_BALANCE
                 </h2>
-                <p className="text-[10px] font-mono text-zinc-500 uppercase">Every model call costs points. Free models (1pt) are capped daily. Resets monthly.</p>
+                <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Every model call costs points. Free models (1pt) are capped daily. Resets monthly.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {/* Remaining */}
-                <div className="bg-[#050507] border border-amber-500/20 p-4 space-y-2">
+                <div className="bg-card/80 border border-amber-500/20 p-4 space-y-2">
                   <span className="font-mono text-[9px] text-amber-400 uppercase tracking-widest">REMAINING</span>
                   <div className="font-mono text-3xl text-amber-300 font-bold tracking-tight">
                     {usage ? (
@@ -375,52 +375,52 @@ export default function UsagePage() {
                       <span className="text-amber-700 animate-pulse">[—]</span>
                     )}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-600 uppercase">
+                  <span className="font-mono text-[9px] text-muted-foreground/70 uppercase">
                     {usage?.points_reset_at ? `RESET ${new Date(usage.points_reset_at).toLocaleDateString()}` : 'THIS MONTH'}
                   </span>
                 </div>
 
                 {/* Monthly allowance */}
-                <div className="bg-[#050507] border border-zinc-900 p-4 space-y-2">
-                  <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest">MONTHLY ALLOWANCE</span>
-                  <div className="font-mono text-3xl text-white font-bold tracking-tight">
+                <div className="bg-card/80 border border-border p-4 space-y-2">
+                  <span className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-widest">MONTHLY ALLOWANCE</span>
+                  <div className="font-mono text-3xl text-foreground font-bold tracking-tight">
                     {usage ? (
-                      <>{(usage.monthly_points_limit ?? 0).toLocaleString()}<span className="text-zinc-700 text-sm ml-1">PTS</span></>
+                      <>{(usage.monthly_points_limit ?? 0).toLocaleString()}<span className="text-muted-foreground/60 text-sm ml-1">PTS</span></>
                     ) : (
-                      <span className="text-zinc-700 animate-pulse">[—]</span>
+                      <span className="text-muted-foreground/60 animate-pulse">[—]</span>
                     )}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-600 uppercase">PLAN CAP</span>
+                  <span className="font-mono text-[9px] text-muted-foreground/70 uppercase">PLAN CAP</span>
                 </div>
 
                 {/* Daily free cap */}
-                <div className="bg-[#050507] border border-zinc-900 p-4 space-y-2">
-                  <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest">DAILY FREE REQ</span>
-                  <div className="font-mono text-3xl text-white font-bold tracking-tight">
+                <div className="bg-card/80 border border-border p-4 space-y-2">
+                  <span className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-widest">DAILY FREE REQ</span>
+                  <div className="font-mono text-3xl text-foreground font-bold tracking-tight">
                     {usage ? (
-                      <>{(usage.daily_free_requests_remaining ?? 0).toLocaleString()}<span className="text-zinc-700 text-sm ml-1">LEFT</span></>
+                      <>{(usage.daily_free_requests_remaining ?? 0).toLocaleString()}<span className="text-muted-foreground/60 text-sm ml-1">LEFT</span></>
                     ) : (
-                      <span className="text-zinc-700 animate-pulse">[—]</span>
+                      <span className="text-muted-foreground/60 animate-pulse">[—]</span>
                     )}
                   </div>
-                  <span className="font-mono text-[9px] text-zinc-600 uppercase">
+                  <span className="font-mono text-[9px] text-muted-foreground/70 uppercase">
                     {usage?.daily_free_requests_reset_at ? `RESET ${new Date(usage.daily_free_requests_reset_at).toLocaleDateString()}` : 'ROLLS DAILY'}
                   </span>
                 </div>
 
                 {/* Progress bar */}
-                <div className="bg-[#050507] border border-zinc-900 p-4 space-y-2 flex flex-col justify-between">
-                  <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest">CONSUMED</span>
+                <div className="bg-card/80 border border-border p-4 space-y-2 flex flex-col justify-between">
+                  <span className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-widest">CONSUMED</span>
                   {(() => {
                     const remaining = usage?.monthly_points_remaining ?? 0
                     const limit = usage?.monthly_points_limit ?? 0
                     const pct = limit > 0 ? Math.min(100, Math.round(((limit - remaining) / limit) * 100)) : 0
                     return (
                       <>
-                        <div className="font-mono text-3xl text-white font-bold tracking-tight">
-                          {limit > 0 ? <>{pct}<span className="text-zinc-700 text-sm ml-1">%</span></> : <span className="text-zinc-700">N/A</span>}
+                        <div className="font-mono text-3xl text-foreground font-bold tracking-tight">
+                          {limit > 0 ? <>{pct}<span className="text-muted-foreground/60 text-sm ml-1">%</span></> : <span className="text-muted-foreground/60">N/A</span>}
                         </div>
-                        <div className="w-full h-2 bg-zinc-950 border border-zinc-900 overflow-hidden">
+                        <div className="w-full h-2 bg-muted/40 border border-border overflow-hidden">
                           <div
                             className="h-full bg-amber-500 transition-all duration-500"
                             style={{ width: `${pct}%` }}
@@ -434,28 +434,28 @@ export default function UsagePage() {
             </div>
 
             {/* Point transaction history */}
-            <div className="bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-4">
+            <div className="bg-card border border-border p-6 crosshair-corners space-y-4">
               <div className="space-y-1">
-                <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                   <div className="w-[3px] h-3 bg-amber-500" style={{ boxShadow: '0 0 8px rgba(245,158,11,0.6)' }}></div>
                   POINT_MOVEMENT_LEDGER
                 </h2>
-                <p className="text-[10px] font-mono text-zinc-500 uppercase">Every charge, refund, and monthly grant. Most recent first.</p>
+                <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Every charge, refund, and monthly grant. Most recent first.</p>
               </div>
 
               {/* Summary strip */}
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-[#050507] border border-zinc-900 py-2">
+                <div className="bg-card/80 border border-border py-2">
                   <div className="font-mono text-base text-red-400 font-bold">{pointTxSummary.spent.toLocaleString()}</div>
-                  <div className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">SPENT (SHOWN)</div>
+                  <div className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-wider">SPENT (SHOWN)</div>
                 </div>
-                <div className="bg-[#050507] border border-zinc-900 py-2">
+                <div className="bg-card/80 border border-border py-2">
                   <div className="font-mono text-base text-emerald-400 font-bold">{pointTxSummary.refunded.toLocaleString()}</div>
-                  <div className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">REFUNDED</div>
+                  <div className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-wider">REFUNDED</div>
                 </div>
-                <div className="bg-[#050507] border border-zinc-900 py-2">
+                <div className="bg-card/80 border border-border py-2">
                   <div className="font-mono text-base text-amber-400 font-bold">{pointTxSummary.granted.toLocaleString()}</div>
-                  <div className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">GRANTED</div>
+                  <div className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-wider">GRANTED</div>
                 </div>
               </div>
 
@@ -468,7 +468,7 @@ export default function UsagePage() {
                     className={`px-2.5 py-1 border tracking-wider transition-colors ${
                       pointTxKind === k
                         ? 'border-amber-500 text-amber-400 bg-amber-500/10'
-                        : 'border-zinc-900 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
+                        : 'border-border text-muted-foreground/80 hover:text-foreground/80 hover:border-border'
                     }`}
                   >
                     {k === 'all' ? 'ALL' : kindLabel(k)}
@@ -477,7 +477,7 @@ export default function UsagePage() {
                 <div className="flex-1" />
                 <button
                   onClick={refetchPointTx}
-                  className="px-2.5 py-1 border border-zinc-900 text-zinc-500 hover:text-amber-400 hover:border-amber-500/40 tracking-wider"
+                  className="px-2.5 py-1 border border-border text-muted-foreground/80 hover:text-amber-400 hover:border-amber-500/40 tracking-wider"
                   title="Refresh"
                 >
                   {pointTxLoading ? '...' : 'REFRESH'}
@@ -486,23 +486,23 @@ export default function UsagePage() {
 
               {/* Table */}
               {pointTxLoading && pointTx.length === 0 ? (
-                <div className="font-mono text-[10px] text-zinc-500 text-center py-6 uppercase animate-pulse">LOADING LEDGER...</div>
+                <div className="font-mono text-[10px] text-muted-foreground/80 text-center py-6 uppercase animate-pulse">LOADING LEDGER...</div>
               ) : pointTx.length === 0 ? (
-                <div className="font-mono text-[10px] text-zinc-500 text-center py-6 uppercase border border-dashed border-zinc-900">
+                <div className="font-mono text-[10px] text-muted-foreground/80 text-center py-6 uppercase border border-dashed border-border">
                   NO {pointTxKind === 'all' ? '' : pointTxKind.toUpperCase() + ' '}TRANSACTIONS YET
                 </div>
               ) : (
-                <div className="border border-zinc-900 divide-y divide-zinc-900 max-h-[400px] overflow-y-auto">
+                <div className="border border-border divide-y divide-zinc-900 max-h-[400px] overflow-y-auto">
                   {pointTx.map(tx => {
                     const modelLabel = tx.model_alias ? (aliasToDisplay[tx.model_alias] || tx.model_alias) : null
                     return (
-                      <div key={tx.id} className="grid grid-cols-[80px_1fr_auto_auto] gap-3 items-center px-3 py-2 hover:bg-zinc-950/50 transition-colors font-mono text-[11px]">
+                      <div key={tx.id} className="grid grid-cols-[80px_1fr_auto_auto] gap-3 items-center px-3 py-2 hover:bg-muted/40/50 transition-colors font-mono text-[11px]">
                         <span className={`font-bold tracking-wider ${kindColor(tx.kind)}`}>{kindLabel(tx.kind)}</span>
                         <div className="min-w-0">
-                          <div className="text-zinc-300 truncate">
+                          <div className="text-foreground/80 truncate">
                             {tx.reason || (modelLabel ? `Call: ${modelLabel}` : '—')}
                           </div>
-                          <div className="text-[9px] text-zinc-600 uppercase tracking-wider">
+                          <div className="text-[9px] text-muted-foreground/70 uppercase tracking-wider">
                             {new Date(tx.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                             {tx.created_by && tx.created_by !== 'system' && <span className="ml-2">· {tx.created_by}</span>}
                           </div>
@@ -510,7 +510,7 @@ export default function UsagePage() {
                         <span className={`font-bold tabular-nums ${kindColor(tx.kind)}`}>
                           {formatPointDelta(tx.kind, tx.points)}
                         </span>
-                        <span className="text-[10px] text-zinc-500 tabular-nums whitespace-nowrap">
+                        <span className="text-[10px] text-muted-foreground/80 tabular-nums whitespace-nowrap">
                           BAL: {tx.balance_after.toLocaleString()}
                         </span>
                       </div>
@@ -519,57 +519,57 @@ export default function UsagePage() {
                 </div>
               )}
 
-              <div className="flex justify-between text-[9px] font-mono text-zinc-600 uppercase tracking-wider pt-1">
+              <div className="flex justify-between text-[9px] font-mono text-muted-foreground/70 uppercase tracking-wider pt-1">
                 <span>SHOWING {pointTx.length} OF {pointTxTotal.toLocaleString()}</span>
                 {pointTxTotal > pointTx.length && (
-                  <span className="text-zinc-500">PAGINATION COMING SOON</span>
+                  <span className="text-muted-foreground/80">PAGINATION COMING SOON</span>
                 )}
               </div>
             </div>
 
             {/* Sliding budgets card layout */}
-            <div className="bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
+            <div className="bg-card border border-border p-6 crosshair-corners space-y-6">
               <div className="space-y-1">
-                <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                   <div className="w-[3px] h-3 bg-[#ef4444] red-glow"></div>
                   FIXED_CYCLE_WINDOW_TELEMETRY
                 </h2>
-                <p className="text-[10px] font-mono text-zinc-500 uppercase">Real-time fixed cycle token budgets reset automatically on system grids.</p>
+                <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Real-time fixed cycle token budgets reset automatically on system grids.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
                 {/* 5-Hour budget progress */}
-                <div className="bg-[#050507] border border-zinc-900 p-5 space-y-4">
+                <div className="bg-card/80 border border-border p-5 space-y-4">
                   <div className="flex justify-between items-center text-xs font-mono">
-                    <span className="text-zinc-400 font-bold uppercase tracking-wider">5-Hour Strict Fixed Cycle</span>
+                    <span className="text-muted-foreground font-bold uppercase tracking-wider">5-Hour Strict Fixed Cycle</span>
                     <span className="text-[#ef4444] font-bold">
                       {usage ? `${(usage.progress_percentage_5h ?? 0).toFixed(1)}%` : <span className="animate-pulse">0.0%</span>}
                     </span>
                   </div>
                   
                   {/* Bar progress */}
-                  <div className="w-full h-2.5 bg-zinc-950 border border-zinc-900 overflow-hidden">
+                  <div className="w-full h-2.5 bg-muted/40 border border-border overflow-hidden">
                     <div 
-                      className={`h-full bg-[#ef4444] red-glow transition-all duration-500 ${!usage ? 'animate-pulse bg-zinc-800' : ''}`}
+                      className={`h-full bg-[#ef4444] red-glow transition-all duration-500 ${!usage ? 'animate-pulse bg-muted' : ''}`}
                       style={{ width: `${usage ? (usage.progress_percentage_5h ?? 0) : 0}%` }}
                     />
                   </div>
 
-                  <div className="flex justify-between items-center text-[10px] font-mono text-zinc-500 uppercase">
+                  <div className="flex justify-between items-center text-[10px] font-mono text-muted-foreground/80 uppercase">
                     <span>QUOTA CONSUMED</span>
                     <span>LIMIT: 100%</span>
                   </div>
 
                   {usage && (secondsLeft5h !== null && secondsLeft5h > 0) ? (
-                    <div className="border-t border-zinc-900 pt-3 flex justify-between items-center text-[9px] font-mono">
-                      <span className="text-zinc-500 uppercase tracking-wide">[TIME_UNTIL_RESET]</span>
+                    <div className="border-t border-border pt-3 flex justify-between items-center text-[9px] font-mono">
+                      <span className="text-muted-foreground/80 uppercase tracking-wide">[TIME_UNTIL_RESET]</span>
                       <span className="text-[#ef4444] font-bold tracking-wider">{formatRemainingTime(secondsLeft5h)}</span>
                     </div>
                   ) : (
                     usage && (
-                      <div className="border-t border-zinc-900 pt-3 flex justify-between items-center text-[9px] font-mono">
-                        <span className="text-zinc-650 uppercase tracking-wide">[STATUS]</span>
+                      <div className="border-t border-border pt-3 flex justify-between items-center text-[9px] font-mono">
+                        <span className="text-muted-foreground/60 uppercase tracking-wide">[STATUS]</span>
                         <span className="text-emerald-500 font-bold uppercase tracking-widest">[WINDOW_IDLE_CLEAN]</span>
                       </div>
                     )
@@ -577,36 +577,36 @@ export default function UsagePage() {
                 </div>
 
                 {/* 7-Day budget progress */}
-                <div className="bg-[#050507] border border-zinc-900 p-5 space-y-4">
+                <div className="bg-card/80 border border-border p-5 space-y-4">
                   <div className="flex justify-between items-center text-xs font-mono">
-                    <span className="text-zinc-400 font-bold uppercase tracking-wider">7-Day Strict Fixed Cycle</span>
+                    <span className="text-muted-foreground font-bold uppercase tracking-wider">7-Day Strict Fixed Cycle</span>
                     <span className="text-[#ef4444] font-bold">
                       {usage ? `${(usage.progress_percentage_7d ?? 0).toFixed(1)}%` : <span className="animate-pulse">0.0%</span>}
                     </span>
                   </div>
 
                   {/* Bar progress */}
-                  <div className="w-full h-2.5 bg-zinc-950 border border-zinc-900 overflow-hidden">
+                  <div className="w-full h-2.5 bg-muted/40 border border-border overflow-hidden">
                     <div 
-                      className={`h-full bg-[#ef4444] red-glow transition-all duration-500 ${!usage ? 'animate-pulse bg-zinc-800' : ''}`}
+                      className={`h-full bg-[#ef4444] red-glow transition-all duration-500 ${!usage ? 'animate-pulse bg-muted' : ''}`}
                       style={{ width: `${usage ? (usage.progress_percentage_7d ?? 0) : 0}%` }}
                     />
                   </div>
 
-                  <div className="flex justify-between items-center text-[10px] font-mono text-zinc-500 uppercase">
+                  <div className="flex justify-between items-center text-[10px] font-mono text-muted-foreground/80 uppercase">
                     <span>QUOTA CONSUMED</span>
                     <span>LIMIT: 100%</span>
                   </div>
 
                   {usage && (secondsLeft7d !== null && secondsLeft7d > 0) ? (
-                    <div className="border-t border-zinc-900 pt-3 flex justify-between items-center text-[9px] font-mono">
-                      <span className="text-zinc-500 uppercase tracking-wide">[TIME_UNTIL_RESET]</span>
+                    <div className="border-t border-border pt-3 flex justify-between items-center text-[9px] font-mono">
+                      <span className="text-muted-foreground/80 uppercase tracking-wide">[TIME_UNTIL_RESET]</span>
                       <span className="text-[#ef4444] font-bold tracking-wider">{formatRemainingTime(secondsLeft7d)}</span>
                     </div>
                   ) : (
                     usage && (
-                      <div className="border-t border-zinc-900 pt-3 flex justify-between items-center text-[9px] font-mono">
-                        <span className="text-zinc-650 uppercase tracking-wide">[STATUS]</span>
+                      <div className="border-t border-border pt-3 flex justify-between items-center text-[9px] font-mono">
+                        <span className="text-muted-foreground/60 uppercase tracking-wide">[STATUS]</span>
                         <span className="text-emerald-500 font-bold uppercase tracking-widest">[WINDOW_IDLE_CLEAN]</span>
                       </div>
                     )
@@ -616,26 +616,26 @@ export default function UsagePage() {
               </div>
 
               {/* Token Accumulations breakdown */}
-              <div className="border-t border-zinc-900 pt-6 space-y-4">
+              <div className="border-t border-border pt-6 space-y-4">
                 <div className="space-y-1">
-                  <h3 className="font-mono text-[10px] text-zinc-400 uppercase tracking-wider font-bold">ACTIVE_PERIOD_TOKEN_ACCUMULATIONS</h3>
-                  <p className="text-[9px] text-zinc-600 font-mono uppercase">Raw token telemetry counts accumulated since the last budget reset.</p>
+                  <h3 className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider font-bold">ACTIVE_PERIOD_TOKEN_ACCUMULATIONS</h3>
+                  <p className="text-[9px] text-muted-foreground/70 font-mono uppercase">Raw token telemetry counts accumulated since the last budget reset.</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-[#050507] border border-zinc-900 p-5 flex flex-col justify-center">
-                    <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">Input Tokens Count</span>
-                    <span className="font-mono text-xl text-white font-bold tracking-wider mt-1">
-                      {usage ? (usage.consumed_tokens_input ?? 0).toLocaleString() : <span className="text-zinc-700 animate-pulse">[LOAD_TOKENS...]</span>}
-                      {usage && <span className="text-zinc-700 text-[11px] ml-1.5">TOKENS</span>}
+                  <div className="bg-card/80 border border-border p-5 flex flex-col justify-center">
+                    <span className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-wider">Input Tokens Count</span>
+                    <span className="font-mono text-xl text-foreground font-bold tracking-wider mt-1">
+                      {usage ? (usage.consumed_tokens_input ?? 0).toLocaleString() : <span className="text-muted-foreground/60 animate-pulse">[LOAD_TOKENS...]</span>}
+                      {usage && <span className="text-muted-foreground/60 text-[11px] ml-1.5">TOKENS</span>}
                     </span>
                   </div>
 
-                  <div className="bg-[#050507] border border-zinc-900 p-5 flex flex-col justify-center">
-                    <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider">Output Tokens Count</span>
-                    <span className="font-mono text-xl text-white font-bold tracking-wider mt-1">
-                      {usage ? (usage.consumed_tokens_output ?? 0).toLocaleString() : <span className="text-zinc-700 animate-pulse">[LOAD_TOKENS...]</span>}
-                      {usage && <span className="text-zinc-700 text-[11px] ml-1.5">TOKENS</span>}
+                  <div className="bg-card/80 border border-border p-5 flex flex-col justify-center">
+                    <span className="font-mono text-[9px] text-muted-foreground/80 uppercase tracking-wider">Output Tokens Count</span>
+                    <span className="font-mono text-xl text-foreground font-bold tracking-wider mt-1">
+                      {usage ? (usage.consumed_tokens_output ?? 0).toLocaleString() : <span className="text-muted-foreground/60 animate-pulse">[LOAD_TOKENS...]</span>}
+                      {usage && <span className="text-muted-foreground/60 text-[11px] ml-1.5">TOKENS</span>}
                     </span>
                   </div>
                 </div>
@@ -646,19 +646,19 @@ export default function UsagePage() {
             {usage?.tier === 'free' && (
               <div className="bg-[#ef4444]/10 border border-[#ef4444] p-5 font-mono text-xs text-[#ef4444] tracking-wider uppercase animate-pulse flex flex-col gap-2">
                 <div>[WARNING: ACCOUNT_INACTIVE_FREE_TIER_ENFORCES_0_LIMITS]</div>
-                <div className="text-[10px] text-zinc-500 lowercase font-normal">[API completions are currently disabled. Please select a billing profile below to activate your account.]</div>
+                <div className="text-[10px] text-muted-foreground/80 lowercase font-normal">[API completions are currently disabled. Please select a billing profile below to activate your account.]</div>
               </div>
             )}
 
             {/* Subscription Plans Section */}
-            <div className="bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-zinc-900 pb-4">
+            <div className="bg-card border border-border p-6 crosshair-corners space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border pb-4">
                 <div className="space-y-1">
-                  <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                  <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                     <div className="w-[3px] h-3 bg-[#ef4444] red-glow"></div>
                     SYSTEM_SUBSCRIPTION_PROFILES
                   </h2>
-                  <p className="text-[10px] font-mono text-zinc-500 uppercase font-medium">
+                  <p className="text-[10px] font-mono text-muted-foreground/80 uppercase font-medium">
                     Select a plan via Whop Secure Checkout to adjust your system limits.
                   </p>
                 </div>
@@ -667,7 +667,7 @@ export default function UsagePage() {
                     href="https://whop.com/hub/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-mono text-[9px] text-zinc-400 hover:text-white border border-zinc-800 hover:border-zinc-500 px-3 py-1.5 bg-zinc-950 transition-colors uppercase tracking-widest font-bold"
+                    className="font-mono text-[9px] text-muted-foreground hover:text-foreground border border-border hover:border-muted-foreground px-3 py-1.5 bg-muted/40 transition-colors uppercase tracking-widest font-bold"
                   >
                     Manage Subscription ↗
                   </a>
@@ -688,26 +688,26 @@ export default function UsagePage() {
                   return (
                     <div 
                       key={plan.key} 
-                      className={`relative bg-[#050507] border ${isCurrent ? 'border-[#ef4444] red-glow' : 'border-zinc-900'} p-6 flex flex-col justify-between transition-all hover:border-zinc-700`}
+                      className={`relative bg-card/80 border ${isCurrent ? 'border-[#ef4444] red-glow' : 'border-border'} p-6 flex flex-col justify-between transition-all hover:border-border`}
                     >
                       {plan.badge && (
-                        <div className="absolute top-0 right-6 -translate-y-1/2 bg-[#ef4444] text-white font-mono text-[8px] font-bold px-2 py-0.5 tracking-widest uppercase red-glow">
+                        <div className="absolute top-0 right-6 -translate-y-1/2 bg-[#ef4444] text-foreground font-mono text-[8px] font-bold px-2 py-0.5 tracking-widest uppercase red-glow">
                           {plan.badge}
                         </div>
                       )}
 
                       <div className="space-y-4">
                         <div className="space-y-1">
-                          <h3 className="font-mono text-xs text-white font-bold uppercase tracking-wider">{plan.name}</h3>
-                          <p className="text-[9px] font-mono text-zinc-500 min-h-[30px] uppercase font-medium">{plan.desc}</p>
+                          <h3 className="font-mono text-xs text-foreground font-bold uppercase tracking-wider">{plan.name}</h3>
+                          <p className="text-[9px] font-mono text-muted-foreground/80 min-h-[30px] uppercase font-medium">{plan.desc}</p>
                         </div>
 
-                        <div className="flex items-baseline gap-1 py-2 border-y border-zinc-900">
-                          <span className="font-mono text-2xl text-white font-bold tracking-tighter">{plan.price}</span>
-                          <span className="font-mono text-[9px] text-zinc-500 uppercase">/ {plan.billing}</span>
+                        <div className="flex items-baseline gap-1 py-2 border-y border-border">
+                          <span className="font-mono text-2xl text-foreground font-bold tracking-tighter">{plan.price}</span>
+                          <span className="font-mono text-[9px] text-muted-foreground/80 uppercase">/ {plan.billing}</span>
                         </div>
 
-                        <ul className="space-y-2 font-mono text-[9px] text-zinc-400">
+                        <ul className="space-y-2 font-mono text-[9px] text-muted-foreground">
                           {plan.limits.map((limit, idx) => (
                             <li key={idx} className="flex items-center gap-2">
                               <span className="w-1 h-1 bg-[#ef4444] red-glow"></span>
@@ -723,8 +723,8 @@ export default function UsagePage() {
                           onClick={() => handleCheckout(plan.key)}
                           className={`w-full font-mono text-[9px] py-3 transition-all tracking-widest uppercase font-bold border ${
                             isCurrent 
-                              ? 'bg-zinc-950 border-zinc-800 text-zinc-500 cursor-not-allowed'
-                              : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white'
+                              ? 'bg-muted/40 border-border text-muted-foreground/80 cursor-not-allowed'
+                              : 'bg-muted border-border text-foreground/80 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-foreground'
                           }`}
                         >
                           {isCurrent 
@@ -741,8 +741,8 @@ export default function UsagePage() {
                 })}
               </div>
 
-              <div className="pt-4 text-center border-t border-zinc-900">
-                <p className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest leading-relaxed">
+              <div className="pt-4 text-center border-t border-border">
+                <p className="text-[9px] font-mono text-muted-foreground/80 uppercase tracking-widest leading-relaxed">
                   * Need custom limits or an enterprise setup? Please contact support at <a href="mailto:support@akarouter.com" className="text-[#ef4444] hover:underline font-bold">support@akarouter.com</a> to custom configure your plan.
                 </p>
               </div>

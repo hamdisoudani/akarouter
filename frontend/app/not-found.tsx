@@ -7,13 +7,13 @@ import Link from 'next/link'
 
 export default function NotFound() {
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex items-center justify-center px-6">
+    <div className="relative min-h-screen bg-background text-foreground flex items-center justify-center px-6">
       <div className="w-full max-w-md z-10 text-center">
         <h1 className="text-6xl font-mono font-bold text-[#ef4444] mb-2">404</h1>
-        <h2 className="text-sm font-mono tracking-widest text-zinc-300 uppercase mb-6">
+        <h2 className="text-sm font-mono tracking-widest text-foreground/80 uppercase mb-6">
           [ROUTE_NOT_FOUND]
         </h2>
-        <p className="text-[11px] text-zinc-500 font-mono uppercase tracking-wide mb-8">
+        <p className="text-[11px] text-muted-foreground/80 font-mono uppercase tracking-wide mb-8">
           The requested path does not exist.
         </p>
         <Link

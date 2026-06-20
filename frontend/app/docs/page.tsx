@@ -174,7 +174,7 @@ claude`
 5. Toggle off other models and enjoy AkaRouter routing!`
 
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-white">
+    <div className="relative min-h-screen bg-background text-foreground flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-foreground">
       
       {/* SideNavBar */}
 
@@ -200,13 +200,13 @@ claude`
           <div className="p-6 space-y-6">
             
             {/* Tab select header */}
-            <div className="flex border-b border-zinc-900 bg-zinc-950/40 p-1 overflow-x-auto whitespace-nowrap scrollbar-none">
+            <div className="flex border-b border-border bg-muted/40/40 p-1 overflow-x-auto whitespace-nowrap scrollbar-none">
               <button
                 onClick={() => setActiveCategory('sdks')}
                 className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 flex items-center gap-2 ${
                   activeCategory === 'sdks'
                     ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
-                    : 'text-zinc-500 hover:text-white'
+                    : 'text-muted-foreground/80 hover:text-foreground'
                 }`}
               >
                 <Cpu className="w-3.5 h-3.5" />
@@ -217,7 +217,7 @@ claude`
                 className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 flex items-center gap-2 ${
                   activeCategory === 'agents'
                     ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
-                    : 'text-zinc-500 hover:text-white'
+                    : 'text-muted-foreground/80 hover:text-foreground'
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -227,27 +227,27 @@ claude`
 
             {/* Category: SDKs */}
             {activeCategory === 'sdks' && (
-              <section className="bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6 animate-slide-in relative">
+              <section className="bg-card border border-border p-6 crosshair-corners space-y-6 animate-slide-in relative">
                 <div className="space-y-1">
-                  <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                  <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                     <Terminal className="w-4 h-4 text-[#ef4444]" />
                     DEVELOPER_SDK_INTEGRATIONS
                   </h2>
-                  <p className="text-[10px] font-mono text-zinc-500 uppercase">Integrate AkaRouter directly into your app using standard libraries.</p>
+                  <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Integrate AkaRouter directly into your app using standard libraries.</p>
                 </div>
 
                 {/* Model Capabilities Info Card */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-950 p-4 border border-zinc-900 text-xs font-mono">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-muted/40 p-4 border border-border text-xs font-mono">
                   {/* Pro Model */}
                   <div className="space-y-2">
-                    <div className="text-white font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
+                    <div className="text-foreground font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
                       <Cpu className="w-3.5 h-3.5 text-[#ef4444] red-glow" />
                       akarouter-pro (Reasoning & Vision)
                     </div>
-                    <p className="text-zinc-400 leading-relaxed text-[10px] uppercase">
+                    <p className="text-muted-foreground leading-relaxed text-[10px] uppercase">
                       High-intelligence model supporting complex reasoning, coding, and **multimodal vision (text & images)**.
                     </p>
-                    <div className="space-y-1 text-zinc-500 text-[9px] pt-1">
+                    <div className="space-y-1 text-muted-foreground/80 text-[9px] pt-1">
                       <div>[CONTEXT]: 256K TOKENS</div>
                       <div>[PRICING]: IN: $0.20/M | OUT: $0.80/M</div>
                     </div>
@@ -257,15 +257,15 @@ claude`
                   </div>
 
                   {/* Large Model */}
-                  <div className="space-y-2 border-t md:border-t-0 md:border-l border-zinc-900 pt-4 md:pt-0 md:pl-4">
-                    <div className="text-white font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
+                  <div className="space-y-2 border-t md:border-t-0 md:border-l border-border pt-4 md:pt-0 md:pl-4">
+                    <div className="text-foreground font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
                       <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                       akarouter-large (Long-Context)
                     </div>
-                    <p className="text-zinc-400 leading-relaxed text-[10px] uppercase">
+                    <p className="text-muted-foreground leading-relaxed text-[10px] uppercase">
                       Massive context window optimized for agentic tool use, multi-file editing, and complex workflows.
                     </p>
-                    <div className="space-y-1 text-zinc-500 text-[9px] pt-1">
+                    <div className="space-y-1 text-muted-foreground/80 text-[9px] pt-1">
                       <div>[CONTEXT]: 1M TOKENS</div>
                       <div>[PRICING]: IN: $0.10/M | OUT: $0.40/M</div>
                     </div>
@@ -275,31 +275,31 @@ claude`
                   </div>
 
                   {/* Flash Model */}
-                  <div className="space-y-2 border-t md:border-t-0 md:border-l border-zinc-900 pt-4 md:pt-0 md:pl-4">
-                    <div className="text-white font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
-                      <Zap className="w-3.5 h-3.5 text-zinc-500" />
+                  <div className="space-y-2 border-t md:border-t-0 md:border-l border-border pt-4 md:pt-0 md:pl-4">
+                    <div className="text-foreground font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
+                      <Zap className="w-3.5 h-3.5 text-muted-foreground/80" />
                       akarouter-flash (Low-Latency)
                     </div>
-                    <p className="text-zinc-400 leading-relaxed text-[10px] uppercase">
+                    <p className="text-muted-foreground leading-relaxed text-[10px] uppercase">
                       Ultra-fast completions built for high-concurrency workloads, summarization, and real-time agent responses.
                     </p>
-                    <div className="space-y-1 text-zinc-500 text-[9px] pt-1">
+                    <div className="space-y-1 text-muted-foreground/80 text-[9px] pt-1">
                       <div>[CONTEXT]: 1M TOKENS</div>
                       <div>[PRICING]: IN: $0.05/M | OUT: $0.15/M</div>
                     </div>
                     <div className="flex gap-1.5 flex-wrap pt-1">
-                      <span className="px-1.5 py-0.5 border border-zinc-800 bg-zinc-900 text-zinc-400 text-[9px] uppercase">✓ Text-Only</span>
+                      <span className="px-1.5 py-0.5 border border-border bg-muted text-muted-foreground text-[9px] uppercase">✓ Text-Only</span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex gap-2 border-b border-zinc-900 pb-2">
+                <div className="flex gap-2 border-b border-border pb-2">
                   <button
                     onClick={() => setActiveSdk('python')}
                     className={`px-3 py-1 font-mono text-[10px] uppercase border transition-colors ${
                       activeSdk === 'python'
                         ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]'
-                        : 'border-zinc-900 text-zinc-550 hover:text-white'
+                        : 'border-border text-muted-foreground/50 hover:text-foreground'
                     }`}
                   >
                     PYTHON SDK
@@ -309,7 +309,7 @@ claude`
                     className={`px-3 py-1 font-mono text-[10px] uppercase border transition-colors ${
                       activeSdk === 'curl'
                         ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]'
-                        : 'border-zinc-900 text-zinc-550 hover:text-white'
+                        : 'border-border text-muted-foreground/50 hover:text-foreground'
                     }`}
                   >
                     CURL HTTP
@@ -319,7 +319,7 @@ claude`
                     className={`px-3 py-1 font-mono text-[10px] uppercase border transition-colors ${
                       activeSdk === 'node'
                         ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]'
-                        : 'border-zinc-900 text-zinc-550 hover:text-white'
+                        : 'border-border text-muted-foreground/50 hover:text-foreground'
                     }`}
                   >
                     NODEJS SDK
@@ -327,18 +327,18 @@ claude`
                 </div>
 
                 {activeSdk === 'python' && (
-                  <div className="bg-[#050507] border border-zinc-900">
-                    <div className="bg-[#0e0e10] border-b border-zinc-900 px-4 py-2 flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-zinc-500 font-bold uppercase tracking-wider">python_openai_sdk.py</span>
+                  <div className="bg-card/80 border border-border">
+                    <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-muted-foreground/80 font-bold uppercase tracking-wider">python_openai_sdk.py</span>
                       <button
                         onClick={() => copyToClipboard(pythonCode, 'python')}
-                        className="text-zinc-500 hover:text-white p-1 border border-zinc-900 bg-zinc-950 transition-all"
+                        className="text-muted-foreground/80 hover:text-foreground p-1 border border-border bg-muted/40 transition-all"
                         title="Copy code block"
                       >
                         {copiedId === 'python' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-                    <div className="p-4 font-mono text-[11px] overflow-x-auto bg-[#050507] leading-relaxed">
+                    <div className="p-4 font-mono text-[11px] overflow-x-auto bg-card/80 leading-relaxed">
                       <pre className="language-python !bg-transparent !p-0 !m-0">
                         <code className="language-python">
                           {pythonCode}
@@ -349,18 +349,18 @@ claude`
                 )}
 
                 {activeSdk === 'curl' && (
-                  <div className="bg-[#050507] border border-zinc-900">
-                    <div className="bg-[#0e0e10] border-b border-zinc-900 px-4 py-2 flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-zinc-500 font-bold uppercase tracking-wider">curl_request.sh</span>
+                  <div className="bg-card/80 border border-border">
+                    <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-muted-foreground/80 font-bold uppercase tracking-wider">curl_request.sh</span>
                       <button
                         onClick={() => copyToClipboard(curlCode, 'curl')}
-                        className="text-zinc-500 hover:text-white p-1 border border-zinc-900 bg-zinc-950 transition-all"
+                        className="text-muted-foreground/80 hover:text-foreground p-1 border border-border bg-muted/40 transition-all"
                         title="Copy code block"
                       >
                         {copiedId === 'curl' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-                    <div className="p-4 font-mono text-[11px] overflow-x-auto bg-[#050507] leading-relaxed">
+                    <div className="p-4 font-mono text-[11px] overflow-x-auto bg-card/80 leading-relaxed">
                       <pre className="language-bash !bg-transparent !p-0 !m-0">
                         <code className="language-bash">
                           {curlCode}
@@ -371,18 +371,18 @@ claude`
                 )}
 
                 {activeSdk === 'node' && (
-                  <div className="bg-[#050507] border border-zinc-900">
-                    <div className="bg-[#0e0e10] border-b border-[#27272a] px-4 py-2 flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-zinc-500 font-bold uppercase tracking-wider">node_sdk.js</span>
+                  <div className="bg-card/80 border border-border">
+                    <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-muted-foreground/80 font-bold uppercase tracking-wider">node_sdk.js</span>
                       <button
                         onClick={() => copyToClipboard(nodeCode, 'node')}
-                        className="text-zinc-500 hover:text-white p-1 border border-zinc-900 bg-zinc-950 transition-all"
+                        className="text-muted-foreground/80 hover:text-foreground p-1 border border-border bg-muted/40 transition-all"
                         title="Copy code block"
                       >
                         {copiedId === 'node' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-                    <div className="p-4 font-mono text-[11px] overflow-x-auto bg-[#050507] leading-relaxed">
+                    <div className="p-4 font-mono text-[11px] overflow-x-auto bg-card/80 leading-relaxed">
                       <pre className="language-javascript !bg-transparent !p-0 !m-0">
                         <code className="language-javascript">
                           {nodeCode}
@@ -396,22 +396,22 @@ claude`
 
             {/* Category: Agents */}
             {activeCategory === 'agents' && (
-              <section className="bg-[#0e0e10] border border-zinc-900 p-6 crosshair-corners space-y-6 animate-slide-in relative">
+              <section className="bg-card border border-border p-6 crosshair-corners space-y-6 animate-slide-in relative">
                 <div className="space-y-1">
-                  <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                  <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                     <Sparkles className="w-4 h-4 text-[#ef4444]" />
                     AI_AGENT_&_IDE_CONFIGURATIONS
                   </h2>
-                  <p className="text-[10px] font-mono text-zinc-500 uppercase">Point your AI coding assistants directly to the AkaRouter routing gateway.</p>
+                  <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Point your AI coding assistants directly to the AkaRouter routing gateway.</p>
                 </div>
 
-                <div className="flex gap-2 border-b border-zinc-900 pb-2">
+                <div className="flex gap-2 border-b border-border pb-2">
                   <button
                     onClick={() => setActiveAgent('claude')}
                     className={`px-3 py-1 font-mono text-[10px] uppercase border transition-colors ${
                       activeAgent === 'claude'
                         ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]'
-                        : 'border-zinc-900 text-zinc-550 hover:text-white'
+                        : 'border-border text-muted-foreground/50 hover:text-foreground'
                     }`}
                   >
                     CLAUDE CODE
@@ -421,7 +421,7 @@ claude`
                     className={`px-3 py-1 font-mono text-[10px] uppercase border transition-colors ${
                       activeAgent === 'cline'
                         ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]'
-                        : 'border-zinc-900 text-zinc-550 hover:text-white'
+                        : 'border-border text-muted-foreground/50 hover:text-foreground'
                     }`}
                   >
                     CLINE (VS CODE)
@@ -431,7 +431,7 @@ claude`
                     className={`px-3 py-1 font-mono text-[10px] uppercase border transition-colors ${
                       activeAgent === 'cursor'
                         ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]'
-                        : 'border-zinc-900 text-zinc-550 hover:text-white'
+                        : 'border-border text-muted-foreground/50 hover:text-foreground'
                     }`}
                   >
                     CURSOR / CODEX
@@ -440,19 +440,19 @@ claude`
 
                 {activeAgent === 'claude' && (
                   <div className="space-y-3">
-                    <p className="text-[10px] font-mono text-zinc-400 uppercase">Run Claude Code in your CLI using AkaRouter routed endpoints:</p>
-                    <div className="bg-[#050507] border border-zinc-900">
-                      <div className="bg-[#0e0e10] border-b border-zinc-900 px-4 py-2 flex items-center justify-between text-[10px] font-mono">
-                        <span className="text-zinc-500 font-bold uppercase tracking-wider">claude_code_setup.sh</span>
+                    <p className="text-[10px] font-mono text-muted-foreground uppercase">Run Claude Code in your CLI using AkaRouter routed endpoints:</p>
+                    <div className="bg-card/80 border border-border">
+                      <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between text-[10px] font-mono">
+                        <span className="text-muted-foreground/80 font-bold uppercase tracking-wider">claude_code_setup.sh</span>
                         <button
                           onClick={() => copyToClipboard(claudeCode, 'claude')}
-                          className="text-zinc-500 hover:text-white p-1 border border-zinc-900 bg-zinc-950 transition-all"
+                          className="text-muted-foreground/80 hover:text-foreground p-1 border border-border bg-muted/40 transition-all"
                           title="Copy commands"
                         >
                           {copiedId === 'claude' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                       </div>
-                      <div className="p-4 font-mono text-[11px] overflow-x-auto bg-[#050507] leading-relaxed">
+                      <div className="p-4 font-mono text-[11px] overflow-x-auto bg-card/80 leading-relaxed">
                         <pre className="language-bash !bg-transparent !p-0 !m-0">
                           <code className="language-bash">
                             {claudeCode}
@@ -465,19 +465,19 @@ claude`
 
                 {activeAgent === 'cline' && (
                   <div className="space-y-3">
-                    <p className="text-[10px] font-mono text-zinc-400 uppercase">Paste this configuration into your Cline custom OpenAI provider settings:</p>
-                    <div className="bg-[#050507] border border-zinc-900">
-                      <div className="bg-[#0e0e10] border-b border-zinc-900 px-4 py-2 flex items-center justify-between text-[10px] font-mono">
-                        <span className="text-zinc-500 font-bold uppercase tracking-wider">cline_settings.json</span>
+                    <p className="text-[10px] font-mono text-muted-foreground uppercase">Paste this configuration into your Cline custom OpenAI provider settings:</p>
+                    <div className="bg-card/80 border border-border">
+                      <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between text-[10px] font-mono">
+                        <span className="text-muted-foreground/80 font-bold uppercase tracking-wider">cline_settings.json</span>
                         <button
                           onClick={() => copyToClipboard(clineSettings, 'cline')}
-                          className="text-zinc-500 hover:text-white p-1 border border-zinc-900 bg-zinc-950 transition-all"
+                          className="text-muted-foreground/80 hover:text-foreground p-1 border border-border bg-muted/40 transition-all"
                           title="Copy JSON configuration"
                         >
                           {copiedId === 'cline' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                       </div>
-                      <div className="p-4 font-mono text-[11px] overflow-x-auto bg-[#050507] leading-relaxed">
+                      <div className="p-4 font-mono text-[11px] overflow-x-auto bg-card/80 leading-relaxed">
                         <pre className="language-json !bg-transparent !p-0 !m-0">
                           <code className="language-json">
                             {clineSettings}
@@ -489,8 +489,8 @@ claude`
                 )}
 
                 {activeAgent === 'cursor' && (
-                  <div className="space-y-3 bg-[#050507] border border-zinc-900 p-5 font-mono text-[11px] leading-relaxed text-zinc-300">
-                    <div className="border-b border-zinc-900 pb-2 mb-3 font-bold text-white uppercase">[CURSOR_MANUAL_CONFIGURATION]</div>
+                  <div className="space-y-3 bg-card/80 border border-border p-5 font-mono text-[11px] leading-relaxed text-foreground/80">
+                    <div className="border-b border-border pb-2 mb-3 font-bold text-foreground uppercase">[CURSOR_MANUAL_CONFIGURATION]</div>
                     <pre className="whitespace-pre-wrap">{cursorSettings}</pre>
                   </div>
                 )}

@@ -84,8 +84,8 @@ export function InteractionCaptcha({
       className={[
         'font-mono uppercase tracking-widest transition-all select-none cursor-pointer',
         boxed
-          ? 'w-full border border-zinc-800 bg-[#050507] px-4 py-3 text-xs text-zinc-300 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white disabled:opacity-60 disabled:cursor-not-allowed'
-          : 'text-[10px] text-zinc-300 hover:text-white disabled:opacity-60 disabled:cursor-not-allowed underline underline-offset-4 decoration-zinc-700 hover:decoration-[#ef4444]',
+          ? 'w-full border border-border bg-card/80 px-4 py-3 text-xs text-foreground/80 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-foreground disabled:opacity-60 disabled:cursor-not-allowed'
+          : 'text-[10px] text-foreground/80 hover:text-foreground disabled:opacity-60 disabled:cursor-not-allowed underline underline-offset-4 decoration-zinc-700 hover:decoration-[#ef4444]',
         status === 'done' && 'text-emerald-400 decoration-emerald-800 hover:decoration-emerald-800 cursor-default',
       ].join(' ')}
     >

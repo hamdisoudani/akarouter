@@ -23,6 +23,14 @@
  *   - On <md screens: drawer slides in from the right; sidebar hidden
  *   - Floating mobile hamburger button (bottom-right) opens the drawer
  *
+ * Theme tokens (2026-06-20):
+ *   This component uses semantic Tailwind tokens (bg-background,
+ *   bg-card, bg-muted, text-foreground, text-muted-foreground,
+ *   border-border) instead of hardcoded zinc/hex values. That makes
+ *   the sidebar actually flip colors when the user toggles light/
+ *   dark/system theme — previously the dark `#09090b` background
+ *   stayed even in light mode (visible bug reported by user 2026-06-20).
+ *
  * The sidebar shows:
  *   - Logo + kernel version (matches the AkaRouter tech aesthetic)
  *   - Nav links: Telemetry, API Keys, Usage, Models, Plans, Docs
@@ -96,7 +104,7 @@ export function DashboardSidebar() {
         </div>
         <div className="flex items-center gap-2 mt-3">
           <div className="w-1.5 h-1.5 bg-[#ef4444] red-glow status-pulse" />
-          <p className="font-mono text-[9px] text-zinc-600 tracking-widest uppercase">
+          <p className="font-mono text-[9px] text-muted-foreground tracking-widest uppercase">
             Kernel: v1.0.0-STABLE
           </p>
         </div>
@@ -113,15 +121,15 @@ export function DashboardSidebar() {
               onClick={() => setMobileOpen(false)}
               className={`flex items-center gap-3 px-3 py-2 w-full transition-colors group ${
                 active
-                  ? 'text-white nav-item-active'
-                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  ? 'text-foreground nav-item-active'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               }`}
             >
               <span
                 className={`border p-1 flex items-center justify-center transition-colors ${
                   active
                     ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
-                    : 'border-zinc-800 group-hover:border-zinc-500'
+                    : 'border-border group-hover:border-muted-foreground'
                 }`}
               >
                 {item.icon}
@@ -136,7 +144,7 @@ export function DashboardSidebar() {
 
       {/* Footer: tier badge + sign out */}
       <div className="px-6 mt-auto">
-        <div className="font-mono text-[9px] text-zinc-600 mb-2 flex justify-between tracking-tighter">
+        <div className="font-mono text-[9px] text-muted-foreground mb-2 flex justify-between tracking-tighter">
           <span>[SYS_SESSION]</span>
           <span
             className={`text-emerald-500 uppercase ${
@@ -151,7 +159,7 @@ export function DashboardSidebar() {
             setMobileOpen(false)
             signOut()
           }}
-          className="w-full bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono text-[10px] py-3 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-white transition-all flex items-center justify-center gap-2 group crosshair-corners"
+          className="w-full bg-muted border border-border text-foreground/80 font-mono text-[10px] py-3 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-foreground transition-all flex items-center justify-center gap-2 group crosshair-corners"
         >
           <LogOut className="w-3.5 h-3.5 group-hover:text-[#ef4444] transition-colors" />
           <span className="tracking-widest uppercase font-bold">Sign Out</span>
@@ -163,7 +171,7 @@ export function DashboardSidebar() {
   return (
     <>
       {/* Desktop sidebar (md+) — fixed vertical rail on the left. */}
-      <nav className="hidden md:flex flex-col h-screen w-64 tech-border-r bg-[#09090b] py-6 fixed left-0 top-0 z-20 micro-grid">
+      <nav className="hidden md:flex flex-col h-screen w-64 tech-border-r bg-background py-6 fixed left-0 top-0 z-20 micro-grid">
         {sidebarBody}
       </nav>
 
@@ -178,12 +186,12 @@ export function DashboardSidebar() {
           top bar would be a duplicate. The hamburger opens the same
           fullscreen overlay on both breakpoints. The bar lives at z-30
           (sidebar is z-20, overlay is z-50). */}
-      <header className="sticky top-0 z-30 flex justify-between items-center w-full md:ml-64 md:w-[calc(100%-16rem)] px-4 py-2.5 bg-[#09090b]/95 backdrop-blur border-b border-zinc-900">
+      <header className="sticky top-0 z-30 flex justify-between items-center w-full md:ml-64 md:w-[calc(100%-16rem)] px-4 py-2.5 bg-background/95 backdrop-blur border-b border-border">
         <div className="flex items-center gap-2">
           <div className="md:hidden relative w-20 h-9 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
             <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
           </div>
-          <span className="hidden md:inline font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+          <span className="hidden md:inline font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
             [DASHBOARD]
           </span>
         </div>
@@ -191,7 +199,7 @@ export function DashboardSidebar() {
           <ThemeToggle />
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
+            className="p-2 border border-border bg-card text-muted-foreground hover:text-foreground transition-colors"
             aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
           >
             {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -208,11 +216,11 @@ export function DashboardSidebar() {
           behind) the dashboard content, complementing the always-
           visible vertical sidebar. */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 bg-[#09090b]/98 backdrop-blur-md flex flex-col justify-between py-24 px-6 border-b border-zinc-900 animate-fade-in">
+        <div className="fixed inset-0 z-50 bg-background/98 backdrop-blur-md flex flex-col justify-between py-24 px-6 border-b border-border animate-fade-in">
           <div className="absolute top-4 right-6">
             <button
               onClick={() => setMobileOpen(false)}
-              className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
+              className="p-2 border border-border bg-card text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Close navigation menu"
             >
               <X className="w-4 h-4" />

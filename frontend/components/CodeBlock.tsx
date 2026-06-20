@@ -30,18 +30,18 @@ export function CodeBlock({ samples }: CodeBlockProps) {
   }
 
   return (
-    <div className="border border-zinc-900 bg-[#0a0a0c] overflow-hidden">
+    <div className="border border-border bg-background overflow-hidden">
       {/* Tabs */}
-      <div className="flex items-center justify-between border-b border-zinc-900 bg-[#0e0e10]">
+      <div className="flex items-center justify-between border-b border-border bg-card">
         <div className="flex">
           {samples.map((s, i) => (
             <button
               key={s.label}
               onClick={() => setActive(i)}
-              className={`px-4 py-2 text-[10px] font-mono uppercase tracking-wider border-r border-zinc-900 transition-colors ${
+              className={`px-4 py-2 text-[10px] font-mono uppercase tracking-wider border-r border-border transition-colors ${
                 active === i
-                  ? 'bg-[#0a0a0c] text-[#ef4444] border-b-2 border-b-[#ef4444]'
-                  : 'text-zinc-500 hover:text-zinc-300 border-b-2 border-b-transparent'
+                  ? 'bg-background text-[#ef4444] border-b-2 border-b-[#ef4444]'
+                  : 'text-muted-foreground/80 hover:text-foreground/80 border-b-2 border-b-transparent'
               }`}
             >
               {s.label}
@@ -50,7 +50,7 @@ export function CodeBlock({ samples }: CodeBlockProps) {
         </div>
         <button
           onClick={copyCode}
-          className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-mono uppercase tracking-wider text-zinc-500 hover:text-zinc-200 border-l border-zinc-900 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/80 hover:text-foreground border-l border-border transition-colors"
           aria-label="Copy code"
         >
           {copied ? (
@@ -69,7 +69,7 @@ export function CodeBlock({ samples }: CodeBlockProps) {
 
       {/* Code */}
       <div className="p-5 overflow-x-auto">
-        <pre className="text-[11px] sm:text-xs font-mono text-zinc-300 leading-relaxed whitespace-pre">
+        <pre className="text-[11px] sm:text-xs font-mono text-foreground/80 leading-relaxed whitespace-pre">
           <code>{current.code}</code>
         </pre>
       </div>

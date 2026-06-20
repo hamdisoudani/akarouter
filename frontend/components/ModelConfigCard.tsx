@@ -93,12 +93,12 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 bg-zinc-950 border border-zinc-900 hover:border-zinc-850 transition-all">
+    <div className="flex flex-col gap-4 p-4 bg-muted/40 border border-border hover:border-border transition-all">
       {/* Header row: alias + active toggle */}
       <div className="flex justify-between items-center gap-3">
         <div className="flex flex-col gap-1 min-w-0">
-          <span className="font-mono text-xs font-bold text-white uppercase truncate">{model.alias}</span>
-          <span className="font-mono text-[9px] text-zinc-500 uppercase truncate">{model.upstream_model}</span>
+          <span className="font-mono text-xs font-bold text-foreground uppercase truncate">{model.alias}</span>
+          <span className="font-mono text-[9px] text-muted-foreground/80 uppercase truncate">{model.upstream_model}</span>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <span
@@ -126,18 +126,18 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
       </div>
 
       {/* Pricing config row */}
-      <div className="border-t border-zinc-900/60 pt-4 grid grid-cols-1 md:grid-cols-12 gap-4 font-mono text-[10px]">
+      <div className="border-t border-border/60 pt-4 grid grid-cols-1 md:grid-cols-12 gap-4 font-mono text-[10px]">
         {/* Pricing mode selector */}
         <div className="md:col-span-3 space-y-1">
-          <label className="text-zinc-500 uppercase text-[8px] tracking-wider">Billing Mode</label>
-          <div className="flex border border-zinc-850 bg-zinc-900">
+          <label className="text-muted-foreground/80 uppercase text-[8px] tracking-wider">Billing Mode</label>
+          <div className="flex border border-border bg-muted">
             <button
               type="button"
               onClick={() => setMode('per_token')}
               className={`flex-1 px-2 py-1.5 text-[9px] uppercase font-bold tracking-wider transition-all ${
                 mode === 'per_token'
-                  ? 'bg-emerald-500/10 text-emerald-400 border-r border-zinc-850'
-                  : 'text-zinc-500 hover:text-zinc-300 border-r border-zinc-850'
+                  ? 'bg-emerald-500/10 text-emerald-400 border-r border-border'
+                  : 'text-muted-foreground/80 hover:text-foreground/80 border-r border-border'
               }`}
               title="Charge by token count (input + output rates)"
             >
@@ -150,7 +150,7 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
               className={`flex-1 px-2 py-1.5 text-[9px] uppercase font-bold tracking-wider transition-all ${
                 mode === 'per_request'
                   ? 'bg-[#ef4444]/10 text-[#ef4444]'
-                  : 'text-zinc-500 hover:text-zinc-300'
+                  : 'text-muted-foreground/80 hover:text-foreground/80'
               }`}
               title="Flat fee per call regardless of token count"
             >
@@ -164,48 +164,48 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
         {mode === 'per_token' ? (
           <>
             <div className="md:col-span-4 space-y-1">
-              <label className="text-zinc-500 uppercase text-[8px] tracking-wider">Input $/1M tok</label>
+              <label className="text-muted-foreground/80 uppercase text-[8px] tracking-wider">Input $/1M tok</label>
               <input
                 type="number"
                 step="0.001"
                 min="0"
                 value={inputCost ?? 0}
                 onChange={(e) => setInputCost(e.target.value === '' ? null : Number(e.target.value))}
-                className="w-full bg-zinc-900 border border-zinc-850 px-2 py-1.5 text-white text-xs focus:outline-none focus:border-emerald-500/50"
+                className="w-full bg-muted border border-border px-2 py-1.5 text-foreground text-xs focus:outline-none focus:border-emerald-500/50"
               />
             </div>
             <div className="md:col-span-4 space-y-1">
-              <label className="text-zinc-500 uppercase text-[8px] tracking-wider">Output $/1M tok</label>
+              <label className="text-muted-foreground/80 uppercase text-[8px] tracking-wider">Output $/1M tok</label>
               <input
                 type="number"
                 step="0.001"
                 min="0"
                 value={outputCost ?? 0}
                 onChange={(e) => setOutputCost(e.target.value === '' ? null : Number(e.target.value))}
-                className="w-full bg-zinc-900 border border-zinc-850 px-2 py-1.5 text-white text-xs focus:outline-none focus:border-emerald-500/50"
+                className="w-full bg-muted border border-border px-2 py-1.5 text-foreground text-xs focus:outline-none focus:border-emerald-500/50"
               />
             </div>
           </>
         ) : (
           <div className="md:col-span-8 space-y-1">
-            <label className="text-zinc-500 uppercase text-[8px] tracking-wider">
+            <label className="text-muted-foreground/80 uppercase text-[8px] tracking-wider">
               Flat fee per call (USD cents)
             </label>
             <div className="flex items-center gap-2">
-              <span className="text-zinc-500 text-xs">$</span>
+              <span className="text-muted-foreground/80 text-xs">$</span>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 value={perReqCents / 100}
                 onChange={(e) => setPerReqCents(Math.max(0, Math.round(Number(e.target.value) * 100)))}
-                className="w-32 bg-zinc-900 border border-zinc-850 px-2 py-1.5 text-white text-xs focus:outline-none focus:border-[#ef4444]/50"
+                className="w-32 bg-muted border border-border px-2 py-1.5 text-foreground text-xs focus:outline-none focus:border-[#ef4444]/50"
               />
-              <span className="text-zinc-500 text-[10px]">
+              <span className="text-muted-foreground/80 text-[10px]">
                 = {perReqCents}¢ per call
               </span>
             </div>
-            <p className="text-zinc-600 text-[9px] leading-relaxed">
+            <p className="text-muted-foreground/70 text-[9px] leading-relaxed">
               Flat fee charged per request, regardless of input/output token count.
             </p>
           </div>
@@ -216,7 +216,7 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
           <button
             onClick={handleSave}
             disabled={!dirty || saving}
-            className="w-full px-2 py-1.5 bg-zinc-900 border border-zinc-850 text-[#ef4444] font-bold text-[9px] uppercase tracking-wider hover:border-[#ef4444] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-full px-2 py-1.5 bg-muted border border-border text-[#ef4444] font-bold text-[9px] uppercase tracking-wider hover:border-[#ef4444] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {saving ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : <Save className="w-3 h-3 mx-auto" />}
           </button>
@@ -224,9 +224,9 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
       </div>
 
       {/* Points cost row — independent of pricing_mode */}
-      <div className="border-t border-zinc-900/60 pt-4 grid grid-cols-1 md:grid-cols-12 gap-4 font-mono text-[10px]">
+      <div className="border-t border-border/60 pt-4 grid grid-cols-1 md:grid-cols-12 gap-4 font-mono text-[10px]">
         <div className="md:col-span-3 space-y-1">
-          <label className="text-zinc-500 uppercase text-[8px] tracking-wider">Points per call</label>
+          <label className="text-muted-foreground/80 uppercase text-[8px] tracking-wider">Points per call</label>
           <div className="flex items-center gap-2">
             <input
               type="number"
@@ -235,17 +235,17 @@ export function ModelConfigCard({ model, token, onUpdated, onError }: Props) {
               max="1000"
               value={pointsCost}
               onChange={(e) => setPointsCost(Math.max(0, Math.min(1000, Number(e.target.value) || 0)))}
-              className="w-20 bg-zinc-900 border border-zinc-850 px-2 py-1.5 text-white text-xs focus:outline-none focus:border-amber-500/50"
+              className="w-20 bg-muted border border-border px-2 py-1.5 text-foreground text-xs focus:outline-none focus:border-amber-500/50"
             />
             <span className="text-amber-500 font-bold text-xs">pts</span>
           </div>
         </div>
-        <div className="md:col-span-9 text-zinc-500 text-[9px] leading-relaxed">
+        <div className="md:col-span-9 text-muted-foreground/80 text-[9px] leading-relaxed">
           <p>
             Charged per call against the user's monthly point balance.
             Adjust per-model to fine-tune margins — cheaper models cost fewer points.
           </p>
-          <p className="mt-1 text-zinc-600">
+          <p className="mt-1 text-muted-foreground/70">
             Suggested: free-tier models = 1pt, cheap (Haiku) = 2pt, mid (Sonnet) = 5pt, premium (Opus/GPT-5.5) = 10–15pt.
           </p>
         </div>

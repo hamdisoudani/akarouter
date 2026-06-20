@@ -127,7 +127,7 @@ response = client.chat.completions.create(
 )`
 
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-white">
+    <div className="relative min-h-screen bg-background text-foreground flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-foreground">
       
       {/* SideNavBar */}
 
@@ -144,20 +144,20 @@ response = client.chat.completions.create(
         {/* Canvas */}
         <main className="flex-1 p-0 grid-bg relative">
           <div className="p-6">
-            <div className="grid grid-cols-12 gap-0 tech-border bg-[#0e0e10] crosshair-corners">
+            <div className="grid grid-cols-12 gap-0 tech-border bg-card crosshair-corners">
               
               {/* Main Content Grid Area */}
-              <div className="col-span-12 lg:col-span-8 lg:tech-border-r border-b lg:border-b-0 border-zinc-900 p-6 space-y-6 flex flex-col justify-between">
+              <div className="col-span-12 lg:col-span-8 lg:tech-border-r border-b lg:border-b-0 border-border p-6 space-y-6 flex flex-col justify-between">
                 
                 {/* API Key Panel */}
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="space-y-1">
-                      <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
                         <div className="w-[3px] h-3 bg-[#ef4444]"></div>
                         PROGRAMMATIC_API_KEYS
                       </h2>
-                      <p className="text-[10px] font-mono text-zinc-500 uppercase">Generate secure bearer tokens to connect to your routed models.</p>
+                      <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Generate secure bearer tokens to connect to your routed models.</p>
                     </div>
 
                     <div className="flex flex-col sm:flex-row sm:items-start gap-3">
@@ -166,7 +166,7 @@ response = client.chat.completions.create(
                         value={newKeyName}
                         onChange={(e) => setNewKeyName(e.target.value)}
                         placeholder="Key label (e.g. dev, prod)"
-                        className="border border-zinc-800 bg-[#050507] px-4 py-2 text-xs text-white placeholder-zinc-700 focus:outline-none focus:border-[#ef4444]/50 transition-colors w-40 font-mono"
+                        className="border border-border bg-card/80 px-4 py-2 text-xs text-foreground placeholder-zinc-700 focus:outline-none focus:border-[#ef4444]/50 transition-colors w-40 font-mono"
                       />
                       <div className="flex flex-col gap-2">
                         <InteractionCaptcha
@@ -177,7 +177,7 @@ response = client.chat.completions.create(
                         <button
                           onClick={handleCreateKey}
                           disabled={!captchaToken}
-                          className="bg-zinc-900 border border-zinc-850 hover:border-[#ef4444] hover:bg-[#ef4444]/5 text-white font-mono text-xs font-bold py-2 px-4 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="bg-muted border border-border hover:border-[#ef4444] hover:bg-[#ef4444]/5 text-foreground font-mono text-xs font-bold py-2 px-4 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           [+] CREATE
                         </button>
@@ -196,47 +196,47 @@ response = client.chat.completions.create(
                   {createdKey && (
                     <div className="p-4 bg-[#ef4444]/5 border border-[#ef4444]/20 text-[11px] font-mono space-y-2 animate-fade-in">
                       <p className="text-[#ef4444] font-bold">✓ NEW API KEY GENERATED SUCCESSFULLY! COPY NOW — IT WILL NOT BE DISPLAYED AGAIN:</p>
-                      <div className="flex items-center justify-between gap-3 bg-[#050507] p-3 border border-[#ef4444]/20 font-mono text-xs text-[#ef4444] red-glow-text">
+                      <div className="flex items-center justify-between gap-3 bg-card/80 p-3 border border-[#ef4444]/20 font-mono text-xs text-[#ef4444] red-glow-text">
                         <code className="select-all break-all">{createdKey}</code>
                         <button 
                           onClick={() => copyToClipboard(createdKey, 'createdKey', (v) => setCopiedCreatedKey(!!v))}
-                          className="p-1 border border-[#ef4444]/30 bg-zinc-950 text-zinc-400 hover:text-white transition-all shrink-0"
+                          className="p-1 border border-[#ef4444]/30 bg-muted/40 text-muted-foreground hover:text-foreground transition-all shrink-0"
                           title="Copy Key"
                         >
                           {copiedCreatedKey ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
                       </div>
-                      <button onClick={() => setCreatedKey(null)} className="text-[9px] text-zinc-500 hover:text-zinc-400 uppercase font-bold underline">Dismiss Alert</button>
+                      <button onClick={() => setCreatedKey(null)} className="text-[9px] text-muted-foreground/80 hover:text-muted-foreground uppercase font-bold underline">Dismiss Alert</button>
                     </div>
                   )}
 
                   {/* Keys list */}
                   {loading ? (
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="h-16 bg-[#050507] border border-zinc-900 animate-pulse flex items-center px-4">
-                        <span className="text-[10px] text-zinc-600 font-mono tracking-widest uppercase">READING_KEY_VAULT_01...</span>
+                      <div className="h-16 bg-card/80 border border-border animate-pulse flex items-center px-4">
+                        <span className="text-[10px] text-muted-foreground/70 font-mono tracking-widest uppercase">READING_KEY_VAULT_01...</span>
                       </div>
-                      <div className="h-16 bg-[#050507] border border-zinc-900 animate-pulse flex items-center px-4">
-                        <span className="text-[10px] text-zinc-600 font-mono tracking-widest uppercase">READING_KEY_VAULT_02...</span>
+                      <div className="h-16 bg-card/80 border border-border animate-pulse flex items-center px-4">
+                        <span className="text-[10px] text-muted-foreground/70 font-mono tracking-widest uppercase">READING_KEY_VAULT_02...</span>
                       </div>
                     </div>
                   ) : keys.length === 0 ? (
-                    <p className="text-xs text-zinc-650 py-4 font-mono uppercase text-center">[NO_ACTIVE_KEYS_FOUND_GENERATE_ABOVE]</p>
+                    <p className="text-xs text-muted-foreground/60 py-4 font-mono uppercase text-center">[NO_ACTIVE_KEYS_FOUND_GENERATE_ABOVE]</p>
                   ) : (
                     <div className="grid gap-3 sm:grid-cols-2">
                       {keys.map((key) => (
-                        <div key={key.id} className="flex items-center justify-between p-4 bg-[#050507] border border-zinc-900 hover:border-zinc-800 transition-all">
+                        <div key={key.id} className="flex items-center justify-between p-4 bg-card/80 border border-border hover:border-border transition-all">
                           <div className="space-y-1">
-                            <p className="text-xs font-mono font-bold text-zinc-300 uppercase">{key.key_name}</p>
-                            <p className="text-[10px] text-zinc-600 font-mono">{key.key_prefix}...••••</p>
+                            <p className="text-xs font-mono font-bold text-foreground/80 uppercase">{key.key_name}</p>
+                            <p className="text-[10px] text-muted-foreground/70 font-mono">{key.key_prefix}...••••</p>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-[9px] text-zinc-600 font-mono">
+                            <span className="text-[9px] text-muted-foreground/70 font-mono">
                               {new Date(key.created_at).toLocaleDateString()}
                             </span>
                             <button
                               onClick={() => handleRevokeKey(key.id)}
-                              className="p-2 border border-zinc-900 bg-zinc-950 text-zinc-500 hover:text-[#ef4444] hover:border-[#ef4444]/30 hover:bg-[#ef4444]/5 transition-all"
+                              className="p-2 border border-border bg-muted/40 text-muted-foreground/80 hover:text-[#ef4444] hover:border-[#ef4444]/30 hover:bg-[#ef4444]/5 transition-all"
                               title="Revoke Key"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -251,36 +251,36 @@ response = client.chat.completions.create(
               </div>
 
               {/* Quick Start Connection Guide Right Column */}
-              <div className="col-span-12 lg:col-span-4 p-6 flex flex-col justify-between bg-[#0e0e10]">
+              <div className="col-span-12 lg:col-span-4 p-6 flex flex-col justify-between bg-card">
                 <div className="space-y-4">
                   <div className="space-y-1">
-                    <h2 className="font-mono text-xs text-white flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
-                      <div className="w-[3px] h-3 bg-zinc-800"></div>
+                    <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
+                      <div className="w-[3px] h-3 bg-muted"></div>
                       QUICK_START_CONNECTION_GUIDE
                     </h2>
-                    <p className="text-[10px] font-mono text-zinc-500 uppercase">Seamless integration using any standard OpenAI-compatible client library.</p>
+                    <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Seamless integration using any standard OpenAI-compatible client library.</p>
                   </div>
 
-                  <div className="bg-[#050507] border border-zinc-900">
-                    <div className="bg-[#0e0e10] border-b border-zinc-900 px-4 py-2 flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-zinc-500 font-bold uppercase tracking-wider">python_openai_sdk.py</span>
+                  <div className="bg-card/80 border border-border">
+                    <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-muted-foreground/80 font-bold uppercase tracking-wider">python_openai_sdk.py</span>
                       <button
                         onClick={() => copyToClipboard(sdkCode, 'sdkCode', (v) => setCopiedSDK(!!v))}
-                        className="text-zinc-500 hover:text-white p-1 border border-zinc-900 bg-zinc-950 transition-all"
+                        className="text-muted-foreground/80 hover:text-foreground p-1 border border-border bg-muted/40 transition-all"
                         title="Copy code block"
                       >
                         {copiedSDK ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-                    <pre className="p-4 font-mono text-[11px] text-zinc-400 leading-relaxed overflow-x-auto whitespace-pre">
+                    <pre className="p-4 font-mono text-[11px] text-muted-foreground leading-relaxed overflow-x-auto whitespace-pre">
                       {sdkCode}
                     </pre>
                   </div>
                 </div>
 
-                <div className="mt-6 pt-6 border-t border-zinc-900">
+                <div className="mt-6 pt-6 border-t border-border">
                   <div className="flex justify-between items-center px-1 font-mono text-[9px]">
-                    <span className="text-zinc-650">CLIENT_COMPATIBILITY</span>
+                    <span className="text-muted-foreground/60">CLIENT_COMPATIBILITY</span>
                     <span className="text-emerald-500">v1_OPENAI_COMPATIBLE</span>
                   </div>
                 </div>

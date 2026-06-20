@@ -50,7 +50,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex items-center justify-center px-6 overflow-hidden grid-bg">
+    <div className="relative min-h-screen bg-background text-foreground flex items-center justify-center px-6 overflow-hidden grid-bg">
       {/* Background Gradients */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#ef4444]/5 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-1/4 left-1/3 w-[300px] h-[300px] bg-[#ef4444]/2 rounded-full blur-[100px] pointer-events-none" />
@@ -58,11 +58,11 @@ export default function LoginPage() {
       <div className="w-full max-w-md z-10">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 mb-4 font-mono text-[10px] uppercase tracking-wider text-zinc-500 hover:text-white transition-colors"
+          className="inline-flex items-center gap-2 mb-4 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/80 hover:text-foreground transition-colors"
         >
           ← Back to home
         </Link>
-        <div className="bg-[#0e0e10] border border-[#27272a] p-8 md:p-10 crosshair-corners relative">
+        <div className="bg-card border border-border p-8 md:p-10 crosshair-corners relative">
           <div className="absolute inset-0 opacity-[0.05] micro-grid pointer-events-none" />
           
           {/* Logo & Brand */}
@@ -74,8 +74,8 @@ export default function LoginPage() {
 
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-sm font-mono tracking-widest text-zinc-300 uppercase">[AUTH_VERIFICATION_REQUIRED]</h2>
-              <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wide mt-2">
+              <h2 className="text-sm font-mono tracking-widest text-foreground/80 uppercase">[AUTH_VERIFICATION_REQUIRED]</h2>
+              <p className="text-[10px] text-muted-foreground/80 font-mono uppercase tracking-wide mt-2">
                 Sign in to manage API keys, latency analytics, and gateway telemetry.
               </p>
             </div>
@@ -104,7 +104,7 @@ export default function LoginPage() {
         </div>
 
         {/* Footer info */}
-        <p className="mt-8 text-[9px] font-mono text-zinc-600 text-center px-4 uppercase tracking-widest">
+        <p className="mt-8 text-[9px] font-mono text-muted-foreground/70 text-center px-4 uppercase tracking-widest">
           Secure authentication provided via Google OAuth. Session status: 0x00_DISCONNECTED.
         </p>
       </div>
