@@ -161,44 +161,43 @@ export function DashboardSidebar() {
 
   return (
     <>
-      {/* Desktop sidebar (md+) */}
+      {/* Desktop sidebar (md+) — fixed vertical rail on the left. */}
       <nav className="hidden md:flex flex-col h-screen w-64 tech-border-r bg-[#09090b] py-6 fixed left-0 top-0 z-20 micro-grid">
         {sidebarBody}
       </nav>
 
-      {/* Mobile floating hamburger button */}
+      {/* Mobile hamburger button — sits in the top-left on mobile so the
+          dashboard canvas doesn't get a floating action button competing
+          with the page content. */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="md:hidden fixed bottom-6 right-6 z-40 p-3 border border-[#ef4444] bg-[#09090b]/95 backdrop-blur text-[#ef4444] hover:bg-[#ef4444] hover:text-white transition-all crosshair-corners red-glow shadow-lg"
+        className="md:hidden fixed top-4 left-4 z-40 p-2.5 border border-[#ef4444] bg-[#09090b]/95 backdrop-blur text-[#ef4444] hover:bg-[#ef4444] hover:text-white transition-all crosshair-corners red-glow shadow-lg"
         aria-label="Open navigation menu"
       >
         <Menu className="w-5 h-5" />
       </button>
 
-      {/* Mobile drawer (slides over content) */}
+      {/* Mobile fullscreen overlay (preserves the original pre-refactor
+          behaviour). The previous implementation rendered the mobile
+          drawer as a side rail from the left, which ate the dashboard
+          canvas on narrow screens and made the side-by-side KPI grid
+          unreadable. The fullscreen overlay lets the nav links use the
+          full mobile width with comfortable tap targets and stays
+          consistent with the rest of the dashboard's terminal aesthetic. */}
       {mobileOpen && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="md:hidden fixed inset-0 z-40 bg-black/70 backdrop-blur-sm animate-fade-in"
-            onClick={() => setMobileOpen(false)}
-            aria-hidden="true"
-          />
-          {/* Drawer body */}
-          <nav className="md:hidden fixed inset-y-0 left-0 z-50 w-72 bg-[#09090b] flex flex-col py-6 border-r border-zinc-900 animate-fade-in shadow-2xl">
-            {/* Close button */}
-            <div className="absolute top-4 right-4">
-              <button
-                onClick={() => setMobileOpen(false)}
-                className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
-                aria-label="Close navigation menu"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            {sidebarBody}
-          </nav>
-        </>
+        <div className="md:hidden fixed inset-0 z-50 bg-[#09090b]/98 backdrop-blur-md flex flex-col justify-between py-24 px-6 border-b border-zinc-900 animate-fade-in">
+          {/* Close button inside mobile overlay */}
+          <div className="absolute top-4 right-6 md:hidden">
+            <button
+              onClick={() => setMobileOpen(false)}
+              className="p-2 border border-zinc-800 bg-[#0e0e10] text-zinc-400 hover:text-white transition-colors"
+              aria-label="Close navigation menu"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {sidebarBody}
+        </div>
       )}
     </>
   )

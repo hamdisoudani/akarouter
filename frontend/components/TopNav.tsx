@@ -41,6 +41,15 @@ export function TopNav() {
     return pathname === href || pathname?.startsWith(href + '/')
   }
 
+  // True on the dashboard root and any /dashboard/* subpath. Used to
+  // suppress the "Dashboard" button in the right rail when the user is
+  // already there — showing a "go to dashboard" button on the dashboard
+  // itself is illogical and visually noisy.
+  const isDashboardRoute =
+    pathname === '/dashboard' ||
+    pathname === '/dashboard/' ||
+    (pathname?.startsWith('/dashboard/') ?? false)
+
   const handleSignOut = async () => {
     setSigningOut(true)
     try {
@@ -86,21 +95,25 @@ export function TopNav() {
           <ThemeToggle />
           {user ? (
             <>
-              <Link
-                href="/dashboard"
-                className="hidden sm:inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-                title={user.email}
-              >
-                <User className="w-3 h-3" />
-                {user.email?.split('@')[0] || 'Account'}
-              </Link>
-              <Link
-                href="/dashboard"
-                className="relative inline-flex items-center gap-1.5 bg-muted border border-border text-foreground font-mono text-[10px] sm:text-xs py-1.5 px-3 sm:py-2 sm:px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all crosshair-corners"
-              >
-                Dashboard
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+              {!isDashboardRoute && (
+                <>
+                  <Link
+                    href="/dashboard"
+                    className="hidden sm:inline-flex items-center gap-1.5 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                    title={user.email}
+                  >
+                    <User className="w-3 h-3" />
+                    {user.email?.split('@')[0] || 'Account'}
+                  </Link>
+                  <Link
+                    href="/dashboard"
+                    className="relative inline-flex items-center gap-1.5 bg-muted border border-border text-foreground font-mono text-[10px] sm:text-xs py-1.5 px-3 sm:py-2 sm:px-4 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all crosshair-corners"
+                  >
+                    Dashboard
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </>
+              )}
               <button
                 onClick={handleSignOut}
                 disabled={signingOut}
