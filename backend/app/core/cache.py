@@ -652,7 +652,8 @@ def get_plan_meta(tier: str) -> dict[str, Any]:
                 supabase.table("plan_presets")
                 .select("tier, points_cost_multiplier, monthly_point_allowance, "
                         "daily_free_requests_limit, included_model_aliases, "
-                        "monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit")
+                        "monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, "
+                        "price, billing_period, description, badge, has_trial, trial_days")
                 .eq("tier", tier)
                 .limit(1)
                 .execute()

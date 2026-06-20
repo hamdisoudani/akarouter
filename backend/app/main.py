@@ -424,6 +424,22 @@ async def startup():
             # 13. 2026-06-20: ensure all 5 plan tiers exist. Live DB was missing
             # the enterprise row entirely. Idempotent INSERT...ON CONFLICT DO NOTHING.
             _safe_insert("INSERT INTO plan_presets (tier, monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, monthly_point_allowance, daily_free_requests_limit, points_cost_multiplier) VALUES ('enterprise', 100000, 600, 5000000, 50000000, 25000, 0, 0.5) ON CONFLICT (tier) DO NOTHING;")
+            # 14. 2026-06-20: add missing plan_presets columns to bring live DB
+            # in line with schema.sql. Some were declared in schema but never
+            # ALTERed in production. These support price/billing_period/display
+            # fields used by the /v1/plans frontend rendering.
+            _safe_update("ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS price TEXT DEFAULT '$0';")
+            _safe_update("ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS billing_period TEXT DEFAULT 'mo';")
+            _safe_update("ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS description TEXT;")
+            _safe_update("ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS badge TEXT;")
+            _safe_update("ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS has_trial BOOLEAN NOT NULL DEFAULT FALSE;")
+            _safe_update("ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS trial_days INT NOT NULL DEFAULT 7;")
+            # Backfill default prices for all tiers
+            _safe_update("UPDATE plan_presets SET price = '$0',    billing_period = 'mo' WHERE tier = 'free'       AND (price IS NULL OR price = '$0');")
+            _safe_update("UPDATE plan_presets SET price = '$19',   billing_period = 'mo' WHERE tier = 'starter'    AND (price IS NULL OR price = '$0');")
+            _safe_update("UPDATE plan_presets SET price = '$49',   billing_period = 'mo' WHERE tier = 'pro'        AND (price IS NULL OR price = '$0');")
+            _safe_update("UPDATE plan_presets SET price = '$149',  billing_period = 'mo' WHERE tier = 'ultra'      AND (price IS NULL OR price = '$0');")
+            _safe_update("UPDATE plan_presets SET price = '$499',  billing_period = 'mo' WHERE tier = 'enterprise' AND (price IS NULL OR price = '$0');")
             cur.close()
             conn.close()
             logger.info("model_mapping migrations applied (slug + included_model_aliases + is_upcoming + 2x markup + tier multiplier + promotional + per_token→per_request)")
