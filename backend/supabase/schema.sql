@@ -191,13 +191,8 @@ CREATE TABLE IF NOT EXISTS system_settings (
 -- PLAN_PRESETS: SaaS Tiers Config
 -- ============================================
 CREATE TABLE IF NOT EXISTS plan_presets (
-    tier TEXT PRIMARY KEY CHECK (tier IN ('free', 'starter', 'pro', 'ultra', 'enterprise')),
-    price TEXT DEFAULT '$0',
-    billing_period TEXT DEFAULT 'mo',
-    description TEXT,
-    badge TEXT,
-    has_trial BOOLEAN NOT NULL DEFAULT FALSE,
-    trial_days INT NOT NULL DEFAULT 7,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tier TEXT NOT NULL UNIQUE CHECK (tier IN ('free', 'starter', 'pro', 'ultra', 'enterprise')),
     monthly_limit BIGINT NOT NULL DEFAULT 1000,
     rpm_limit BIGINT NOT NULL DEFAULT 60,
     tokens_5h_limit BIGINT NOT NULL DEFAULT 500000,
@@ -205,6 +200,20 @@ CREATE TABLE IF NOT EXISTS plan_presets (
     -- Point system (added 2026-06-19): monthly allowance + daily free-model cap
     monthly_point_allowance BIGINT NOT NULL DEFAULT 0 CHECK (monthly_point_allowance >= 0),
     daily_free_requests_limit BIGINT NOT NULL DEFAULT 0 CHECK (daily_free_requests_limit >= 0),
+    is_credit_based BOOLEAN NOT NULL DEFAULT FALSE,
+    monthly_requests_limit BIGINT NOT NULL DEFAULT 0,
+    free_token_quota_monthly BIGINT NOT NULL DEFAULT 0,
+    -- Pricing fields (added 2026-06-20)
+    price TEXT DEFAULT '$0',
+    billing_period TEXT DEFAULT 'mo',
+    description TEXT,
+    badge TEXT,
+    has_trial BOOLEAN NOT NULL DEFAULT FALSE,
+    trial_days INT NOT NULL DEFAULT 7,
+    points_cost_multiplier NUMERIC(4,3) NOT NULL DEFAULT 1.0
+        CHECK (points_cost_multiplier > 0 AND points_cost_multiplier <= 1.0),
+    included_model_aliases TEXT[],
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
