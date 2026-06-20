@@ -532,7 +532,8 @@ def get_model_metadata(model_alias: str) -> dict[str, Any]:
         supabase = get_supabase()
         res = (
             supabase.table("model_mapping")
-            .select("is_active, is_upcoming, input_cost_per_million, output_cost_per_million, "
+            .select("is_active, is_upcoming, is_promotional, promotional_discount_pct, "
+                    "input_cost_per_million, output_cost_per_million, "
                     "pricing_mode, cost_per_request_cents, points_cost, display_name")
             .eq("alias", model_alias)
             .execute()
@@ -542,6 +543,8 @@ def get_model_metadata(model_alias: str) -> dict[str, Any]:
             val = {
                 "is_active": row.get("is_active") if row.get("is_active") is not None else True,
                 "is_upcoming": bool(row.get("is_upcoming")),
+                "is_promotional": bool(row.get("is_promotional")),
+                "promotional_discount_pct": float(row.get("promotional_discount_pct") or 0),
                 "input_cost_per_million": row.get("input_cost_per_million"),
                 "output_cost_per_million": row.get("output_cost_per_million"),
                 "pricing_mode": row.get("pricing_mode") or "per_token",
@@ -553,6 +556,8 @@ def get_model_metadata(model_alias: str) -> dict[str, Any]:
             val = {
                 "is_active": True,
                 "is_upcoming": False,
+                "is_promotional": False,
+                "promotional_discount_pct": 0.0,
                 "input_cost_per_million": None,
                 "output_cost_per_million": None,
                 "pricing_mode": "per_token",
@@ -569,6 +574,8 @@ def get_model_metadata(model_alias: str) -> dict[str, Any]:
         return {
             "is_active": True,
             "is_upcoming": False,
+            "is_promotional": False,
+            "promotional_discount_pct": 0.0,
             "input_cost_per_million": None,
             "output_cost_per_million": None,
             "pricing_mode": "per_token",
@@ -600,6 +607,116 @@ def evict_all_model_caches() -> None:
     with _lock:
         _model_meta_cache.clear()
         _model_active_cache.clear()
+
+
+# -----------------------------------------------------------------------
+# Plan tier cache (added 2026-06-20)
+# -----------------------------------------------------------------------
+# Caches the per-tier points_cost_multiplier + monthly_point_allowance.
+# 60s TTL. Used by chat.py to compute effective points cost.
+
+_plan_meta_cache: dict[str, tuple[dict[str, Any], float]] = {}
+_PLAN_META_TTL = 60.0
+
+
+def get_plan_meta(tier: str) -> dict[str, Any]:
+    """Return plan_presets row for the given tier. Cached 60s.
+
+    Returns dict with at least:
+      points_cost_multiplier: float  (0 < m <= 1.0; default 1.0)
+      monthly_point_allowance: int
+      daily_free_requests_limit: int
+      included_model_aliases: Optional[list[str]]
+    """
+    tier = (tier or "free").lower()
+    now = time.time()
+    with _lock:
+        cached = _plan_meta_cache.get(tier)
+        if cached:
+            val, fetched_at = cached
+            if now - fetched_at < _PLAN_META_TTL:
+                return val
+    try:
+        supabase = get_supabase()
+        res = (
+            supabase.table("plan_presets")
+            .select("tier, points_cost_multiplier, monthly_point_allowance, "
+                    "daily_free_requests_limit, included_model_aliases, "
+                    "monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, "
+                    "price, billing_period, description, badge, has_trial, trial_days")
+            .eq("tier", tier)
+            .maybe_single()
+            .execute()
+        )
+        if res.data:
+            row = res.data
+            val = {
+                "tier": row.get("tier") or tier,
+                "points_cost_multiplier": float(row.get("points_cost_multiplier") or 1.0),
+                "monthly_point_allowance": int(row.get("monthly_point_allowance") or 0),
+                "daily_free_requests_limit": int(row.get("daily_free_requests_limit") or 0),
+                "included_model_aliases": row.get("included_model_aliases"),
+                "monthly_limit": int(row.get("monthly_limit") or 0),
+                "rpm_limit": int(row.get("rpm_limit") or 0),
+                "tokens_5h_limit": int(row.get("tokens_5h_limit") or 0),
+                "tokens_7d_limit": int(row.get("tokens_7d_limit") or 0),
+                "price": row.get("price") or "$0",
+                "billing_period": row.get("billing_period") or "mo",
+                "description": row.get("description") or "",
+                "badge": row.get("badge"),
+                "has_trial": bool(row.get("has_trial") or False),
+                "trial_days": int(row.get("trial_days") or 0),
+            }
+        else:
+            # Default to free-tier shape if tier not found
+            val = {
+                "tier": tier,
+                "points_cost_multiplier": 1.0,
+                "monthly_point_allowance": 0,
+                "daily_free_requests_limit": 0,
+                "included_model_aliases": None,
+                "monthly_limit": 0,
+                "rpm_limit": 0,
+                "tokens_5h_limit": 0,
+                "tokens_7d_limit": 0,
+                "price": "$0",
+                "billing_period": "mo",
+                "description": "",
+                "badge": None,
+                "has_trial": False,
+                "trial_days": 0,
+            }
+        with _lock:
+            _plan_meta_cache[tier] = (val, now)
+        return val
+    except Exception as e:
+        logger.error(f"Failed to fetch plan meta for tier={tier}: {e}")
+        return {
+            "tier": tier,
+            "points_cost_multiplier": 1.0,
+            "monthly_point_allowance": 0,
+            "daily_free_requests_limit": 0,
+            "included_model_aliases": None,
+            "monthly_limit": 0,
+            "rpm_limit": 0,
+            "tokens_5h_limit": 0,
+            "tokens_7d_limit": 0,
+            "price": "$0",
+            "billing_period": "mo",
+            "description": "",
+            "badge": None,
+            "has_trial": False,
+            "trial_days": 0,
+        }
+
+
+def evict_plan_meta_cache(tier: Optional[str] = None) -> None:
+    """Evict plan tier cache (specific tier or all)."""
+    with _lock:
+        if tier is None:
+            _plan_meta_cache.clear()
+        elif tier in _plan_meta_cache:
+            del _plan_meta_cache[tier]
 
 
 def get_jwt_cache(token: str) -> Optional[dict[str, Any]]:

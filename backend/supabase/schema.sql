@@ -1090,3 +1090,77 @@ UPDATE model_mapping SET input_cost_per_million = 0.280, output_cost_per_million
 
 -- Keep M3 (akarouter-mini) as it is — upstream is free, points_cost = 2 (promotional).
 -- Note: kept at 2pts even though upstream is free; this is intentional loss-leader pricing.
+
+-- ============================================
+-- 2026-06-20: Plan-tier points-cost multiplier
+-- ============================================
+-- Each plan tier has a multiplier (0 < m <= 1) applied to the base points_cost
+-- of every model when computing the effective charge for that user.
+--   effective_pts = max(1, round(base_pts * plan_multiplier))
+-- Higher plan tiers get a smaller multiplier = bigger discount.
+--   free = 1.0 (no discount)
+--   starter = 0.9 (10% off)
+--   pro = 0.75 (25% off)
+--   ultra = 0.6 (40% off)
+--   enterprise = 0.5 (50% off)
+ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS points_cost_multiplier NUMERIC(4,3) NOT NULL DEFAULT 1.0
+    CHECK (points_cost_multiplier > 0 AND points_cost_multiplier <= 1.0);
+
+UPDATE plan_presets SET points_cost_multiplier = 1.0  WHERE tier = 'free';
+UPDATE plan_presets SET points_cost_multiplier = 0.9  WHERE tier = 'starter';
+UPDATE plan_presets SET points_cost_multiplier = 0.75 WHERE tier = 'pro';
+UPDATE plan_presets SET points_cost_multiplier = 0.6  WHERE tier = 'ultra';
+UPDATE plan_presets SET points_cost_multiplier = 0.5  WHERE tier = 'enterprise';
+
+-- ============================================
+-- 2026-06-20: Promotional model flag
+-- ============================================
+-- is_promotional=true models get an additional discount on top of the
+-- tier multiplier. Use for models we want to push (loss leaders, beta, etc.).
+-- promotional_discount_pct is 0-1 (0 = no discount, 1 = free).
+-- Admin editable via PATCH /admin/models/{alias}.
+ALTER TABLE model_mapping ADD COLUMN IF NOT EXISTS is_promotional BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE model_mapping ADD COLUMN IF NOT EXISTS promotional_discount_pct NUMERIC(4,3) NOT NULL DEFAULT 0
+    CHECK (promotional_discount_pct >= 0 AND promotional_discount_pct <= 1);
+ALTER TABLE model_mapping ADD COLUMN IF NOT EXISTS promotional_admin_note TEXT;
+
+COMMENT ON COLUMN model_mapping.is_promotional IS 'TRUE = this model has an additional promotional discount applied on top of the plan-tier multiplier.';
+COMMENT ON COLUMN model_mapping.promotional_discount_pct IS '0-1, additional discount (e.g. 0.3 = 30% off). Applied AFTER plan multiplier.';
+COMMENT ON COLUMN model_mapping.promotional_admin_note IS 'Free-text admin note shown in /models and admin UI (e.g. "Limited-time launch promo").';
+
+-- Seed MiniMax-M3 as promotional (currently a loss leader at 2pts)
+UPDATE model_mapping
+   SET is_promotional = TRUE,
+       promotional_discount_pct = 0.5,
+       promotional_admin_note = 'Loss-leader launch promo. Frontier-class model at promotional rate.'
+ WHERE alias = 'akarouter-mini';
+
+-- ============================================
+-- 2026-06-20: Migrate per-token models to per_request
+-- ============================================
+-- All current per-token models have very low upstream cost (≤ ¥0.2/1M tokens).
+-- Per-request at 1¢ is a clean billing model for users and removes per-token
+-- metering complexity. Per-token cost fields are kept for display only.
+UPDATE model_mapping
+   SET pricing_mode = 'per_request',
+       cost_per_request_cents = 1,
+       points_cost = 1
+ WHERE alias IN ('akarouter-flash', 'akarouter-pro')
+   AND pricing_mode = 'per_token';
+
+-- Owl Alpha (akarouter-large) has higher upstream cost → 2¢ per request
+UPDATE model_mapping
+   SET pricing_mode = 'per_request',
+       cost_per_request_cents = 2,
+       points_cost = 2
+ WHERE alias = 'akarouter-large'
+   AND pricing_mode = 'per_token';
+
+-- ============================================
+-- CHECK constraint: is_free_provider implies points_cost <= 1
+-- ============================================
+-- Add the same constraint that main.py runtime migration step 9 adds, so
+-- fresh database setups get it without needing the runtime migration.
+ALTER TABLE model_mapping DROP CONSTRAINT IF EXISTS model_mapping_free_provider_cost_check;
+ALTER TABLE model_mapping ADD CONSTRAINT model_mapping_free_provider_cost_check
+    CHECK (NOT is_free_provider OR points_cost <= 1);

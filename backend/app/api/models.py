@@ -32,7 +32,7 @@ async def list_models(request: Request) -> dict:
             "context_window_tokens, max_output_tokens, input_modalities, output_modalities, "
             "knowledge_cutoff, released_date, supports_vision, supports_video, supports_audio, "
             "supports_tool_use, supports_function_calling, supports_reasoning, specs_source, "
-            "is_upcoming"
+            "is_upcoming, is_promotional, promotional_discount_pct, promotional_admin_note"
         ).or_("is_active.eq.true,is_upcoming.eq.true").execute()
         if result.data:
             return {
@@ -52,6 +52,13 @@ async def list_models(request: Request) -> dict:
                         "is_active": row.get("is_active", True),
                         # is_upcoming: shown in catalog with price, but chat returns 403.
                         "is_upcoming": bool(row.get("is_upcoming", False)),
+                        # NEW (2026-06-20): promotional model flag + discount.
+                        # is_promotional models get an additional %-off on top of
+                        # the plan-tier multiplier. Use for loss leaders / launch
+                        # promos (e.g. MiniMax-M3).
+                        "is_promotional": bool(row.get("is_promotional", False)),
+                        "promotional_discount_pct": float(row.get("promotional_discount_pct") or 0),
+                        "promotional_admin_note": row.get("promotional_admin_note") or "",
                         "capabilities": row.get("capabilities") or ["text"],
                         "input_cost_per_million": row.get("input_cost_per_million", 0.10),
                         "output_cost_per_million": row.get("output_cost_per_million", 0.30),
@@ -107,6 +114,77 @@ async def list_models(request: Request) -> dict:
             for alias in settings.model_mapping
         ],
     }
+
+
+@router.get("/v1/billing-matrix")
+async def get_billing_matrix() -> dict:
+    """Return the effective points cost for every model on every tier.
+
+    The /upgrade page uses this to render a 'cost per request' table that
+    shows how each model's point cost drops on higher tiers. Public endpoint
+    (no auth) so the upgrade page can render before login.
+
+    Response shape:
+      {
+        "tiers": ["free", "starter", "pro", "ultra", "enterprise"],
+        "plan_multipliers": { tier: float },
+        "monthly_allowances": { tier: int },
+        "models": [
+          { alias, display_name, provider_name, is_upcoming, is_promotional,
+            promotional_discount_pct, costs: { tier: { base, effective } } }
+        ]
+      }
+    """
+    try:
+        from app.core.cache import get_plan_meta
+        from app.core.chat_billing import get_effective_points_cost
+        tiers = ["free", "starter", "pro", "ultra", "enterprise"]
+        multipliers: dict[str, float] = {}
+        allowances: dict[str, int] = {}
+        for tier in tiers:
+            meta = get_plan_meta(tier)
+            multipliers[tier] = float(meta.get("points_cost_multiplier") or 1.0)
+            allowances[tier] = int(meta.get("monthly_point_allowance") or 0)
+        # Fetch models (active + upcoming only)
+        supabase = get_supabase()
+        result = supabase.table("model_mapping").select(
+            "alias, display_name, provider_name, is_upcoming, is_promotional, "
+            "promotional_discount_pct, points_cost, pricing_mode"
+        ).or_("is_active.eq.true,is_upcoming.eq.true").execute()
+        models_out: list[dict] = []
+        if result.data:
+            for row in result.data:
+                alias = row.get("alias")
+                base_pts = int(row.get("points_cost") or 1)
+                costs: dict[str, dict[str, int]] = {}
+                for tier in tiers:
+                    try:
+                        effective = get_effective_points_cost(alias, tier)
+                    except Exception:
+                        effective = base_pts
+                    costs[tier] = {
+                        "base": base_pts,
+                        "effective": effective,
+                    }
+                models_out.append({
+                    "alias": alias,
+                    "display_name": row.get("display_name") or alias,
+                    "provider_name": row.get("provider_name") or "",
+                    "is_upcoming": bool(row.get("is_upcoming")),
+                    "is_promotional": bool(row.get("is_promotional")),
+                    "promotional_discount_pct": float(row.get("promotional_discount_pct") or 0),
+                    "pricing_mode": row.get("pricing_mode") or "per_request",
+                    "costs": costs,
+                })
+        return {
+            "tiers": tiers,
+            "plan_multipliers": multipliers,
+            "monthly_allowances": allowances,
+            "models": models_out,
+        }
+    except Exception as e:
+        logger.error(f"billing matrix fetch failed: {e}")
+        return {"tiers": [], "plan_multipliers": {}, "monthly_allowances": {}, "models": [], "error": str(e)}
 
 
 @router.get("/v1/plans")

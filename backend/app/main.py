@@ -392,9 +392,31 @@ async def startup():
             _safe_update("UPDATE model_mapping SET input_cost_per_million = 0.013, output_cost_per_million = 0.038, cost_per_request_cents = 1, points_cost = 1 WHERE alias = 'akarouter-flash';")
             _safe_update("UPDATE model_mapping SET input_cost_per_million = 0.056, output_cost_per_million = 0.280, cost_per_request_cents = 5, points_cost = 3 WHERE alias = 'akarouter-pro';")
             _safe_update("UPDATE model_mapping SET input_cost_per_million = 0.280, output_cost_per_million = 1.120, cost_per_request_cents = 10, points_cost = 10 WHERE alias = 'akarouter-large';")
+            # 12. 2026-06-20: Plan-tier points multiplier + promotional model + per_token → per_request.
+            # Idempotent: ADD COLUMN IF NOT EXISTS + UPDATE WHERE clauses.
+            # Schema:
+            #   plan_presets.points_cost_multiplier NUMERIC(4,3) DEFAULT 1.0
+            #   model_mapping.is_promotional BOOLEAN DEFAULT FALSE
+            #   model_mapping.promotional_discount_pct NUMERIC(4,3) DEFAULT 0
+            _safe_update("ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS points_cost_multiplier NUMERIC(4,3) NOT NULL DEFAULT 1.0 CHECK (points_cost_multiplier > 0 AND points_cost_multiplier <= 1.0);")
+            _safe_update("UPDATE plan_presets SET points_cost_multiplier = 1.0  WHERE tier = 'free';")
+            _safe_update("UPDATE plan_presets SET points_cost_multiplier = 0.9  WHERE tier = 'starter';")
+            _safe_update("UPDATE plan_presets SET points_cost_multiplier = 0.75 WHERE tier = 'pro';")
+            _safe_update("UPDATE plan_presets SET points_cost_multiplier = 0.6  WHERE tier = 'ultra';")
+            _safe_update("UPDATE plan_presets SET points_cost_multiplier = 0.5  WHERE tier = 'enterprise';")
+            _safe_update("ALTER TABLE model_mapping ADD COLUMN IF NOT EXISTS is_promotional BOOLEAN NOT NULL DEFAULT FALSE;")
+            _safe_update("ALTER TABLE model_mapping ADD COLUMN IF NOT EXISTS promotional_discount_pct NUMERIC(4,3) NOT NULL DEFAULT 0 CHECK (promotional_discount_pct >= 0 AND promotional_discount_pct <= 1);")
+            _safe_update("ALTER TABLE model_mapping ADD COLUMN IF NOT EXISTS promotional_admin_note TEXT;")
+            # Seed MiniMax-M3 (akarouter-mini) as promotional loss leader.
+            _safe_update("UPDATE model_mapping SET is_promotional = TRUE, promotional_discount_pct = 0.5, promotional_admin_note = 'Loss-leader launch promo. Frontier-class model at promotional rate.' WHERE alias = 'akarouter-mini';")
+            # Migrate per_token models to per_request. Per-token upstream cost is very low
+            # (≤¥0.2/1M tokens), so per_request at 1–2¢ is cleaner billing.
+            _safe_update("UPDATE model_mapping SET pricing_mode = 'per_request', cost_per_request_cents = 1, points_cost = 1 WHERE alias = 'akarouter-flash' AND pricing_mode = 'per_token';")
+            _safe_update("UPDATE model_mapping SET pricing_mode = 'per_request', cost_per_request_cents = 1, points_cost = 1 WHERE alias = 'akarouter-pro'   AND pricing_mode = 'per_token';")
+            _safe_update("UPDATE model_mapping SET pricing_mode = 'per_request', cost_per_request_cents = 2, points_cost = 2 WHERE alias = 'akarouter-large' AND pricing_mode = 'per_token';")
             cur.close()
             conn.close()
-            logger.info("model_mapping migrations applied (slug + included_model_aliases + is_upcoming + 2x markup)")
+            logger.info("model_mapping migrations applied (slug + included_model_aliases + is_upcoming + 2x markup + tier multiplier + promotional + per_token→per_request)")
     except Exception as e:
         # Don't fail startup — log and continue. The /api/v1/models endpoint already
         # falls back to alias if slug is missing in a row.

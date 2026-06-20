@@ -332,6 +332,8 @@ class CreatePlanRequest(BaseModel):
     tokens_7d_limit: Optional[float] = 5.0
     monthly_point_allowance: Optional[int] = 0
     daily_free_requests_limit: Optional[int] = 0
+    # NEW (2026-06-20): per-tier discount multiplier on points_cost.
+    points_cost_multiplier: Optional[float] = 1.0
     price: Optional[str] = "$0"
     billing_period: Optional[str] = "mo"
     description: Optional[str] = ""
@@ -349,6 +351,10 @@ class UpdatePlanRequest(BaseModel):
     tokens_7d_limit: Optional[float] = None
     monthly_point_allowance: Optional[int] = None
     daily_free_requests_limit: Optional[int] = None
+    # NEW (2026-06-20): per-tier discount multiplier on points_cost.
+    # 0 < m <= 1. Higher tier = lower multiplier = bigger discount.
+    # free=1.0, starter=0.9, pro=0.75, ultra=0.6, enterprise=0.5.
+    points_cost_multiplier: Optional[float] = None
     price: Optional[str] = None
     billing_period: Optional[str] = None
     description: Optional[str] = None
@@ -372,6 +378,10 @@ class UpdateInvitationRequest(BaseModel):
 
 class UpdateModelRequest(BaseModel):
     is_active: Optional[bool] = None
+    is_upcoming: Optional[bool] = None            # Show in catalog but chat returns 403
+    is_promotional: Optional[bool] = None         # Apply promotional discount on top of plan multiplier
+    promotional_discount_pct: Optional[float] = None  # 0-1, additional discount (e.g. 0.3 = 30% off)
+    promotional_admin_note: Optional[str] = None  # Free-text admin note shown in /models and admin UI
     display_name: Optional[str] = None            # Friendly model name shown to users
     slug: Optional[str] = None                    # URL-friendly id (auto-derived from display_name)
     description: Optional[str] = None             # Short model blurb shown on detail page
@@ -720,6 +730,7 @@ async def create_plan(body: CreatePlanRequest, authorization: Optional[str] = He
         "tokens_7d_limit": body.tokens_7d_limit,
         "monthly_point_allowance": body.monthly_point_allowance,
         "daily_free_requests_limit": body.daily_free_requests_limit,
+        "points_cost_multiplier": max(0.001, min(1.0, float(body.points_cost_multiplier or 1.0))),
         "price": body.price,
         "billing_period": body.billing_period,
         "description": body.description,
@@ -767,6 +778,12 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         # so the cap stays a real cap. Use 0 to disable the free allowance entirely.
         v = max(0, min(100_000, int(body.daily_free_requests_limit)))
         updates["daily_free_requests_limit"] = v
+    if body.points_cost_multiplier is not None:
+        # SECURITY: must be in (0, 1.0]. <0 means we'd give back more points than we charge (free money).
+        # >1.0 means the user pays MORE than the catalog price (illegal — users expect listed price).
+        # We clamp to 0.001 minimum to avoid divide-by-zero in downstream logic.
+        v = max(0.001, min(1.0, float(body.points_cost_multiplier)))
+        updates["points_cost_multiplier"] = v
     if body.price is not None:
         updates["price"] = body.price
     if body.billing_period is not None:
@@ -1125,6 +1142,16 @@ async def admin_update_model(alias: str, body: UpdateModelRequest, authorization
     updates: dict = {}
     if body.is_active is not None:
         updates["is_active"] = body.is_active
+    if body.is_upcoming is not None:
+        updates["is_upcoming"] = body.is_upcoming
+    if body.is_promotional is not None:
+        updates["is_promotional"] = body.is_promotional
+    if body.promotional_discount_pct is not None:
+        if body.promotional_discount_pct < 0 or body.promotional_discount_pct > 1:
+            raise HTTPException(status_code=400, detail="promotional_discount_pct must be between 0 and 1 (e.g. 0.3 = 30% off)")
+        updates["promotional_discount_pct"] = body.promotional_discount_pct
+    if body.promotional_admin_note is not None:
+        updates["promotional_admin_note"] = body.promotional_admin_note
     if body.display_name is not None:
         updates["display_name"] = body.display_name
     if body.description is not None:
