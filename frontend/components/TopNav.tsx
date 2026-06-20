@@ -76,9 +76,6 @@ export function TopNav() {
           <Link href="/dashboard/upgrade" className={linkClass('/upgrade')}>
             Pricing
           </Link>
-          <Link href="/playground" className={linkClass('/playground')}>
-            Playground
-          </Link>
           <Link href="/docs" className={linkClass('/docs')}>
             Docs
           </Link>

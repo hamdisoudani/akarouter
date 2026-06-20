@@ -61,7 +61,7 @@ const nextConfig = {
   // legacy top-level paths with 301 (permanent) so existing bookmarks,
   // search results, and outbound links keep working. /agents is dropped
   // entirely (Hosted Agents was deprecated) — redirect to the dashboard
-  // home so users have somewhere to land.
+  // home so users have somewhere to land. /playground is dropped too.
   async redirects() {
     return [
       { source: '/keys', destination: '/dashboard/keys', permanent: true },
@@ -69,6 +69,7 @@ const nextConfig = {
       { source: '/upgrade', destination: '/dashboard/upgrade', permanent: true },
       { source: '/admin', destination: '/dashboard/admin', permanent: true },
       { source: '/agents', destination: '/dashboard', permanent: true },
+      { source: '/playground', destination: '/dashboard', permanent: true },
     ]
   },
 
