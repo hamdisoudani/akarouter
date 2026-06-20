@@ -171,15 +171,21 @@ export function DashboardSidebar() {
           (mobile AND desktop). On mobile it's full-width above the
           content; on desktop it sits to the right of the fixed vertical
           sidebar (md:ml-64 offsets the sidebar's w-64). Layout:
-            [logo]  ...spacer...  [theme toggle] [hamburger]
-          The hamburger opens the same fullscreen overlay on both
-          breakpoints — the desktop sidebar stays put underneath, but
-          the overlay still gives the user a focused nav view (matches
-          the user's "both sidebar and topnav" request from 2026-06-20).
-          The bar lives at z-30 (sidebar is z-20, overlay is z-50). */}
+            MOBILE:  [logo]                  [theme] [hamburger]
+            DESKTOP: [DASHBOARD label]       [theme] [hamburger]
+          The logo is mobile-only (md:hidden) — on desktop the vertical
+          sidebar already carries the logo, so showing it again in the
+          top bar would be a duplicate. The hamburger opens the same
+          fullscreen overlay on both breakpoints. The bar lives at z-30
+          (sidebar is z-20, overlay is z-50). */}
       <header className="sticky top-0 z-30 flex justify-between items-center w-full md:ml-64 md:w-[calc(100%-16rem)] px-4 py-2.5 bg-[#09090b]/95 backdrop-blur border-b border-zinc-900">
-        <div className="relative w-20 h-9 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
-          <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
+        <div className="flex items-center gap-2">
+          <div className="md:hidden relative w-20 h-9 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
+            <Image src="/logo.png" alt="AkaRouter Logo" fill className="object-contain scale-[2.5]" />
+          </div>
+          <span className="hidden md:inline font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+            [DASHBOARD]
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
