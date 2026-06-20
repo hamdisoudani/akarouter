@@ -213,54 +213,7 @@ async def get_billing_matrix() -> dict:
         return {"tiers": [], "plan_multipliers": {}, "monthly_allowances": {}, "rpm_limits": {}, "prices": {}, "billing_periods": {}, "models": [], "error": str(e)}
 
 
-@router.get("/v1/plans")
-async def list_plans() -> dict:
-    """List plan presets — allows the frontend to dynamically display limits."""
-    try:
-        supabase = get_supabase()
-        result = supabase.table("plan_presets").select("*").order("monthly_limit", desc=False).execute()
-        if result.data:
-            return {"plans": result.data}
-    except Exception as e:
-        logger.error(f"Failed to fetch plan presets from database: {e}")
-        
-    return {
-        "plans": [
-            {
-                "tier": "free",
-                "monthly_limit": 0.0,
-                "rpm_limit": 0,
-                "tokens_5h_limit": 0.0,
-                "tokens_7d_limit": 0.0,
-                "monthly_point_allowance": 100,
-                "daily_free_requests_limit": 10
-            },
-            {
-                "tier": "starter",
-                "monthly_limit": 10.0,
-                "rpm_limit": 60,
-                "tokens_5h_limit": 1.0,
-                "tokens_7d_limit": 5.0,
-                "monthly_point_allowance": 500,
-                "daily_free_requests_limit": 0
-            },
-            {
-                "tier": "pro",
-                "monthly_limit": 100.0,
-                "rpm_limit": 300,
-                "tokens_5h_limit": 10.0,
-                "tokens_7d_limit": 50.0,
-                "monthly_point_allowance": 2500,
-                "daily_free_requests_limit": 0
-            },
-            {
-                "tier": "ultra",
-                "monthly_limit": 1000.0,
-                "rpm_limit": 1000,
-                "tokens_5h_limit": 100.0,
-                "tokens_7d_limit": 500.0,
-                "monthly_point_allowance": 7500,
-                "daily_free_requests_limit": 0
-            }
-        ]
-    }
+# NOTE (2026-06-20): /v1/plans is owned by app.api.plans (registered later
+# in main.py). FastAPI uses the FIRST registered handler for a given path,
+# so this duplicate endpoint used to win and bypass the is_visible filter.
+# Removed. The proper handler with visibility filter lives in app/api/plans.py.

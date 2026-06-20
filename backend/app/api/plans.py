@@ -29,7 +29,8 @@ async def get_plans(request: Request):
         .execute()
     )
     all_plans = result.data or []
+    # Supabase-py 2.x boolean filters are unreliable; filter in Python.
+    # Only plans with is_visible=true are exposed publicly. Enterprise
+    # is kept in DB for legacy accounts but hidden from /v1/plans.
     plans = [p for p in all_plans if p.get("is_visible") is True]
-    import logging
-    logging.warning(f"DEBUG plans: {len(all_plans)} total, {len(plans)} visible, is_visible values: {[p.get('is_visible') for p in all_plans]}")
     return {"plans": plans}
