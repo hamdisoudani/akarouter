@@ -137,7 +137,7 @@ async def auth_middleware(request: Request, call_next):
 
     # Try API key auth first (tokens starting with "akar_")
     if token.startswith("akar_"):
-        from app.core.router import RateLimitException, BudgetLimitException, SuspendedAccountException
+        from app.core.router import RateLimitException, BudgetLimitException, SuspendedAccountException, BannedAccountException
         check_limits = path.startswith("/v1/")
         try:
             auth_result = await authenticate_api_key(token, check_limits=check_limits)
@@ -145,8 +145,13 @@ async def auth_middleware(request: Request, call_next):
             return JSONResponse(status_code=429, content={"detail": str(e)})
         except BudgetLimitException as e:
             return JSONResponse(status_code=429, content={"detail": str(e)})
+        except BannedAccountException as e:
+            # 403 Forbidden — banned accounts are blocked at every API path,
+            # not just the dashboard. The auth path inside authenticate_api_key
+            # also auto-revokes all active API keys for the banned account.
+            return JSONResponse(status_code=403, content={"detail": str(e), "reason": "banned"})
         except SuspendedAccountException as e:
-            return JSONResponse(status_code=403, content={"detail": str(e)})
+            return JSONResponse(status_code=403, content={"detail": str(e), "reason": "suspended"})
             
         if auth_result:
             request.state.auth = auth_result
@@ -162,14 +167,19 @@ async def auth_middleware(request: Request, call_next):
                 if user_status != "active":
                     # Pending activation accounts can access /user/me, /user/usage, and /user/activate
                     is_allowed_pending_path = user_status == "pending" and path in ("/user/me", "/user/usage", "/user/activate")
-                    if not is_allowed_pending_path:
+                    # Banned accounts: only allow /user/me (so the BannedAccountWall can render) and /auth/logout
+                    is_allowed_banned_path = user_status == "banned" and path in ("/user/me",)
+                    if not is_allowed_pending_path and not is_allowed_banned_path:
                         if not (path.startswith(ADMIN_PREFIX) and user_info.get("role") == "admin"):
                             detail_msg = f"Account status is {user_status}"
+                            reason_label = user_status  # default: 'suspended', 'cancelled', etc
                             if user_status == "suspended":
                                 detail_msg = f"Account is suspended: {user_info.get('suspended_reason') or 'Suspended by administrator'}"
+                            elif user_status == "banned":
+                                detail_msg = f"Account is banned: {user_info.get('ban_reason') or 'Violation of terms of service'}"
                             return JSONResponse(
                                 status_code=403, 
-                                content={"detail": detail_msg}
+                                content={"detail": detail_msg, "reason": reason_label}
                             )
                 request.state.supabase_user = user_info
                 request.state.auth = {
@@ -440,9 +450,39 @@ async def startup():
             _safe_update("UPDATE plan_presets SET price = '$49',   billing_period = 'mo' WHERE tier = 'pro'        AND (price IS NULL OR price = '$0');")
             _safe_update("UPDATE plan_presets SET price = '$149',  billing_period = 'mo' WHERE tier = 'ultra'      AND (price IS NULL OR price = '$0');")
             _safe_update("UPDATE plan_presets SET price = '$499',  billing_period = 'mo' WHERE tier = 'enterprise' AND (price IS NULL OR price = '$0');")
+            # 15. 2026-06-20: 'banned' account status. Distinct from 'suspended':
+            #   - suspended = temporary, admin will restore (e.g. payment failed)
+            #   - banned    = permanent, ToS violation. User must contact support.
+            # Banned users see ONLY contact-support wall + ban reason + sign-out.
+            # We:
+            #   (a) add 'banned' to the accounts.status CHECK constraint
+            #   (b) add a ban_reason TEXT column (separate from suspended_reason
+            #       because the messaging is different: "you violated ToS" vs
+            #       "we're reviewing your account")
+            _safe_update("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS ban_reason TEXT;")
+            # The accounts.status CHECK is auto-named accounts_status_check.
+            # Use DO $$ to drop + recreate idempotently. If the constraint was
+            # renamed in a prior manual migration, the IF EXISTS prevents failure.
+            cur.execute("""
+                DO $$ BEGIN
+                  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'accounts_status_check') THEN
+                    ALTER TABLE accounts DROP CONSTRAINT accounts_status_check;
+                  END IF;
+                EXCEPTION WHEN others THEN NULL; END $$;
+            """)
+            cur.execute("""
+                DO $$ BEGIN
+                  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'accounts_status_check') THEN
+                    ALTER TABLE accounts
+                      ADD CONSTRAINT accounts_status_check
+                      CHECK (status IN ('active', 'pending', 'suspended', 'cancelled', 'banned'));
+                  END IF;
+                EXCEPTION WHEN others THEN NULL; END $$;
+            """)
+            logger.info("migration step 15: banned status + ban_reason column applied")
             cur.close()
             conn.close()
-            logger.info("model_mapping migrations applied (slug + included_model_aliases + is_upcoming + 2x markup + tier multiplier + promotional + per_token→per_request)")
+            logger.info("model_mapping migrations applied (slug + included_model_aliases + is_upcoming + 2x markup + tier multiplier + promotional + per_token→per_request + banned status)")
     except Exception as e:
         # Don't fail startup — log and continue. The /api/v1/models endpoint already
         # falls back to alias if slug is missing in a row.
@@ -470,4 +510,3 @@ async def shutdown():
     # Stop flusher task and execute final database flush
     from app.core.cache import stop_flusher
     await stop_flusher()
-

@@ -151,12 +151,7 @@ export default function UpgradePage() {
 
             {/* Plans grid */}
             {displayPlans.length === 0 ? (
-              <div className="bg-card border border-border p-12 text-center font-mono text-xs text-muted-foreground">
-                {matrixLoading ? (
-                  <RefreshCw className="w-5 h-5 animate-spin text-[#ef4444] mx-auto mb-2" />
-                ) : null}
-                Loading plans from backend...
-              </div>
+              <PlansGridSkeleton count={4} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {displayPlans.map(plan => (
@@ -191,6 +186,65 @@ export default function UpgradePage() {
 }
 
 // ============================================
+// PlansGridSkeleton
+// Brutalist skeleton loader that mirrors PlanCard dimensions
+// so the layout doesn't shift when real data lands.
+// ============================================
+
+function PlansGridSkeleton({ count = 4 }: { count?: number }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between border-b border-border pb-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/70 flex items-center gap-2">
+          <div className="w-1.5 h-1.5 bg-[#ef4444] animate-pulse" />
+          [FETCHING_PLANS...]
+        </div>
+        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/50">
+          SYNCHRONIZING // {count} NODES
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {Array.from({ length: count }).map((_, i) => (
+          <div
+            key={i}
+            className="relative bg-card border border-border p-5 flex flex-col gap-3 animate-pulse"
+          >
+            {/* Badge placeholder */}
+            <div className="h-3 w-16 bg-muted" />
+            {/* Title */}
+            <div className="h-3 w-20 bg-muted" />
+            {/* Price row */}
+            <div className="py-2 border-y border-border space-y-1.5">
+              <div className="h-7 w-24 bg-muted" />
+              <div className="h-2.5 w-32 bg-muted/60" />
+            </div>
+            {/* Limits list (4 rows) */}
+            <div className="space-y-1.5">
+              {[0, 1, 2, 3].map(j => (
+                <div key={j} className="h-2 bg-muted/40" style={{ width: `${65 + (j * 7) % 30}%` }} />
+              ))}
+            </div>
+            {/* Included models placeholder */}
+            <div className="pt-2 border-t border-border space-y-1.5">
+              <div className="h-2 w-20 bg-muted/40" />
+              <div className="flex gap-1">
+                {[0, 1, 2].map(j => (
+                  <div key={j} className="h-3 w-12 bg-muted/40" />
+                ))}
+              </div>
+            </div>
+            {/* CTA placeholder */}
+            <div className="pt-5 mt-auto">
+              <div className="h-9 w-full bg-muted" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ============================================
 // PlanCard
 // ============================================
 
@@ -207,6 +261,12 @@ function PlanCard({ plan, matrix, isCurrent, isLoading, onCheckout }: PlanCardPr
   const allowance = matrix?.monthly_allowances?.[plan.tier] ?? plan.monthly_point_allowance ?? 0
   const discount = Math.round((1 - mult) * 100)
   const isPopular = plan.tier === 'pro'
+
+  // Free / starter-tier "0" fields should render as a neutral dash, not "0"
+  // (which is misleading — "0 req/min" reads as "you can't make requests").
+  // The backend migration to point-based limits will replace these with real
+  // point values; until then, dash is honest.
+  const fmtLimit = (n: number, unit: string) => (n > 0 ? `${n} ${unit}` : '—')
 
   return (
     <div
@@ -260,19 +320,19 @@ function PlanCard({ plan, matrix, isCurrent, isLoading, onCheckout }: PlanCardPr
         <ul className="space-y-1 font-mono text-[9px] text-muted-foreground">
           <li className="flex items-center gap-1.5">
             <span className="w-1 h-1 bg-[#ef4444] shrink-0" />
-            <span>Monthly: ${plan.monthly_limit.toFixed(2)} budget</span>
+            <span>{fmtLimit(plan.monthly_limit, 'req/mo')}</span>
           </li>
           <li className="flex items-center gap-1.5">
             <span className="w-1 h-1 bg-[#ef4444] shrink-0" />
-            <span>{plan.rpm_limit} requests/min</span>
+            <span>{fmtLimit(plan.rpm_limit, 'req/min')}</span>
           </li>
           <li className="flex items-center gap-1.5">
             <span className="w-1 h-1 bg-[#ef4444] shrink-0" />
-            <span>5h cap: ${plan.tokens_5h_limit.toFixed(2)}</span>
+            <span>5h cap: {fmtLimit(plan.tokens_5h_limit, 'pt')}</span>
           </li>
           <li className="flex items-center gap-1.5">
             <span className="w-1 h-1 bg-[#ef4444] shrink-0" />
-            <span>7d cap: ${plan.tokens_7d_limit.toFixed(2)}</span>
+            <span>7d cap: {fmtLimit(plan.tokens_7d_limit, 'pt')}</span>
           </li>
           {plan.has_trial && plan.trial_days && (
             <li className="flex items-center gap-1.5 text-emerald-400">

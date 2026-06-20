@@ -316,6 +316,7 @@ class UpdateAccountRequest(BaseModel):
     monthly_limit: Optional[float] = None
     status: Optional[str] = None
     suspended_reason: Optional[str] = None
+    ban_reason: Optional[str] = None
     role: Optional[str] = None
     display_name: Optional[str] = None
     rpm_limit: Optional[int] = None
@@ -596,11 +597,28 @@ async def update_account(account_id: str, body: UpdateAccountRequest, authorizat
     if body.monthly_limit is not None:
         updates["monthly_limit"] = body.monthly_limit
     if body.status is not None:
-        if body.status not in ("active", "suspended", "cancelled"):
+        # 'banned' = permanent ToS violation, distinct from 'suspended' (temporary).
+        # Admin must provide a ban_reason in the same request when setting banned —
+        # enforced below so the user always sees a reason on the contact-support wall.
+        if body.status not in ("active", "suspended", "cancelled", "banned"):
             raise HTTPException(status_code=400, detail="Invalid status")
         updates["status"] = body.status
+        if body.status == "banned":
+            # Force-clear suspended_reason — they have separate meanings.
+            updates["suspended_reason"] = None
     if body.suspended_reason is not None:
         updates["suspended_reason"] = body.suspended_reason
+    if body.ban_reason is not None:
+        # Admin can set ban_reason independently of status (e.g. to update the
+        # reason without changing the ban). When status is set to 'banned'
+        # above, ban_reason MUST also be provided.
+        updates["ban_reason"] = body.ban_reason
+        if body.status == "banned" and not (body.ban_reason or "").strip():
+            raise HTTPException(
+                status_code=400,
+                detail="ban_reason is required when status is set to 'banned'. "
+                       "Banned users see a contact-support wall and must know why."
+            )
     if body.role is not None:
         if body.role not in ("user", "admin"):
             raise HTTPException(status_code=400, detail="Invalid role")

@@ -180,6 +180,11 @@ export interface UserInfo {
   role: string
   tier: string
   status: string
+  // Set when status === 'suspended'. Shown on the suspension wall.
+  suspended_reason?: string
+  // Set when status === 'banned'. Distinct from suspended: permanent ToS violation.
+  // The frontend renders ONLY a contact-support wall + sign-out when this is set.
+  ban_reason?: string
   // Point system (NEW)
   monthly_points_remaining?: number
   monthly_points_limit?: number
@@ -392,6 +397,7 @@ export async function adminUpdateAccount(
     monthly_limit?: number
     status?: string
     suspended_reason?: string | null
+    ban_reason?: string | null
     role?: string
     display_name?: string
     rpm_limit?: number

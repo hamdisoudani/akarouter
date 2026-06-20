@@ -45,6 +45,13 @@ class SuspendedAccountException(Exception):
     pass
 
 
+class BannedAccountException(Exception):
+    """Raised when an account is banned (ToS violation). Banned users get a
+    distinct 403 with ban_reason, and all their API keys are auto-revoked so
+    they cannot bypass the ban via in-memory cache or saved credentials."""
+    pass
+
+
 async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optional[dict]:
     if not api_key:
         return None
@@ -56,7 +63,7 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
         supabase = get_supabase()
         result = (
             supabase.table("api_keys")
-            .select("id, key_name, scopes, allowed_models, is_active, account_id, accounts(id, email, tier, status, monthly_requests, monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, budget_reset_at, suspended_reason)")
+            .select("id, key_name, scopes, allowed_models, is_active, account_id, accounts(id, email, tier, status, monthly_requests, monthly_limit, rpm_limit, tokens_5h_limit, tokens_7d_limit, budget_reset_at, suspended_reason, ban_reason)")
             .eq("key_hash", key_hash)
             .eq("is_active", True)
             .execute()
@@ -69,6 +76,42 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
         if not account:
             logger.warning(f"No account found for key: {key_row['id']}")
             return None
+        # Banned check: Banned = permanent, ToS violation. Distinct from
+        # 'suspended' (temporary, e.g. payment failed). Banned users see
+        # 'Account is banned' not 'Account is suspended', AND all their
+        # active API keys are auto-revoked so they cannot use the API at all
+        # even with previously-saved credentials.
+        if account.get("status") == "banned":
+            ban_reason = account.get("ban_reason") or "Violation of terms of service"
+            logger.warning(
+                f"Account BANNED attempting API call — key: {key_row['id']} | "
+                f"Reason: {ban_reason}. Auto-revoking all keys for this account."
+            )
+            # Auto-revoke ALL active keys for this banned account. Fire-and-forget
+            # so we don't add DB latency to the 403 path. If this fails, the next
+            # request will retry it (cached key still hits this branch because we
+            # set is_active=False in DB).
+            import asyncio
+            async def _revoke_banned_keys():
+                try:
+                    revoke = supabase.table("api_keys").update(
+                        {"is_active": False}
+                    ).eq("account_id", account["id"]).eq("is_active", True).execute()
+                    logger.info(
+                        f"Auto-revoked {len(revoke.data) if revoke.data else 0} "
+                        f"API key(s) for banned account {account['id']}"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to auto-revoke keys for banned account: {e}")
+            asyncio.create_task(_revoke_banned_keys())
+            # Evict in-memory cache for this key so the next call from
+            # any other process/instance doesn't bypass via cache.
+            try:
+                from app.core.cache import evict_api_key_cache
+                evict_api_key_cache(key_hash)
+            except Exception:
+                pass
+            raise BannedAccountException(f"Account is banned: {ban_reason}")
         if account.get("status") != "active":
             reason = account.get("suspended_reason") or "No reason provided"
             logger.warning(f"Account suspended for key: {key_row['id']} | Reason: {reason}")
@@ -91,6 +134,7 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
             "budget_reset_at": account.get("budget_reset_at"),
             "status": account.get("status") or "active",
             "suspended_reason": account.get("suspended_reason") or "",
+            "ban_reason": account.get("ban_reason") or "",
         }
         # Cache auth response (TTL 30 seconds)
         set_api_key_cache(key_hash, auth_metadata)
@@ -108,7 +152,20 @@ async def authenticate_api_key(api_key: str, check_limits: bool = True) -> Optio
                 logger.error(f"Failed to update key last_used_at in background: {e}")
         asyncio.create_task(_update_key_db())
 
-    # Enforce account suspension check (always run, even on key cache hit)
+    # Enforce account status check (always run, even on key cache hit).
+    # Banned is distinct from suspended: banned = permanent, must be blocked
+    # at every call, and the 403 message must say "banned" not "suspended".
+    if auth_metadata.get("status") == "banned":
+        ban_reason = auth_metadata.get("ban_reason") or "Violation of terms of service"
+        # Schedule a one-shot cache invalidation so future calls hit the DB
+        # path (which will also auto-revoke the key). Best-effort, not blocking.
+        try:
+            import asyncio
+            from app.core.cache import evict_api_key_cache
+            asyncio.create_task(evict_api_key_cache(key_hash))
+        except Exception:
+            pass
+        raise BannedAccountException(f"Account is banned: {ban_reason}")
     if auth_metadata.get("status") != "active":
         reason = auth_metadata.get("suspended_reason") or "No reason provided"
         raise SuspendedAccountException(f"Account is suspended: {reason}")

@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import { supabase } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import { getMe, getUsage, type UserInfo, type UsageStats } from '@/lib/api'
+import { BannedAccountWall } from '@/components/BannedAccountWall'
 
 interface AppContextType {
   user: UserInfo | null
@@ -228,7 +229,18 @@ export function AppProvider({
 
   return (
     <AppContext.Provider value={{ user, token, usage, loading, error, refetchUser, refetchUsage, refetchAll, signOut }}>
-      {children}
+      {/* BANNED-WALL: hard short-circuit. If the verified account status is
+          'banned', render ONLY the contact-support wall + sign out. Bypass
+          every child route, every nav, every public path. The backend also
+          rejects all /v1/* requests from banned accounts with 403, and
+          auto-revokes all their API keys on first hit. This wall is the
+          user-facing mirror of that enforcement. Distinct from 'suspended'
+          (temporary) — banned = permanent ToS violation. */}
+      {user?.status === 'banned' ? (
+        <BannedAccountWall />
+      ) : (
+        children
+      )}
     </AppContext.Provider>
   )
 }

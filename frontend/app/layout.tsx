@@ -44,6 +44,11 @@ async function resolveInitialSession(): Promise<{
     if (user.status === 'pending') {
       return { user, token: session.access_token, usage: null }
     }
+    // BANNED: /user/me is allowed (so the wall has ban_reason to render),
+    // but /user/usage would 403. Skip it — the wall doesn't need usage data.
+    if (user.status === 'banned') {
+      return { user, token: session.access_token, usage: null }
+    }
     const usage = await getUsage(session.access_token)
     return { user, token: session.access_token, usage }
   } catch (err) {

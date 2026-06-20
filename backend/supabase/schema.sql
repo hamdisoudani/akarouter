@@ -76,8 +76,12 @@ CREATE TABLE IF NOT EXISTS accounts (
     daily_free_requests_reset_at TIMESTAMPTZ,
 
     -- Status
-    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'cancelled')),
+    -- 'banned' = permanent ToS violation, distinct from 'suspended' (temporary, e.g. payment failed).
+    -- Banned users see ONLY a contact-support wall + ban reason + sign out, and
+    -- all their API keys are auto-revoked on first 403 (see router.py).
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'cancelled', 'banned')),
     suspended_reason TEXT,
+    ban_reason TEXT,
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
