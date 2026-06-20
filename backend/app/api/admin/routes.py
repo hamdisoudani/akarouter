@@ -759,9 +759,14 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
     if body.tokens_7d_limit is not None:
         updates["tokens_7d_limit"] = body.tokens_7d_limit
     if body.monthly_point_allowance is not None:
-        updates["monthly_point_allowance"] = max(0, int(body.monthly_point_allowance))
+        # SECURITY: cap monthly points to prevent absurd values (1M is generous for any legit tier).
+        v = max(0, min(1_000_000, int(body.monthly_point_allowance)))
+        updates["monthly_point_allowance"] = v
     if body.daily_free_requests_limit is not None:
-        updates["daily_free_requests_limit"] = max(0, int(body.daily_free_requests_limit))
+        # SECURITY: cap daily free requests. > 100k is functionally unlimited — block it
+        # so the cap stays a real cap. Use 0 to disable the free allowance entirely.
+        v = max(0, min(100_000, int(body.daily_free_requests_limit)))
+        updates["daily_free_requests_limit"] = v
     if body.price is not None:
         updates["price"] = body.price
     if body.billing_period is not None:
@@ -1015,6 +1020,48 @@ async def admin_create_model(body: CreateModelRequest, authorization: Optional[s
         raise HTTPException(status_code=400, detail="pricing_mode must be 'per_token' or 'per_request'")
     if body.points_cost < 0 or body.points_cost > 1000:
         raise HTTPException(status_code=400, detail="points_cost must be between 0 and 1000")
+    # SECURITY: bounds-check numeric cost fields. Negative or absurd values could be a billing bug or a deliberate bypass.
+    if body.input_cost_per_million < 0 or body.input_cost_per_million > 1000:
+        raise HTTPException(status_code=400, detail="input_cost_per_million must be between 0 and 1000")
+    if body.output_cost_per_million < 0 or body.output_cost_per_million > 1000:
+        raise HTTPException(status_code=400, detail="output_cost_per_million must be between 0 and 1000")
+    if body.cost_per_request_cents is not None and (body.cost_per_request_cents < 0 or body.cost_per_request_cents > 100000):
+        raise HTTPException(status_code=400, detail="cost_per_request_cents must be between 0 and 100000")
+    # SECURITY: cost mode consistency. If pricing_mode is per_request, cost_per_request_cents must be set > 0.
+    # If per_token, the per-million rates must be > 0. Otherwise the row would exist but charge the user nothing.
+    if body.pricing_mode == "per_request":
+        if not body.cost_per_request_cents or body.cost_per_request_cents <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="per_request models require cost_per_request_cents > 0 — otherwise the call is free."
+            )
+    else:  # per_token
+        if body.input_cost_per_million <= 0 or body.output_cost_per_million <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="per_token models require both input_cost_per_million > 0 and output_cost_per_million > 0."
+            )
+    # SECURITY: points_cost must be at least 1 for paid models. Zero would route the user through the free-tier
+    # daily-cap path on free plans, and bypass all billing on paid plans (where daily cap = 0).
+    if body.points_cost < 1:
+        raise HTTPException(
+            status_code=400,
+            detail="points_cost must be >= 1. Use is_free_provider=true only with points_cost >= 1 (and rely on the daily cap)."
+        )
+    # SECURITY: alias format — must be lowercase, dashes/underscores only. Prevents injection of upstream_model spoofing
+    # via alias collisions and ensures it can be safely embedded in URLs.
+    import re as _re
+    if not _re.match(r'^[a-z0-9][a-z0-9_-]{1,63}$', body.alias):
+        raise HTTPException(
+            status_code=400,
+            detail="alias must be 2-64 chars, lowercase letters/digits/dashes/underscores, starting with letter or digit."
+        )
+    if body.slug is not None and body.slug.strip():
+        if not _re.match(r'^[a-z0-9][a-z0-9-]{1,63}$', body.slug.strip()):
+            raise HTTPException(
+                status_code=400,
+                detail="slug must be 2-64 chars, lowercase letters/digits/dashes, starting with letter or digit."
+            )
 
     supabase = get_supabase()
 
@@ -1089,20 +1136,53 @@ async def admin_update_model(alias: str, body: UpdateModelRequest, authorization
     if body.capabilities is not None:
         updates["capabilities"] = body.capabilities
     if body.input_cost_per_million is not None:
+        if body.input_cost_per_million < 0 or body.input_cost_per_million > 1000:
+            raise HTTPException(status_code=400, detail="input_cost_per_million must be between 0 and 1000")
         updates["input_cost_per_million"] = body.input_cost_per_million
     if body.output_cost_per_million is not None:
+        if body.output_cost_per_million < 0 or body.output_cost_per_million > 1000:
+            raise HTTPException(status_code=400, detail="output_cost_per_million must be between 0 and 1000")
         updates["output_cost_per_million"] = body.output_cost_per_million
     if body.pricing_mode is not None:
         if body.pricing_mode not in ("per_token", "per_request"):
             raise HTTPException(status_code=400, detail="pricing_mode must be 'per_token' or 'per_request'")
         updates["pricing_mode"] = body.pricing_mode
     if body.cost_per_request_cents is not None:
-        if body.cost_per_request_cents < 0:
-            raise HTTPException(status_code=400, detail="cost_per_request_cents must be >= 0")
+        if body.cost_per_request_cents < 0 or body.cost_per_request_cents > 100000:
+            raise HTTPException(status_code=400, detail="cost_per_request_cents must be between 0 and 100000")
         updates["cost_per_request_cents"] = body.cost_per_request_cents
+    # SECURITY: pricing_mode consistency. If admin flips to per_request, cost_per_request_cents must be > 0
+    # (in either this same PATCH or the existing row). If per_token, both per-million rates must be > 0.
+    if "pricing_mode" in updates:
+        new_mode = updates["pricing_mode"]
+        if new_mode == "per_request":
+            effective_cents = updates.get("cost_per_request_cents")
+            if effective_cents is None:
+                existing = supabase.table("model_mapping").select("cost_per_request_cents").eq("alias", alias).execute()
+                effective_cents = existing.data[0].get("cost_per_request_cents") if existing.data else None
+            if not effective_cents or effective_cents <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Switching to per_request requires cost_per_request_cents > 0. Pass it in this PATCH."
+                )
+        else:  # per_token
+            in_rate = updates.get("input_cost_per_million")
+            out_rate = updates.get("output_cost_per_million")
+            if in_rate is None or out_rate is None:
+                existing = supabase.table("model_mapping").select("input_cost_per_million, output_cost_per_million").eq("alias", alias).execute()
+                in_rate = in_rate if in_rate is not None else (existing.data[0].get("input_cost_per_million") if existing.data else None)
+                out_rate = out_rate if out_rate is not None else (existing.data[0].get("output_cost_per_million") if existing.data else None)
+            if not in_rate or not out_rate or in_rate <= 0 or out_rate <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Switching to per_token requires input_cost_per_million > 0 and output_cost_per_million > 0. Pass both in this PATCH."
+                )
     if body.points_cost is not None:
-        if body.points_cost < 0 or body.points_cost > 1000:
-            raise HTTPException(status_code=400, detail="points_cost must be between 0 and 1000")
+        if body.points_cost < 1 or body.points_cost > 1000:
+            raise HTTPException(
+                status_code=400,
+                detail="points_cost must be between 1 and 1000. Use the daily cap (plan_presets.daily_free_requests_limit) for free tiers."
+            )
         updates["points_cost"] = body.points_cost
     if body.is_free_provider is not None:
         updates["is_free_provider"] = body.is_free_provider
@@ -1173,6 +1253,29 @@ async def admin_update_model(alias: str, body: UpdateModelRequest, authorization
                 insert_data[key] = updates[key]
         if "slug" not in insert_data:
             insert_data["slug"] = _resolve_unique_slug(supabase, _derive_slug(insert_data["display_name"]))
+        # SECURITY: enforce consistency invariants even on the PATCH-as-create path.
+        # Without these, an admin could PATCH with pricing_mode=per_request but no
+        # cost_per_request_cents and end up with a free model in the catalog.
+        effective_mode = insert_data.get("pricing_mode", "per_token")
+        if effective_mode == "per_request":
+            if not insert_data.get("cost_per_request_cents") or insert_data["cost_per_request_cents"] <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="per_request models require cost_per_request_cents > 0. Pass it in this PATCH."
+                )
+        else:  # per_token
+            in_rate = insert_data.get("input_cost_per_million")
+            out_rate = insert_data.get("output_cost_per_million")
+            if not in_rate or not out_rate or in_rate <= 0 or out_rate <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="per_token models require input_cost_per_million > 0 and output_cost_per_million > 0."
+                )
+        if not insert_data.get("points_cost") or insert_data["points_cost"] < 1:
+            raise HTTPException(
+                status_code=400,
+                detail="points_cost must be >= 1 when creating a model via PATCH."
+            )
         supabase.table("model_mapping").insert(insert_data).execute()
     else:
         if updates:

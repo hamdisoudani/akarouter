@@ -154,8 +154,19 @@ async def _enforce_and_reserve_points(account_id: str, model_alias: str, points_
     """
     from fastapi import HTTPException
 
-    if points_cost < 0:
-        raise HTTPException(status_code=500, detail=f"Invalid points_cost for model {model_alias}")
+    if points_cost < 1:
+        # SECURITY: a zero (or negative) points_cost would route the user through the
+        # free-tier daily-cap path, and on paid plans (where daily cap = 0) that means
+        # unlimited free calls. Refuse loud rather than silently bypassing billing.
+        logger.error(
+            "REFUSING CHARGE: model %r has invalid points_cost=%d (must be >= 1). "
+            "This is either a stale cache, a missing row, or a misconfigured admin update.",
+            model_alias, points_cost,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Model configuration invalid (points_cost must be >= 1). Try again shortly."
+        )
 
     supabase = get_supabase()
     is_free = _is_free_model(points_cost)
@@ -411,20 +422,18 @@ async def proxy_chat(req: Request):
     account_id = auth_info["account_id"] if auth_info else None
     api_key_id = auth_info.get("key_id") if auth_info else None
 
-    # SECURITY: per-API-key rate limit. The previous code only enforced
-    # the token-budget limit (a separate concern: dollars/usage, not
-    # request count). An attacker with a stolen key could fire 10000
-    # tiny requests/min and rack up real cost. Capping request count
-    # separately makes burst abuse visible. Limits are per-tier: free
-    # = 20/min, starter = 60/min, pro = 120/min, ultra = 300/min.
-    if auth_info and api_key_id and account_id:
+    # SECURITY: per-ACCOUNT rate limit (not per-API-key). The previous keying on
+    # `api_key_id` allowed a user to bypass their tier RPM by minting multiple
+    # keys — each key had its own bucket, so 5 keys = 5x the limit. Keying on
+    # `account_id` collapses all keys under one bucket per tier.
+    if auth_info and account_id:
         # Use tier if the auth info carries it; fall back to "free"
         # so an unprovisioned key still gets the strictest limit.
         tier = auth_info.get("tier") or "free"
         rl = await enforce_tier_rate_limit(
             req,
-            scope=f"chat.api_key:{api_key_id}",
-            identifier=api_key_id,
+            scope=f"chat.account:{account_id}",
+            identifier=account_id,
             tier=tier,
         )
         if not rl.allowed:

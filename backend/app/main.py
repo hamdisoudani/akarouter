@@ -337,6 +337,23 @@ async def startup():
             cur.execute("UPDATE plan_presets SET included_model_aliases = ARRAY['akarouter-mini','akarouter-haiku','akarouter-sonnet','akarouter-gpt54'] WHERE tier = 'pro' AND included_model_aliases IS NULL;")
             cur.execute("UPDATE plan_presets SET included_model_aliases = ARRAY['akarouter-mini','akarouter-haiku','akarouter-sonnet','akarouter-gpt54','akarouter-gemini31','akarouter-gpt55','akarouter-opus'] WHERE tier = 'ultra' AND included_model_aliases IS NULL;")
             cur.execute("UPDATE plan_presets SET included_model_aliases = ARRAY['akarouter-mini','akarouter-haiku','akarouter-sonnet','akarouter-gpt54','akarouter-gemini31','akarouter-gpt55','akarouter-opus','akarouter-gpt53-codex'] WHERE tier = 'enterprise' AND included_model_aliases IS NULL;")
+            # 8. Data integrity: is_free_provider is only meaningful when points_cost <= 1.
+            # If a row has is_free_provider=true but points_cost >= 2, the flag is dead and misleading.
+            # Flip to false so the UI shows the truth.
+            cur.execute("UPDATE model_mapping SET is_free_provider = false WHERE is_free_provider = true AND points_cost >= 2;")
+            # 9. Add CHECK constraint to keep the invariant: is_free_provider implies points_cost <= 1
+            # (only added if not already present; idempotent).
+            cur.execute("""
+                DO $$ BEGIN
+                  IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'model_mapping_free_provider_cost_check'
+                  ) THEN
+                    ALTER TABLE model_mapping
+                      ADD CONSTRAINT model_mapping_free_provider_cost_check
+                      CHECK (NOT is_free_provider OR points_cost <= 1);
+                  END IF;
+                EXCEPTION WHEN others THEN NULL; END $$;
+            """)
             cur.close()
             conn.close()
             logger.info("model_mapping.slug + plan_presets.included_model_aliases migrations applied")
