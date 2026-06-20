@@ -3,7 +3,6 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { fetchServerModels } from '@/lib/server-api'
 import { ModelsBrowser } from '@/components/ModelsBrowser'
-import { TopNav } from '@/components/TopNav'
 
 export const metadata: Metadata = {
   title: 'Models — AkaRouter',
@@ -23,9 +22,6 @@ export default async function ModelsPage() {
 
   return (
     <div className="min-h-screen bg-[#09090b] text-[#e5e1e4] grid-bg">
-      {/* Top nav */}
-      <TopNav />
-
       {/* Hero */}
       <section className="border-b border-[#27272a] py-16 sm:py-20 px-6 bg-[#0a0a0c]/60">
         <div className="max-w-7xl mx-auto text-center space-y-5">

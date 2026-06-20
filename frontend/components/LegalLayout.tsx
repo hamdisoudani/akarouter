@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { TopNav } from '@/components/TopNav'
 
 /**
  * Shared layout for legal pages (privacy, terms, cookies).
@@ -9,6 +8,9 @@ import { TopNav } from '@/components/TopNav'
  * Server Component. Renders with zero JS, fully indexable by Google, no
  * hydration cost. Previous versions were 'use client' for no reason —
  * these pages have no interactivity.
+ *
+ * Note: <TopNav /> is rendered globally by app/layout.tsx since the
+ * routing restructure. Don't render it here or it'll appear twice.
  */
 
 export function LegalLayout({
@@ -24,9 +26,6 @@ export function LegalLayout({
 }) {
   return (
     <div className="relative min-h-screen bg-[#09090b] text-[#e5e1e4] flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-white grid-bg">
-      {/* Top Header */}
-      <TopNav />
-
       {/* Content Canvas */}
       <main className="flex-1 max-w-4xl mx-auto w-full p-6 md:py-16 space-y-8 z-10">
         <div className="border border-zinc-900 bg-[#0e0e10] p-8 md:p-12 crosshair-corners relative">

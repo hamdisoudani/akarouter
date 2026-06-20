@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { fetchServerModels } from '@/lib/server-api'
 import { ChevronLeft, Brain, Code2, Eye, Cpu, Zap, DollarSign, Globe, Copy } from 'lucide-react'
 import { CodeBlock } from '@/components/CodeBlock'
-import { TopNav } from '@/components/TopNav'
 
 export const revalidate = 60
 
@@ -91,9 +90,6 @@ console.log(response.choices[0].message.content);`,
 
   return (
     <div className="min-h-screen bg-[#09090b] text-[#e5e1e4] grid-bg">
-      {/* Top nav */}
-      <TopNav />
-
       {/* Back link + breadcrumb */}
       <div className="border-b border-[#27272a] bg-[#0a0a0c]/60">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-12 flex items-center">

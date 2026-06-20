@@ -19,17 +19,47 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
-export function AppProvider({ children }: { children: ReactNode }) {
+interface AppProviderProps {
+  children: ReactNode
+  /**
+   * Server-resolved user (from app/layout.tsx). Hydrating the client
+   * state from this prop means the very first paint shows the right
+   * UI (no "Sign in" flash on top of an already-logged-in user, and
+   * no "Dashboard" flash on top of an already-logged-out visitor).
+   *
+   * Defaults to null for pages that bypass the server resolution
+   * (mostly tests and the auth callback route).
+   */
+  initialUser?: UserInfo | null
+  /** Server-resolved Supabase access token (paired with initialUser). */
+  initialToken?: string
+  /** Server-resolved usage stats (paired with initialUser). */
+  initialUsage?: UsageStats | null
+}
+
+export function AppProvider({
+  children,
+  initialUser = null,
+  initialToken = '',
+  initialUsage = null,
+}: AppProviderProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const [user, setUser] = useState<UserInfo | null>(null)
-  const [token, setToken] = useState<string>('')
-  const [usage, setUsage] = useState<UsageStats | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Initial state is hydrated from server-resolved values so the first
+  // client render matches what the server sent. After mount, the auth
+  // listener in the useEffect below takes over for token refresh,
+  // sign-out, and tab-switch events.
+  const [user, setUser] = useState<UserInfo | null>(initialUser)
+  const [token, setToken] = useState<string>(initialToken)
+  const [usage, setUsage] = useState<UsageStats | null>(initialUsage)
+  // If we already have an initialUser from the server, we are NOT loading.
+  // The first client effect run will still verify with onAuthStateChange
+  // but no spinner is shown in the meantime.
+  const [loading, setLoading] = useState<boolean>(initialUser === null)
   const [error, setError] = useState('')
 
   // Keep track of the token we are currently fetching or have successfully fetched for
-  const lastFetchedTokenRef = useRef<string>('')
+  const lastFetchedTokenRef = useRef<string>(initialToken || '')
 
   const fetchUserData = useCallback(async (accessToken: string) => {
     // Deduplicate calls: if we are already fetching or have fetched for this token, skip.
