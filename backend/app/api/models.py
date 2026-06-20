@@ -144,7 +144,7 @@ async def get_billing_matrix() -> dict:
         # Read plans fresh from DB (bypass cache — values must reflect post-migration state)
         supabase = get_supabase()
         plans_res = supabase.table("plan_presets").select(
-            "tier, points_cost_multiplier, monthly_point_allowance, daily_free_requests_limit, rpm_limit, price, billing_period"
+            "tier, points_cost_multiplier, monthly_point_allowance, daily_free_requests_limit, rpm_limit, price, billing_period, is_visible"
         ).execute()
         # Supabase-py 2.x boolean filters are unreliable — filter in Python.
         # Only public tiers (no enterprise) are exposed via the matrix.
