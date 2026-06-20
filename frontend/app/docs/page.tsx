@@ -68,15 +68,16 @@ client = OpenAI(
 )
 
 # 1. Text Completion Example
+# Browse https://akarouter.dev/models for the current catalog and routing aliases.
 response = client.chat.completions.create(
-    model="akarouter-large", # Options: akarouter-pro, akarouter-large, akarouter-flash
+    model="owl-alpha",  # Try: minimax-m3, owl-alpha, step-3-7-flash, claude-opus-4-8
     messages=[{"role": "user", "content": "Hello AkaRouter!"}]
 )
 print("Text response:", response.choices[0].message.content)
 
-# 2. Vision (Image Analysis) Example - Only supported on akarouter-pro
+# 2. Vision (Image Analysis) Example - only supported on vision-capable models
 vision_response = client.chat.completions.create(
-    model="akarouter-pro",
+    model="minimax-m3",
     messages=[
         {
             "role": "user",

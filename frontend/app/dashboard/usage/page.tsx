@@ -55,20 +55,25 @@ export default function UsagePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, pointTxKind])
 
-  // Aliases used in DB → display name lookup (matches /models page logic)
-  const aliasToDisplay: Record<string, string> = {
-    'akarouter-mini': 'MiniMax M3',
-    'akarouter-flash': 'Nemotron Ultra',
-    'akarouter-pro': 'Step 3.7 Flash',
-    'akarouter-large': 'Owl Alpha',
-    'akarouter-haiku': 'Claude Haiku 4.5',
-    'akarouter-sonnet': 'Claude Sonnet 4.6',
-    'akarouter-opus': 'Claude Opus 4.8',
-    'akarouter-gpt54': 'GPT-5.4',
-    'akarouter-gpt55': 'GPT-5.5',
-    'akarouter-gpt53-codex': 'GPT-5.3 Codex Spark',
-    'akarouter-gemini31': 'Gemini 3.1 Pro',
-  }
+  // Alias → display name lookup — loaded dynamically from /api/v1/models so we don't
+  // ship a hardcoded map. Falls back to alias itself if the model isn't in the catalog.
+  const [aliasToDisplay, setAliasToDisplay] = useState<Record<string, string>>({})
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/v1/models')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data?.data) return
+        const map: Record<string, string> = {}
+        for (const m of data.data) {
+          if (m.alias) map[m.alias] = m.display_name || m.alias
+          if (m.id && m.id !== m.alias) map[m.id] = m.display_name || m.id
+        }
+        setAliasToDisplay(map)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const formatPointDelta = (kind: string, points: number) => {
     if (kind === 'charge') return `-${points}`

@@ -11,6 +11,7 @@ export interface ModelsResponse {
   object: string
   data: Array<{
     id: string
+    slug?: string  // URL-safe identifier generated from display_name (e.g. "claude-opus-48")
     object: string
     owned_by: string
     display_name?: string
@@ -281,6 +282,8 @@ export interface PlanPreset {
   // Point system (NEW) — monthly allowance + daily free-model cap
   monthly_point_allowance?: number
   daily_free_requests_limit?: number
+  /** Model aliases included in this plan. NULL/undefined = all active models. Admin editable. */
+  included_model_aliases?: string[] | null
   price?: string
   billing_period?: string
   description?: string
@@ -466,17 +469,91 @@ export async function adminDeletePlan(token: string, planId: string): Promise<{ 
 
 export interface AdminModelMapping {
   alias: string
-  upstream_model: string
+  slug?: string
+  upstream_model?: string
   display_name: string
   provider_name?: string
   is_free_provider?: boolean
-  description: string
-  is_active: boolean
+  description?: string
+  is_active?: boolean
+  capabilities?: string[]
   input_cost_per_million: number | null
   output_cost_per_million: number | null
   pricing_mode?: 'per_token' | 'per_request' | null
   cost_per_request_cents?: number | null
   points_cost?: number | null
+  context_window_tokens?: number | null
+  max_output_tokens?: number | null
+  input_modalities?: string[]
+  output_modalities?: string[]
+  knowledge_cutoff?: string | null
+  released_date?: string | null
+  supports_vision?: boolean
+  supports_video?: boolean
+  supports_audio?: boolean
+  supports_tool_use?: boolean
+  supports_function_calling?: boolean
+  supports_reasoning?: boolean
+  [k: string]: unknown
+}
+
+/** Body for POST /admin/models — creates a new model. */
+export interface CreateModelPayload {
+  alias: string
+  display_name: string
+  upstream_model?: string
+  provider_name?: string
+  description?: string
+  capabilities?: string[]
+  pricing_mode: 'per_token' | 'per_request'
+  input_cost_per_million?: number
+  output_cost_per_million?: number
+  cost_per_request_cents?: number | null
+  points_cost?: number
+  is_free_provider?: boolean
+  is_active?: boolean
+  slug?: string
+  context_window_tokens?: number
+  max_output_tokens?: number
+  input_modalities?: string[]
+  output_modalities?: string[]
+  knowledge_cutoff?: string
+  released_date?: string
+  supports_vision?: boolean
+  supports_video?: boolean
+  supports_audio?: boolean
+  supports_tool_use?: boolean
+  supports_function_calling?: boolean
+  supports_reasoning?: boolean
+}
+
+/** Body for PATCH /admin/models/{alias} — partial update. */
+export interface UpdateModelPayload {
+  is_active?: boolean
+  display_name?: string
+  slug?: string
+  description?: string
+  provider_name?: string
+  upstream_model?: string
+  capabilities?: string[]
+  input_cost_per_million?: number
+  output_cost_per_million?: number
+  pricing_mode?: 'per_token' | 'per_request'
+  cost_per_request_cents?: number
+  points_cost?: number
+  is_free_provider?: boolean
+  context_window_tokens?: number
+  max_output_tokens?: number
+  input_modalities?: string[]
+  output_modalities?: string[]
+  knowledge_cutoff?: string
+  released_date?: string
+  supports_vision?: boolean
+  supports_video?: boolean
+  supports_audio?: boolean
+  supports_tool_use?: boolean
+  supports_function_calling?: boolean
+  supports_reasoning?: boolean
 }
 
 export async function adminGetSettings(token: string): Promise<{ settings: Record<string, string> }> {
@@ -514,7 +591,7 @@ export async function adminGetModels(token: string): Promise<{ models: AdminMode
 export async function adminUpdateModel(
   token: string,
   alias: string,
-  data: {
+  data: UpdateModelPayload | {
     is_active?: boolean;
     input_cost_per_million?: number | null;
     output_cost_per_million?: number | null;
@@ -534,6 +611,40 @@ export async function adminUpdateModel(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || 'Failed to update model settings')
+  }
+  return res.json()
+}
+
+export async function adminCreateModel(
+  token: string,
+  data: CreateModelPayload
+): Promise<{ ok: boolean; alias: string; slug: string }> {
+  const res = await fetch(`${API_BASE}/admin/models`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to create model')
+  }
+  return res.json()
+}
+
+export async function adminDeleteModel(
+  token: string,
+  alias: string
+): Promise<{ ok: boolean; alias: string; deleted: boolean }> {
+  const res = await fetch(`${API_BASE}/admin/models/${alias}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to delete model')
   }
   return res.json()
 }

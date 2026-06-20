@@ -6,7 +6,7 @@ import {
   Search, Filter, Zap, Coins, Code2, Eye, Brain, Cpu, X, ChevronRight,
   ArrowUpDown, LayoutGrid, List, Layers, Sparkles, Star,
 } from 'lucide-react'
-import { detectProvider, groupByProvider, type ProviderInfo } from '@/lib/providers'
+import { detectProvider, groupByProvider, modelPath, type ProviderInfo } from '@/lib/providers'
 
 interface CatalogModel {
   id: string
@@ -513,7 +513,7 @@ function ModelCard({ model }: { model: CatalogModel }) {
 
   return (
     <Link
-      href={`/models/${model.id}`}
+      href={modelPath(model)}
       className={`group relative block bg-background border ${pricingMeta.borderClass} hover:border-foreground/40 transition-all overflow-hidden`}
     >
       {/* Top accent bar — the most distinctive visual cue */}
@@ -611,7 +611,7 @@ function ModelRow({ model }: { model: CatalogModel }) {
 
   return (
     <Link
-      href={`/models/${model.id}`}
+      href={modelPath(model)}
       className="group flex items-center gap-4 p-4 hover:bg-muted/30 transition-colors relative"
     >
       {/* Left accent bar */}

@@ -121,8 +121,10 @@ client = OpenAI(
     api_key="YOUR_API_KEY"
 )
 
+# AkaRouter uses official model aliases as routing keys.
+# Browse /api/v1/models to see the full catalog.
 response = client.chat.completions.create(
-    model="akarouter-pro",
+    model="minimax-m3",
     messages=[{"role": "user", "content": "Hello!"}]
 )`
 

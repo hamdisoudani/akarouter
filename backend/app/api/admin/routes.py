@@ -339,6 +339,7 @@ class CreatePlanRequest(BaseModel):
     has_trial: Optional[bool] = False
     trial_days: Optional[int] = 7
     monthly_requests_limit: Optional[int] = None
+    included_model_aliases: Optional[list[str]] = None  # NULL = all active models
 
 class UpdatePlanRequest(BaseModel):
     tier: Optional[str] = None
@@ -355,6 +356,7 @@ class UpdatePlanRequest(BaseModel):
     has_trial: Optional[bool] = None
     trial_days: Optional[int] = None
     monthly_requests_limit: Optional[int] = None
+    included_model_aliases: Optional[list[str]] = None  # NULL = all active models
 
 class UpdateSettingsRequest(BaseModel):
     gateway_enabled: Optional[bool] = None
@@ -370,11 +372,61 @@ class UpdateInvitationRequest(BaseModel):
 
 class UpdateModelRequest(BaseModel):
     is_active: Optional[bool] = None
+    display_name: Optional[str] = None            # Friendly model name shown to users
+    slug: Optional[str] = None                    # URL-friendly id (auto-derived from display_name)
+    description: Optional[str] = None             # Short model blurb shown on detail page
+    provider_name: Optional[str] = None           # Real upstream provider (Anthropic, OpenAI, ...)
+    upstream_model: Optional[str] = None          # Upstream model identifier (e.g. "claude-opus-4-8")
+    capabilities: Optional[list[str]] = None      # ["text", "vision", "audio", "video", "reasoning", "tool_use"]
     input_cost_per_million: Optional[float] = None
     output_cost_per_million: Optional[float] = None
     pricing_mode: Optional[str] = None           # 'per_token' | 'per_request'
     cost_per_request_cents: Optional[int] = None  # only meaningful when pricing_mode='per_request'
     points_cost: Optional[int] = None             # per-call point cost (0-1000), admin-editable
+    is_free_provider: Optional[bool] = None       # Show "free tier" badge
+    context_window_tokens: Optional[int] = None
+    max_output_tokens: Optional[int] = None
+    input_modalities: Optional[list[str]] = None
+    output_modalities: Optional[list[str]] = None
+    knowledge_cutoff: Optional[str] = None        # ISO date string
+    released_date: Optional[str] = None           # ISO date string
+    supports_vision: Optional[bool] = None
+    supports_video: Optional[bool] = None
+    supports_audio: Optional[bool] = None
+    supports_tool_use: Optional[bool] = None
+    supports_function_calling: Optional[bool] = None
+    supports_reasoning: Optional[bool] = None
+
+
+class CreateModelRequest(BaseModel):
+    """Admin creates a new model. alias is the routing key used by /v1/chat/completions."""
+    alias: str                                    # routing key (e.g. "claude-opus-4-8") — unique
+    display_name: str                             # "Claude Opus 4.8"
+    upstream_model: Optional[str] = None          # e.g. "claude-opus-4-8" (defaults to alias)
+    provider_name: Optional[str] = None           # "Anthropic"
+    description: Optional[str] = None
+    capabilities: Optional[list[str]] = None      # default ["text"]
+    pricing_mode: str = "per_token"               # 'per_token' | 'per_request'
+    input_cost_per_million: float = 0.10
+    output_cost_per_million: float = 0.30
+    cost_per_request_cents: Optional[int] = None
+    points_cost: int = 5
+    is_free_provider: bool = False
+    is_active: bool = True
+    # Optional overrides
+    slug: Optional[str] = None                    # default auto-derived from display_name
+    context_window_tokens: Optional[int] = None
+    max_output_tokens: Optional[int] = None
+    input_modalities: Optional[list[str]] = None
+    output_modalities: Optional[list[str]] = None
+    knowledge_cutoff: Optional[str] = None
+    released_date: Optional[str] = None
+    supports_vision: bool = False
+    supports_video: bool = False
+    supports_audio: bool = False
+    supports_tool_use: bool = False
+    supports_function_calling: bool = False
+    supports_reasoning: bool = False
 
 def get_user_consumptions(account_ids: Optional[list[str]] = None) -> dict[str, dict]:
     """Retrieve aggregate consumption stats grouped by account_id, optionally filtered by account_ids."""
@@ -724,7 +776,8 @@ async def update_plan(plan_id: str, body: UpdatePlanRequest, authorization: Opti
         updates["trial_days"] = body.trial_days
     if body.monthly_requests_limit is not None:
         updates["monthly_requests_limit"] = body.monthly_requests_limit
-        
+    if body.included_model_aliases is not None:
+        updates["included_model_aliases"] = body.included_model_aliases
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
         
@@ -920,6 +973,26 @@ async def delete_invitation(inv_id: str, authorization: Optional[str] = Header(N
     return {"ok": True}
 
 
+def _derive_slug(display_name: str) -> str:
+    """URL-friendly slug from a display name. Mirrors generate_model_slug() in DB."""
+    import re
+    cleaned = re.sub(r'[^a-zA-Z0-9\s-]', '', display_name)
+    slug = re.sub(r'\s+', '-', cleaned.strip()).lower()
+    return slug or 'model'
+
+
+def _resolve_unique_slug(supabase, base_slug: str, exclude_alias: str | None = None) -> str:
+    """Find a unique slug, appending -2, -3, etc. on collision."""
+    candidate = base_slug
+    counter = 1
+    while True:
+        q = supabase.table("model_mapping").select("alias").eq("slug", candidate).execute()
+        if not q.data or (exclude_alias and q.data[0]["alias"] == exclude_alias):
+            return candidate
+        counter += 1
+        candidate = f"{base_slug}-{counter}"
+
+
 @router.get("/models")
 async def admin_list_models(authorization: Optional[str] = Header(None)):
     if not _verify_admin(authorization):
@@ -929,15 +1002,92 @@ async def admin_list_models(authorization: Optional[str] = Header(None)):
     return {"models": res.data}
 
 
+@router.post("/models")
+async def admin_create_model(body: CreateModelRequest, authorization: Optional[str] = Header(None)):
+    """Create a new model. Slug is auto-derived from display_name unless explicitly provided."""
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    if not body.alias or not body.alias.strip():
+        raise HTTPException(status_code=400, detail="alias is required")
+    if not body.display_name or not body.display_name.strip():
+        raise HTTPException(status_code=400, detail="display_name is required")
+    if body.pricing_mode not in ("per_token", "per_request"):
+        raise HTTPException(status_code=400, detail="pricing_mode must be 'per_token' or 'per_request'")
+    if body.points_cost < 0 or body.points_cost > 1000:
+        raise HTTPException(status_code=400, detail="points_cost must be between 0 and 1000")
+
+    supabase = get_supabase()
+
+    # Check alias uniqueness
+    existing = supabase.table("model_mapping").select("alias").eq("alias", body.alias).execute()
+    if existing.data:
+        raise HTTPException(status_code=409, detail=f"Model alias '{body.alias}' already exists")
+
+    # Auto-derive slug (or use provided slug, then ensure uniqueness)
+    base_slug = body.slug.strip() if body.slug else _derive_slug(body.display_name)
+    final_slug = _resolve_unique_slug(supabase, base_slug)
+
+    upstream = body.upstream_model or settings.model_mapping.get(body.alias, body.alias)
+    capabilities = body.capabilities or ["text"]
+
+    insert_data = {
+        "alias": body.alias,
+        "slug": final_slug,
+        "upstream_model": upstream,
+        "display_name": body.display_name,
+        "provider_name": body.provider_name or "",
+        "description": body.description or "",
+        "is_active": body.is_active,
+        "capabilities": capabilities,
+        "input_cost_per_million": body.input_cost_per_million,
+        "output_cost_per_million": body.output_cost_per_million,
+        "pricing_mode": body.pricing_mode,
+        "cost_per_request_cents": body.cost_per_request_cents,
+        "points_cost": body.points_cost,
+        "is_free_provider": body.is_free_provider,
+        "context_window_tokens": body.context_window_tokens,
+        "max_output_tokens": body.max_output_tokens,
+        "input_modalities": body.input_modalities or ["text"],
+        "output_modalities": body.output_modalities or ["text"],
+        "knowledge_cutoff": body.knowledge_cutoff,
+        "released_date": body.released_date,
+        "supports_vision": body.supports_vision,
+        "supports_video": body.supports_video,
+        "supports_audio": body.supports_audio,
+        "supports_tool_use": body.supports_tool_use,
+        "supports_function_calling": body.supports_function_calling,
+        "supports_reasoning": body.supports_reasoning,
+    }
+
+    try:
+        supabase.table("model_mapping").insert(insert_data).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create model: {e}")
+
+    from app.core.cache import evict_model_active_cache
+    evict_model_active_cache(body.alias)
+    return {"ok": True, "alias": body.alias, "slug": final_slug}
+
+
 @router.patch("/models/{alias}")
 async def admin_update_model(alias: str, body: UpdateModelRequest, authorization: Optional[str] = Header(None)):
     if not _verify_admin(authorization):
         raise HTTPException(status_code=401, detail="Admin access required")
     supabase = get_supabase()
-    
-    updates = {}
+
+    updates: dict = {}
     if body.is_active is not None:
         updates["is_active"] = body.is_active
+    if body.display_name is not None:
+        updates["display_name"] = body.display_name
+    if body.description is not None:
+        updates["description"] = body.description
+    if body.provider_name is not None:
+        updates["provider_name"] = body.provider_name
+    if body.upstream_model is not None:
+        updates["upstream_model"] = body.upstream_model
+    if body.capabilities is not None:
+        updates["capabilities"] = body.capabilities
     if body.input_cost_per_million is not None:
         updates["input_cost_per_million"] = body.input_cost_per_million
     if body.output_cost_per_million is not None:
@@ -954,6 +1104,52 @@ async def admin_update_model(alias: str, body: UpdateModelRequest, authorization
         if body.points_cost < 0 or body.points_cost > 1000:
             raise HTTPException(status_code=400, detail="points_cost must be between 0 and 1000")
         updates["points_cost"] = body.points_cost
+    if body.is_free_provider is not None:
+        updates["is_free_provider"] = body.is_free_provider
+    if body.context_window_tokens is not None:
+        updates["context_window_tokens"] = body.context_window_tokens
+    if body.max_output_tokens is not None:
+        updates["max_output_tokens"] = body.max_output_tokens
+    if body.input_modalities is not None:
+        updates["input_modalities"] = body.input_modalities
+    if body.output_modalities is not None:
+        updates["output_modalities"] = body.output_modalities
+    if body.knowledge_cutoff is not None:
+        updates["knowledge_cutoff"] = body.knowledge_cutoff
+    if body.released_date is not None:
+        updates["released_date"] = body.released_date
+    if body.supports_vision is not None:
+        updates["supports_vision"] = body.supports_vision
+    if body.supports_video is not None:
+        updates["supports_video"] = body.supports_video
+    if body.supports_audio is not None:
+        updates["supports_audio"] = body.supports_audio
+    if body.supports_tool_use is not None:
+        updates["supports_tool_use"] = body.supports_tool_use
+    if body.supports_function_calling is not None:
+        updates["supports_function_calling"] = body.supports_function_calling
+    if body.supports_reasoning is not None:
+        updates["supports_reasoning"] = body.supports_reasoning
+
+    # Slug update: validate uniqueness, then update
+    if body.slug is not None:
+        target_slug = body.slug.strip()
+        if not target_slug:
+            raise HTTPException(status_code=400, detail="slug cannot be empty")
+        unique_slug = _resolve_unique_slug(supabase, target_slug, exclude_alias=alias)
+        updates["slug"] = unique_slug
+
+    # If display_name changed but slug wasn't explicitly set, regenerate slug
+    if body.display_name is not None and body.slug is None:
+        existing = supabase.table("model_mapping").select("slug").eq("alias", alias).execute()
+        if existing.data:
+            current_slug = existing.data[0].get("slug")
+            auto_slug = _derive_slug(body.display_name)
+            # Only auto-update if the current slug matches the OLD auto-derived slug
+            # (don't clobber a manually-set slug)
+            # Heuristic: if current_slug == _derive_slug(old display_name), update it
+            # We don't have the old display_name here cheaply; skip auto-update to be safe.
+            pass
 
     # Check if model mapping exists in DB
     check_res = supabase.table("model_mapping").select("alias").eq("alias", alias).execute()
@@ -962,29 +1158,46 @@ async def admin_update_model(alias: str, body: UpdateModelRequest, authorization
         insert_data = {
             "alias": alias,
             "upstream_model": upstream,
-            "display_name": alias.replace("-", " ").title(),
+            "display_name": body.display_name or alias.replace("-", " ").title(),
             "is_active": body.is_active if body.is_active is not None else True,
         }
-        if body.input_cost_per_million is not None:
-            insert_data["input_cost_per_million"] = body.input_cost_per_million
-        if body.output_cost_per_million is not None:
-            insert_data["output_cost_per_million"] = body.output_cost_per_million
-        if body.pricing_mode is not None:
-            insert_data["pricing_mode"] = body.pricing_mode
-        if body.cost_per_request_cents is not None:
-            insert_data["cost_per_request_cents"] = body.cost_per_request_cents
-        if body.points_cost is not None:
-            insert_data["points_cost"] = body.points_cost
+        for key in ("input_cost_per_million", "output_cost_per_million", "pricing_mode",
+                    "cost_per_request_cents", "points_cost", "slug", "description",
+                    "provider_name", "capabilities", "is_free_provider",
+                    "context_window_tokens", "max_output_tokens",
+                    "input_modalities", "output_modalities",
+                    "knowledge_cutoff", "released_date",
+                    "supports_vision", "supports_video", "supports_audio",
+                    "supports_tool_use", "supports_function_calling", "supports_reasoning"):
+            if key in updates:
+                insert_data[key] = updates[key]
+        if "slug" not in insert_data:
+            insert_data["slug"] = _resolve_unique_slug(supabase, _derive_slug(insert_data["display_name"]))
         supabase.table("model_mapping").insert(insert_data).execute()
     else:
         if updates:
             supabase.table("model_mapping").update(updates).eq("alias", alias).execute()
-    
+
     # Evict local cache immediately
     from app.core.cache import evict_model_active_cache
     evict_model_active_cache(alias)
-    
+
     return {"ok": True, "alias": alias, "updates": updates}
+
+
+@router.delete("/models/{alias}")
+async def admin_delete_model(alias: str, authorization: Optional[str] = Header(None)):
+    """Permanently remove a model from the catalog. Use with care."""
+    if not _verify_admin(authorization):
+        raise HTTPException(status_code=401, detail="Admin access required")
+    supabase = get_supabase()
+    res = supabase.table("model_mapping").select("alias").eq("alias", alias).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail=f"Model '{alias}' not found")
+    supabase.table("model_mapping").delete().eq("alias", alias).execute()
+    from app.core.cache import evict_model_active_cache
+    evict_model_active_cache(alias)
+    return {"ok": True, "alias": alias, "deleted": True}
 
 # ---------------------------------------------------------------------------
 # Provider Endpoints (vsllm-style single-URL API-key providers)

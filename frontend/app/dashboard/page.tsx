@@ -15,6 +15,7 @@ import { z } from 'zod'
 import { Terminal, LogOut } from 'lucide-react'
 import InteractionCaptcha from '@/components/InteractionCaptcha'
 import { DashboardSidebar } from '@/components/DashboardSidebar'
+import { modelPath } from '@/lib/providers'
 
 const ActivateAccountSchema = z.object({
   code: z.string().min(1, 'Invitation code is required').max(100),
@@ -484,7 +485,7 @@ export default function UserDashboard() {
                       modelsList.slice(0, 6).map((m) => {
                         const isPerRequest = m.pricing_mode === 'per_request'
                         return (
-                          <Link key={m.id} href={`/models/${m.id}`} className="flex justify-between items-center p-2.5 bg-card/80 border border-border hover:border-border transition-all group">
+                          <Link key={m.id} href={modelPath(m)} className="flex justify-between items-center p-2.5 bg-card/80 border border-border hover:border-border transition-all group">
                             <div className="flex items-center gap-3 min-w-0">
                               <span className={`w-1.5 h-1.5 ${m.is_active ? 'bg-emerald-400 status-pulse' : 'bg-[#ef4444]'} shrink-0`} />
                               <span className="font-mono text-[11px] text-foreground/80 group-hover:text-foreground uppercase truncate transition-colors">

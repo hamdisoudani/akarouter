@@ -922,3 +922,129 @@ $$;
 
 GRANT EXECUTE ON FUNCTION charge_account_points TO service_role;
 GRANT EXECUTE ON FUNCTION refund_account_points TO service_role;
+
+-- ============================================
+-- 2026-06-20: Add slug to model_mapping (URL-friendly identifier)
+-- ============================================
+-- Goal: URLs use official names like /models/minimax-m3 instead of /models/akarouter-mini
+-- Slug is auto-derived from display_name (lowercase, dashes, alphanumeric only)
+-- Unique constraint prevents URL collisions
+-- Admin can override slug on create/edit
+
+ALTER TABLE model_mapping ADD COLUMN IF NOT EXISTS slug TEXT;
+
+-- Backfill: derive slug from display_name (or alias if no display_name yet)
+-- "Claude Opus 4.8" -> "claude-opus-48"
+-- "MiniMax M3" -> "minimax-m3"
+-- "Step 3.7 Flash" -> "step-37-flash"
+-- "GPT-5.3 Codex Spark" -> "gpt-53-codex-spark"
+UPDATE model_mapping
+SET slug = LOWER(
+  REGEXP_REPLACE(
+    REGEXP_REPLACE(
+      COALESCE(display_name, alias),
+      '[^a-zA-Z0-9\s-]', '', 'g'
+    ),
+    '\s+', '-', 'g'
+  )
+)
+WHERE slug IS NULL;
+
+-- Handle any collisions: append alias suffix if duplicate
+DO $$
+DECLARE
+  dup RECORD;
+  counter INT;
+BEGIN
+  FOR dup IN
+    SELECT alias, slug FROM model_mapping
+    WHERE slug IN (
+      SELECT slug FROM model_mapping GROUP BY slug HAVING COUNT(*) > 1
+    )
+  LOOP
+    counter := 1;
+    WHILE EXISTS (SELECT 1 FROM model_mapping WHERE slug = dup.slug || '-' || counter) LOOP
+      counter := counter + 1;
+    END LOOP;
+    UPDATE model_mapping SET slug = dup.slug || '-' || counter WHERE alias = dup.alias;
+  END LOOP;
+END $$;
+
+ALTER TABLE model_mapping ALTER COLUMN slug SET NOT NULL;
+ALTER TABLE model_mapping ADD CONSTRAINT model_mapping_slug_unique UNIQUE (slug);
+CREATE INDEX IF NOT EXISTS idx_model_mapping_slug ON model_mapping(slug);
+
+COMMENT ON COLUMN model_mapping.slug IS 'URL-friendly identifier. Auto-derived from display_name. Used in /models/[slug] URLs. Admin editable.';
+
+-- ============================================
+-- 2026-06-20: model_capabilities stored as JSONB array
+-- ============================================
+-- Existing capabilities column may be text/json; normalize to text[].
+-- (No-op if already text[] — just documents the contract.)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'model_mapping' AND column_name = 'capabilities'
+    AND data_type NOT IN ('ARRAY', 'jsonb')
+  ) THEN
+    -- Best-effort: convert text/json to text[]
+    ALTER TABLE model_mapping
+      ALTER COLUMN capabilities TYPE text[]
+      USING CASE
+        WHEN capabilities IS NULL THEN ARRAY['text']::text[]
+        WHEN jsonb_typeof(capabilities::jsonb) = 'array'
+          THEN ARRAY(SELECT jsonb_array_elements_text(capabilities::jsonb))
+        ELSE ARRAY[capabilities::text]
+      END;
+  END IF;
+END $$;
+
+-- ============================================
+-- 2026-06-20: helper function to generate slug from display_name
+-- ============================================
+CREATE OR REPLACE FUNCTION generate_model_slug(display_name TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+BEGIN
+  RETURN LOWER(
+    REGEXP_REPLACE(
+      REGEXP_REPLACE(
+        display_name,
+        '[^a-zA-Z0-9\s-]', '', 'g'
+      ),
+      '\s+', '-', 'g'
+    )
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION generate_model_slug TO service_role;
+
+-- ============================================
+
+-- ============================================
+-- 2026-06-20: plan_presets.included_model_aliases
+-- ============================================
+-- Array of model aliases included in each plan. NULL = all active models.
+-- Admin can edit which models are in each tier; checkout endpoints should respect this.
+
+ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS included_model_aliases TEXT[];
+
+-- Seed: keep current hardcoded values from upgrade/page.tsx
+-- (these are the UI hints — backend enforcement may be added later)
+UPDATE plan_presets SET included_model_aliases = NULL WHERE tier = 'free';  -- free gets all
+UPDATE plan_presets SET included_model_aliases = ARRAY['akarouter-mini'] WHERE tier = 'starter';
+UPDATE plan_presets SET included_model_aliases = ARRAY['akarouter-mini', 'akarouter-haiku', 'akarouter-sonnet', 'akarouter-gpt54'] WHERE tier = 'pro';
+UPDATE plan_presets SET included_model_aliases = ARRAY[
+  'akarouter-mini', 'akarouter-haiku', 'akarouter-sonnet', 'akarouter-gpt54',
+  'akarouter-gemini31', 'akarouter-gpt55', 'akarouter-opus'
+] WHERE tier = 'ultra';
+UPDATE plan_presets SET included_model_aliases = ARRAY[
+  'akarouter-mini', 'akarouter-haiku', 'akarouter-sonnet', 'akarouter-gpt54',
+  'akarouter-gemini31', 'akarouter-gpt55', 'akarouter-opus', 'akarouter-gpt53-codex'
+] WHERE tier = 'enterprise';
+
+COMMENT ON COLUMN plan_presets.included_model_aliases IS 'Model aliases included in this plan. NULL = all active models. Admin editable via /admin/plans.';

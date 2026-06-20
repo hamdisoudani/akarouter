@@ -270,6 +270,81 @@ async def startup():
     from app.core.cache import start_flusher
     start_flusher()
 
+    # Auto-migrate model_mapping to add slug column if missing (idempotent).
+    # Uses psycopg2 directly because Supabase PostgREST RPC isn't available here.
+    try:
+        import psycopg2
+        if settings.supabase_db_url:
+            conn = psycopg2.connect(settings.supabase_db_url)
+            conn.autocommit = True
+            cur = conn.cursor()
+            # 1. Add slug column (idempotent)
+            cur.execute("ALTER TABLE model_mapping ADD COLUMN IF NOT EXISTS slug TEXT;")
+            # 2. Backfill from display_name (lowercase, dashes, alphanumeric)
+            cur.execute(
+                "UPDATE model_mapping SET slug = LOWER(REGEXP_REPLACE(REGEXP_REPLACE("
+                "COALESCE(display_name, alias), '[^a-zA-Z0-9\\s-]', '', 'g'), '\\s+', '-', 'g'))"
+                " WHERE slug IS NULL;"
+            )
+            # 3. Resolve any duplicate slugs (append -2, -3, ...)
+            cur.execute("""
+                DO $$
+                DECLARE
+                  dup RECORD;
+                  counter INT;
+                BEGIN
+                  FOR dup IN
+                    SELECT alias, slug FROM model_mapping
+                    WHERE slug IN (
+                      SELECT slug FROM model_mapping GROUP BY slug HAVING COUNT(*) > 1
+                    )
+                  LOOP
+                    counter := 1;
+                    WHILE EXISTS (SELECT 1 FROM model_mapping WHERE slug = dup.slug || '-' || counter) LOOP
+                      counter := counter + 1;
+                    END LOOP;
+                    UPDATE model_mapping SET slug = dup.slug || '-' || counter WHERE alias = dup.alias;
+                  END LOOP;
+                END $$;
+            """)
+            # 4. Make slug NOT NULL (safe — only fails if duplicates still exist; we resolved them above)
+            cur.execute("ALTER TABLE model_mapping ALTER COLUMN slug SET NOT NULL;")
+            # 5. Add unique constraint (idempotent)
+            cur.execute("""
+                DO $$ BEGIN
+                  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'model_mapping_slug_unique') THEN
+                    ALTER TABLE model_mapping ADD CONSTRAINT model_mapping_slug_unique UNIQUE (slug);
+                  END IF;
+                EXCEPTION WHEN others THEN NULL; END $$;
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_model_mapping_slug ON model_mapping(slug);")
+            # 6. Helper function for slug generation
+            cur.execute("""
+                CREATE OR REPLACE FUNCTION generate_model_slug(display_name TEXT)
+                RETURNS TEXT LANGUAGE plpgsql IMMUTABLE AS $$
+                BEGIN
+                  RETURN LOWER(REGEXP_REPLACE(REGEXP_REPLACE(
+                    display_name, '[^a-zA-Z0-9\\s-]', '', 'g'
+                  ), '\\s+', '-', 'g'));
+                END; $$;
+            """)
+            # 7. plan_presets.included_model_aliases column
+            cur.execute("ALTER TABLE plan_presets ADD COLUMN IF NOT EXISTS included_model_aliases TEXT[];")
+            cur.execute("COMMENT ON COLUMN plan_presets.included_model_aliases IS 'Model aliases included in this plan. NULL = all active models. Admin editable via /admin/plans.';")
+            # Seed plan tier model access (idempotent — skip if already populated)
+            cur.execute("UPDATE plan_presets SET included_model_aliases = NULL WHERE tier = 'free' AND included_model_aliases IS NOT NULL;")
+            cur.execute("UPDATE plan_presets SET included_model_aliases = ARRAY['akarouter-mini'] WHERE tier = 'starter' AND included_model_aliases IS NULL;")
+            cur.execute("UPDATE plan_presets SET included_model_aliases = ARRAY['akarouter-mini','akarouter-haiku','akarouter-sonnet','akarouter-gpt54'] WHERE tier = 'pro' AND included_model_aliases IS NULL;")
+            cur.execute("UPDATE plan_presets SET included_model_aliases = ARRAY['akarouter-mini','akarouter-haiku','akarouter-sonnet','akarouter-gpt54','akarouter-gemini31','akarouter-gpt55','akarouter-opus'] WHERE tier = 'ultra' AND included_model_aliases IS NULL;")
+            cur.execute("UPDATE plan_presets SET included_model_aliases = ARRAY['akarouter-mini','akarouter-haiku','akarouter-sonnet','akarouter-gpt54','akarouter-gemini31','akarouter-gpt55','akarouter-opus','akarouter-gpt53-codex'] WHERE tier = 'enterprise' AND included_model_aliases IS NULL;")
+            cur.close()
+            conn.close()
+            logger.info("model_mapping.slug + plan_presets.included_model_aliases migrations applied")
+    except Exception as e:
+        # Don't fail startup — log and continue. The /api/v1/models endpoint already
+        # falls back to alias if slug is missing in a row.
+        logger.warning(f"slug auto-migration skipped: {e}")
+
 
 @app.on_event("shutdown")
 async def shutdown():

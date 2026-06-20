@@ -130,3 +130,11 @@ export function groupByProvider<T extends { id: string; display_name?: string; p
     .map(([id, ms]) => ({ provider: PROVIDERS[id], models: ms }))
     .sort((a, b) => a.provider.order - b.provider.order)
 }
+
+/**
+ * Resolve the URL-safe identifier for a model.
+ * Prefers the slug returned by the API; falls back to id for legacy compatibility.
+ */
+export function modelPath(model: { id: string; slug?: string }): string {
+  return `/models/${model.slug || model.id}`
+}

@@ -8,18 +8,27 @@ import { detectProvider } from '@/lib/providers'
 export const revalidate = 60
 
 interface PageProps {
+  // Dynamic segment now matches either slug (preferred) or alias (legacy fallback).
   params: Promise<{ id: string }>
 }
 
 export async function generateStaticParams() {
   const models = await fetchServerModels()
-  return models.map((m) => ({ id: m.id }))
+  // Generate params for both slug and alias — slugs are the canonical URLs,
+  // alias URLs still resolve for backwards compat.
+  const params: Array<{ id: string }> = []
+  for (const m of models) {
+    if (m.slug) params.push({ id: m.slug })
+    if (m.id && m.id !== m.slug) params.push({ id: m.id })
+  }
+  return params
 }
 
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params
   const models = await fetchServerModels()
-  const m = models.find((x) => x.id === id)
+  // Resolve by slug OR alias
+  const m = models.find((x) => x.slug === id || x.id === id)
   if (!m) return { title: 'Model not found — AkaRouter' }
   return {
     title: `${m.display_name || m.id} — AkaRouter`,
@@ -30,7 +39,8 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function ModelDetailPage({ params }: PageProps) {
   const { id } = await params
   const models = await fetchServerModels()
-  const m = models.find((x) => x.id === id)
+  // Resolve by slug OR alias — slug is the new canonical identifier.
+  const m = models.find((x) => x.slug === id || x.id === id)
   if (!m) notFound()
 
   const isPerRequest = m.pricing_mode === 'per_request'

@@ -114,7 +114,12 @@ export default function UpgradePage() {
       const matchingFallback = fallbackPlans.find(fp => fp.key === plan.tier)
       const monthlyRequests = typeof plan.monthly_requests_limit === 'number' ? plan.monthly_requests_limit : null
       const perRequestCost = typeof plan.per_request_cost_cents === 'number' ? plan.per_request_cost_cents : null
-      const includedModels = deriveIncludedModels(plan.tier, monthlyRequests)
+      // Use admin-configured included_model_aliases if set; otherwise fall back to
+      // tier-based heuristic (works for plans that haven't been edited yet).
+      const dbIncluded = Array.isArray(plan.included_model_aliases) ? plan.included_model_aliases : null
+      const includedModels = dbIncluded
+        ? { perToken: ['akarouter-flash', 'akarouter-pro', 'akarouter-large'], perRequest: dbIncluded }
+        : deriveIncludedModels(plan.tier, monthlyRequests)
       return {
         name: matchingFallback?.name || `${plan.tier.charAt(0).toUpperCase() + plan.tier.slice(1)} Plan`,
         key: plan.tier,

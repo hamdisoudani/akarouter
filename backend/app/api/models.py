@@ -23,7 +23,7 @@ async def list_models(request: Request) -> dict:
     try:
         supabase = get_supabase()
         result = supabase.table("model_mapping").select(
-            "alias, display_name, provider_name, description, is_active, capabilities, "
+            "alias, slug, display_name, provider_name, description, is_active, capabilities, "
             "input_cost_per_million, output_cost_per_million, pricing_mode, "
             "cost_per_request_cents, is_free_provider, points_cost, "
             "context_window_tokens, max_output_tokens, input_modalities, output_modalities, "
@@ -36,6 +36,9 @@ async def list_models(request: Request) -> dict:
                 "data": [
                     {
                         "id": row["alias"],
+                        # URL-friendly slug derived from display_name (e.g. "minimax-m3")
+                        # Frontend should prefer this for /models/[slug] URLs.
+                        "slug": row.get("slug") or row["alias"],
                         "object": "model",
                         "owned_by": "akarouter",
                         "display_name": row.get("display_name", row["alias"]),
