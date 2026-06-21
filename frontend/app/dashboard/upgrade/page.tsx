@@ -86,13 +86,34 @@ export default function UpgradePage() {
   // The page is now public-readable — free users see the plan catalog
   // without being force-redirected. The "Choose plan" button still requires
   // authentication and routes through the standard login flow.
-  const isFreeTier = !usage || usage.tier === 'free' || !user
-  const currentTier = usage?.tier ?? 'free'
+  //
+  // IMPORTANT (2026-06-21): isFreeTier previously conflated three different
+  // audiences: (a) logged-in free-tier users, (b) anon visitors, (c) users
+  // with no usage data yet. The page rendered "Current: free" and put the
+  // Free card first by sort order — so an anon visitor saw the page as if
+  // they were a free-tier customer and the free plan was the default.
+  // The free plan is the sign-up starting state, not the "default selected
+  // plan" on the pricing page. We now:
+  //   - treat !user as `isAnonymous` (not free)
+  //   - sort free LAST in the plan grid so it never appears as the default
+  //   - swap the "Current: free" badge for a "Your current plan" hint that
+  //     only renders when the user is actually logged in
+  //   - show a "Sign in to choose" banner above the grid for anon visitors
+  const isAnonymous = !user
+  const isFreeTier = !!user && (usage?.tier === 'free' || !usage?.tier)
+  const currentTier: string | null = user ? (usage?.tier ?? 'free') : null
 
-  // Filter plans: show all admin-configured plans except enterprise (custom)
+  // Filter + sort: hide enterprise entirely; push free to the end so it
+  // never visually anchors the grid as the "default" plan. Stable sort by
+  // monthly_limit keeps paid plans in ascending price order.
   const displayPlans = dbPlans
     .filter(p => p.tier !== 'enterprise')
-    .sort((a, b) => (a.monthly_limit || 0) - (b.monthly_limit || 0))
+    .sort((a, b) => {
+      // Free always last — it's a sign-up starting state, not a paid option
+      if (a.tier === 'free' && b.tier !== 'free') return 1
+      if (b.tier === 'free' && a.tier !== 'free') return -1
+      return (a.monthly_limit || 0) - (b.monthly_limit || 0)
+    })
 
   return (
     <div className="relative min-h-screen bg-background text-foreground flex flex-col overflow-hidden">
@@ -105,9 +126,13 @@ export default function UpgradePage() {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <h1 className="font-mono text-lg uppercase tracking-[0.15em] text-foreground font-bold">
-                  {isFreeTier ? 'Choose Your Plan' : 'Manage Your Subscription'}
+                  {isAnonymous
+                    ? 'Pricing & Plans'
+                    : isFreeTier
+                      ? 'Choose Your Plan'
+                      : 'Manage Your Subscription'}
                 </h1>
-                {!isFreeTier && (
+                {!isAnonymous && !isFreeTier && currentTier && (
                   <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5">
                     Current: {currentTier}
                   </span>
@@ -119,6 +144,29 @@ export default function UpgradePage() {
                 <span className="text-muted-foreground/70"> Promotional models like MiniMax-M3 are loss-leadered for early adopters.</span>
               </p>
             </div>
+
+            {/* Anonymous-visitor banner (added 2026-06-21):
+                Replace the previous behavior where the page silently
+                treated unauthed visitors as a free-tier customer (which
+                made the Free card look like the default plan and showed
+                a fake "Current: free" badge). Tell them they're not logged
+                in and that picking a plan requires an account. The free
+                plan is still rendered last in the grid below as the sign-up
+                starting state, not as the default selection. */}
+            {isAnonymous && (
+              <div className="bg-[#ef4444]/10 border border-[#ef4444] p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 justify-between">
+                <div className="font-mono text-[10px] uppercase tracking-wider text-[#ef4444]">
+                  <span className="font-bold">[GUEST_MODE]</span> Sign in to subscribe.
+                  New accounts start on the free tier automatically after sign-up.
+                </div>
+                <button
+                  onClick={() => router.push('/auth/login?next=/dashboard/upgrade')}
+                  className="font-mono text-[9px] uppercase tracking-widest border border-[#ef4444] bg-[#ef4444] text-white hover:bg-[#ef4444]/90 hover:border-[#ef4444] px-4 py-1.5 font-bold transition-colors shrink-0"
+                >
+                  Sign In →
+                </button>
+              </div>
+            )}
 
             {/* Tier discount explainer */}
             {billingMatrix && !matrixLoading && (
@@ -159,7 +207,7 @@ export default function UpgradePage() {
                     key={plan.id}
                     plan={plan}
                     matrix={billingMatrix}
-                    isCurrent={currentTier === plan.tier}
+                    isCurrent={!!currentTier && currentTier === plan.tier}
                     isLoading={checkoutLoading === plan.tier}
                     onCheckout={() => handleCheckout(plan.tier)}
                   />
@@ -407,8 +455,13 @@ function PlanCard({ plan, matrix, isCurrent, isLoading, onCheckout }: PlanCardPr
 // BillingMatrixPreview
 // ============================================
 
-function BillingMatrixPreview({ matrix, currentTier }: { matrix: BillingMatrix; currentTier: string }) {
-  const [filterTier, setFilterTier] = useState<string>(currentTier || 'free')
+function BillingMatrixPreview({ matrix, currentTier }: { matrix: BillingMatrix; currentTier: string | null }) {
+  // Anonymous visitors had the matrix default to "free" — which both
+  // highlighted the wrong column and implied the user was already on a
+  // plan. Default to the most common paid tier (pro) when we have no
+  // authenticated currentTier; this matches the page's "popular" highlight
+  // and never claims a tier the user isn't on.
+  const [filterTier, setFilterTier] = useState<string>(currentTier || 'pro')
   const visibleTiers = matrix.tiers.filter(t => t !== 'enterprise')
 
   // Pick the models to show: top 8 by base cost, then promotional first
