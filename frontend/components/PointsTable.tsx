@@ -1,38 +1,27 @@
-import { Zap } from 'lucide-react'
+/**
+ * PointsTable — renders the "Full Pricing Transparency" table on the
+ * landing page. Pulls every number from the billing matrix API, so
+ * the points/call and "X calls/mo on Pro" cells always reflect what
+ * the endpoint actually charges.
+ *
+ * Previously this table was hardcoded with stale point costs that
+ * didn't match the endpoint. User-reported 2026-06-21 ("minimax point
+ * is 1 while in the section under it it mentions that it costs 2
+ * points" — the inconsistency was actually across the whole table,
+ * not just MiniMax M3).
+ *
+ * CAVEAT: the matrix is cached server-side (revalidate: 300) via
+ * `fetchServerBillingMatrix()`. Admin-side model edits appear within
+ * 5 minutes of the save. That's fine for a marketing page — the
+ * authoritative source of truth is the /dashboard/upgrade page,
+ * which is authed and renders per-user live data.
+ */
 
-type ModelCost = {
-  base: number
-  effective: number
-}
+import type { BillingMatrixResponse } from '@/lib/server-api'
 
-type BillingModel = {
-  id: string
-  alias?: string
-  slug: string
-  display_name: string
-  provider_name?: string
-  is_upcoming?: boolean
-  is_promotional?: boolean
-  promotional_discount_pct?: number
-  pricing_mode?: string
-  costs: {
-    free: ModelCost
-    starter?: ModelCost
-    pro?: ModelCost
-    ultra?: ModelCost
-  }
-}
-
-type BillingMatrix = {
-  tiers: string[]
-  plan_multipliers?: Record<string, number>
-  monthly_allowances?: Record<string, number>
-  prices?: Record<string, string>
-  models: BillingModel[]
-}
-
-// Human-readable "best for" copy per model slug. Falls back to a
-// generic copy when a slug isn't in the map.
+// Marketing copy. The backend returns model slugs in the form
+// "claude-haiku-4-5" / "gpt-5-3-codex-spark" / etc. — we keep
+// kebab-case keys here so the lookup is a single map.get().
 const BEST_FOR: Record<string, string> = {
   'minimax-m3': 'frontier reasoning, daily driver',
   'claude-haiku-4-5': 'lightweight tasks, quick Q&A',
@@ -47,8 +36,6 @@ const BEST_FOR: Record<string, string> = {
   'owl-alpha': 'experimental frontier preview',
 }
 
-// Short subtitle copy per model slug. Used in the small "frontier,
-// free to us" / "fast + cheap" / etc line under the model name.
 const SUBTITLE: Record<string, string> = {
   'minimax-m3': 'frontier, free to us',
   'claude-haiku-4-5': 'fast + cheap',
@@ -95,7 +82,7 @@ function tierBadge(cost: number): { label: string; className: string } {
   }
 }
 
-// Cost color: cheap (amber-ish for the "T1" hot cost), mid (amber),
+// Cost color: cheap (amber for the "T1" hot cost), mid (amber),
 // premium (red). We use red only for >=5pt/call to signal "this is
 // going to cost you real points" — visitors should see the cost
 // going up visibly.
@@ -113,19 +100,7 @@ function formatCalls(allowance: number, cost: number): string {
   return `${n.toLocaleString()} calls`
 }
 
-/**
- * PointsTable — renders the "Full Pricing Transparency" table on the
- * landing page. Pulls every number from the billing matrix API, so
- * the points/call and "X calls/mo on Pro" cells always reflect what
- * the endpoint actually charges.
- *
- * CAVEAT: the matrix is cached server-side (revalidate: 300) via
- * `fetchServerBillingMatrix()`. Admin-side model edits appear within
- * 5 minutes of the save. That's fine for a marketing page — the
- * authoritative source of truth is the /dashboard/upgrade page,
- * which is authed and renders per-user live data.
- */
-export function PointsTable({ matrix }: { matrix: BillingMatrix | null }) {
+export function PointsTable({ matrix }: { matrix: BillingMatrixResponse | null }) {
   if (!matrix || !matrix.models || matrix.models.length === 0) {
     return (
       <div className="border border-border bg-background p-8 text-center">
@@ -175,18 +150,17 @@ export function PointsTable({ matrix }: { matrix: BillingMatrix | null }) {
             const base = m.costs.free?.base ?? cost
             const isPromo = !!m.is_promotional
             const badge = tierBadge(cost)
-            const subtitle = SUBTITLE[m.slug] ?? m.provider_name ?? ''
+            const subtitle = SUBTITLE[m.slug] ?? ''
             const bestFor = BEST_FOR[m.slug] ?? 'general purpose'
-            // Pro multiplier: 0.75, so a model with free=2 pt is pro=2
-            // pt (rounded). Use the API's pro value when present, else
-            // recompute from the free value.
+            // Use the API's per-tier value if present, otherwise
+            // fall back to the free value.
             const proCost = m.costs.pro?.effective ?? cost
             const ultraCost = m.costs.ultra?.effective ?? proCost
             return (
               <tr key={m.id} className="hover:bg-muted/40/50">
                 <td className="p-3 sm:p-4">
-                  <div className="text-foreground font-bold flex items-center gap-2">
-                    {m.display_name}
+                  <div className="text-foreground font-bold flex items-center gap-2 flex-wrap">
+                    <span>{m.display_name}</span>
                     {isPromo && (
                       <span className="px-1.5 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[8px] uppercase font-bold">
                         50% off
