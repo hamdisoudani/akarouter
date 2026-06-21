@@ -20,33 +20,33 @@
 import type { BillingMatrixResponse } from '@/lib/server-api'
 
 // Marketing copy. The backend returns model slugs in the form
-// "claude-haiku-4-5" / "gpt-5-3-codex-spark" / etc. — we keep
-// kebab-case keys here so the lookup is a single map.get().
+// "claude-haiku-45" / "gpt-53-codex-spark" / etc. (no dash before
+// the version digit). Keys here mirror that exact slug format.
 const BEST_FOR: Record<string, string> = {
   'minimax-m3': 'frontier reasoning, daily driver',
-  'claude-haiku-4-5': 'lightweight tasks, quick Q&A',
+  'claude-haiku-45': 'lightweight tasks, quick Q&A',
   'nemotron-ultra': 'high-volume free tier',
-  'claude-sonnet-4-6': 'coding, mid-complex reasoning',
-  'gpt-5-4': 'vision + reasoning + tools',
-  'gemini-3-1-pro': 'huge context, video, audio',
-  'claude-opus-4-8': 'deepest reasoning, hard problems',
-  'gpt-5-5': 'agentic workflows, code gen',
-  'gpt-5-3-codex-spark': 'large code refactors',
-  'step-3-7-flash': 'instant answers, free daily pool',
+  'claude-sonnet-46': 'coding, mid-complex reasoning',
+  'gpt-54': 'vision + reasoning + tools',
+  'gemini-31-pro': 'huge context, video, audio',
+  'claude-opus-48': 'deepest reasoning, hard problems',
+  'gpt-55': 'agentic workflows, code gen',
+  'gpt-53-codex-spark': 'large code refactors',
+  'step-37-flash': 'instant answers, free daily pool',
   'owl-alpha': 'experimental frontier preview',
 }
 
 const SUBTITLE: Record<string, string> = {
   'minimax-m3': 'frontier, free to us',
-  'claude-haiku-4-5': 'fast + cheap',
+  'claude-haiku-45': 'fast + cheap',
   'nemotron-ultra': 'free-tier alternative',
-  'claude-sonnet-4-6': 'workhorse',
-  'gpt-5-4': 'multimodal',
-  'gemini-3-1-pro': '1M context, multimodal',
-  'claude-opus-4-8': 'the best reasoning',
-  'gpt-5-5': 'flagship OpenAI',
-  'gpt-5-3-codex-spark': 'coding specialist',
-  'step-3-7-flash': 'instant answers',
+  'claude-sonnet-46': 'workhorse',
+  'gpt-54': 'multimodal',
+  'gemini-31-pro': '1M context, multimodal',
+  'claude-opus-48': 'the best reasoning',
+  'gpt-55': 'flagship OpenAI',
+  'gpt-53-codex-spark': 'coding specialist',
+  'step-37-flash': 'instant answers',
   'owl-alpha': 'experimental preview',
 }
 
