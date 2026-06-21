@@ -23,6 +23,17 @@
  *   - On <md screens: drawer slides in from the right; sidebar hidden
  *   - Floating mobile hamburger button (bottom-right) opens the drawer
  *
+ * Auth-aware rendering (added 2026-06-21):
+ *   The sidebar is reused on /docs (a PUBLIC page). Previously it
+ *   always showed the logged-in nav (Telemetry / API Keys / Usage /
+ *   Plans / Admin) and a "Sign Out" button — meaningless for a
+ *   visitor who never signed in. Now we branch on `user`:
+ *     - Authenticated: dashboard nav links + [SYS_SESSION] tier badge
+ *       + Sign Out (the original behavior).
+ *     - Anonymous: public nav links (Home / Models / Pricing / Docs)
+ *       + a "Get Started" CTA pointing at /auth/login. No tier badge,
+ *       no sign-out button — both would be wrong for a visitor.
+ *
  * Theme tokens (2026-06-20):
  *   This component uses semantic Tailwind tokens (bg-background,
  *   bg-card, bg-muted, text-foreground, text-muted-foreground,
@@ -32,10 +43,11 @@
  *   stayed even in light mode (visible bug reported by user 2026-06-20).
  *
  * The sidebar shows:
- *   - Logo + kernel version (matches the AkaRouter tech aesthetic)
- *   - Nav links: Telemetry, API Keys, Usage, Models, Plans, Docs
- *   - Admin Panel (visible only if user.role === 'admin')
- *   - Footer: [SYS_SESSION] tier badge + Sign Out
+ *   - Authenticated: Logo + kernel version, dashboard nav links,
+ *     Admin Panel (if user.role === 'admin'), [SYS_SESSION] tier
+ *     badge + Sign Out footer.
+ *   - Anonymous: Logo + kernel version, public nav links, "Get
+ *     Started" CTA footer.
  */
 
 import { useState } from 'react'
@@ -53,6 +65,8 @@ import {
   LogOut,
   Menu,
   X,
+  Home,
+  ArrowRight,
 } from 'lucide-react'
 import { useApp } from '@/app/providers'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -79,6 +93,18 @@ const ADMIN_NAV_ITEM: NavItem = {
   icon: <Shield className="w-3.5 h-3.5" />,
 }
 
+// Public nav shown when no user is signed in. Used on /docs and any
+// future public page that opts into the DashboardSidebar layout. Note:
+// Docs is intentionally in the list even though we're rendering this
+// from /docs — it acts as the "current page" indicator and stays
+// active-highlighted for anonymous visitors too.
+const PUBLIC_NAV_ITEMS: NavItem[] = [
+  { label: 'Home', href: '/', icon: <Home className="w-3.5 h-3.5" />, exact: true },
+  { label: 'Models', href: '/models', icon: <Brain className="w-3.5 h-3.5" /> },
+  { label: 'Pricing', href: '/dashboard/upgrade', icon: <Zap className="w-3.5 h-3.5" /> },
+  { label: 'Docs', href: '/docs', icon: <FileText className="w-3.5 h-3.5" /> },
+]
+
 function isActive(pathname: string, item: NavItem): boolean {
   if (item.exact) return pathname === item.href
   // Highlight /dashboard/keys for /dashboard/keys, /dashboard/keys/new, etc.
@@ -93,18 +119,23 @@ export function DashboardSidebar({ headerLabel }: { headerLabel?: string } = {})
   // Derive a sensible default label from the current route.
   // e.g. /dashboard/usage → [USAGE], /dashboard/keys → [API KEYS].
   // Pages can override via the headerLabel prop (e.g. /dashboard/upgrade → [UPGRADE]).
+  // Anonymous visitors on /docs see [DOCS] instead of the default
+  // [DASHBOARD] fallback.
   const derivedLabel = (() => {
     if (pathname === '/dashboard' || pathname === '/dashboard/') return 'DASHBOARD'
     if (pathname.startsWith('/dashboard/usage')) return 'USAGE'
     if (pathname.startsWith('/dashboard/keys')) return 'API KEYS'
     if (pathname.startsWith('/dashboard/admin')) return 'ADMIN'
     if (pathname.startsWith('/dashboard/upgrade')) return 'UPGRADE'
+    if (pathname === '/docs' || pathname?.startsWith('/docs/')) return 'DOCS'
     return 'DASHBOARD'
   })()
   const label = (headerLabel || derivedLabel).toUpperCase()
 
-  const navItems = [...NAV_ITEMS]
-  if (user?.role === 'admin') navItems.push(ADMIN_NAV_ITEM)
+  // Pick the nav list + any role-gated items based on auth state.
+  const navItems = user
+    ? [...NAV_ITEMS, ...(user.role === 'admin' ? [ADMIN_NAV_ITEM] : [])]
+    : PUBLIC_NAV_ITEMS
 
   const sidebarBody = (
     <>
@@ -155,28 +186,50 @@ export function DashboardSidebar({ headerLabel }: { headerLabel?: string } = {})
         })}
       </div>
 
-      {/* Footer: tier badge + sign out */}
+      {/* Footer: tier badge + sign out (authenticated) OR
+          Get Started CTA (anonymous). The anonymous branch is what
+          /docs (a public page) renders — there's no session to show
+          and no account to sign out of. */}
       <div className="px-6 mt-auto">
-        <div className="font-mono text-[9px] text-muted-foreground mb-2 flex justify-between tracking-tighter">
-          <span>[SYS_SESSION]</span>
-          <span
-            className={`text-emerald-500 uppercase ${
-              !usage ? 'animate-pulse' : ''
-            }`}
-          >
-            {usage?.tier || '...'}
-          </span>
-        </div>
-        <button
-          onClick={() => {
-            setMobileOpen(false)
-            signOut()
-          }}
-          className="w-full bg-muted border border-border text-foreground/80 font-mono text-[10px] py-3 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-foreground transition-all flex items-center justify-center gap-2 group crosshair-corners"
-        >
-          <LogOut className="w-3.5 h-3.5 group-hover:text-[#ef4444] transition-colors" />
-          <span className="tracking-widest uppercase font-bold">Sign Out</span>
-        </button>
+        {user ? (
+          <>
+            <div className="font-mono text-[9px] text-muted-foreground mb-2 flex justify-between tracking-tighter">
+              <span>[SYS_SESSION]</span>
+              <span
+                className={`text-emerald-500 uppercase ${
+                  !usage ? 'animate-pulse' : ''
+                }`}
+              >
+                {usage?.tier || '...'}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                setMobileOpen(false)
+                signOut()
+              }}
+              className="w-full bg-muted border border-border text-foreground/80 font-mono text-[10px] py-3 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-foreground transition-all flex items-center justify-center gap-2 group crosshair-corners"
+            >
+              <LogOut className="w-3.5 h-3.5 group-hover:text-[#ef4444] transition-colors" />
+              <span className="tracking-widest uppercase font-bold">Sign Out</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="font-mono text-[9px] text-muted-foreground mb-2 flex justify-between tracking-tighter">
+              <span>[VISITOR_MODE]</span>
+              <span className="text-muted-foreground/60 uppercase">GUEST</span>
+            </div>
+            <Link
+              href="/auth/login"
+              onClick={() => setMobileOpen(false)}
+              className="w-full bg-muted border border-border text-foreground font-mono text-[10px] py-3 hover:border-[#ef4444] hover:bg-[#ef4444]/5 hover:text-foreground transition-all flex items-center justify-center gap-2 group crosshair-corners"
+            >
+              <span className="tracking-widest uppercase font-bold">Get Started</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:text-[#ef4444] transition-colors" />
+            </Link>
+          </>
+        )}
       </div>
     </>
   )
