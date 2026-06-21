@@ -180,3 +180,103 @@
 #nprogress .peg {
   box-shadow: 0 0 10px #ef4444, 0 0 5px #ef4444 !important;
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   Code block syntax theme (added 2026-06-21)
+
+   The /docs page renders code on a deliberately dark surface
+   (bg-zinc-950) regardless of the active theme — see DocsView.tsx.
+   This is the same pattern GitHub / VS Code use: syntax tokens are
+   tuned for dark backgrounds and a code block that flips to "light
+   code on white" in light mode ends up unreadable. The hardcoded
+   prism-tomorrow theme is overridden here so tokens feel native to
+   the AkaRouter palette (red brand accent, slightly cooler greys
+   for neutral text).
+   ───────────────────────────────────────────────────────────────────── */
+pre[class*="language-"],
+code[class*="language-"] {
+  color: #e4e4e7;          /* zinc-200 — default text */
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  tab-size: 2;
+  text-shadow: none;
+  direction: ltr;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  hyphens: none;
+}
+
+/* Strings (the most-looked-at token) — emerald so they pop against
+   the red brand chrome. */
+.token.string,
+.token.char,
+.token.attr-value,
+.token.regex,
+.token.variable {
+  color: #6ee7b7;
+}
+
+/* Keywords / control flow — AkaRouter red accent. */
+.token.keyword,
+.token.builtin,
+.token.atrule,
+.token.important,
+.token.selector {
+  color: #f87171;
+  font-weight: 500;
+}
+
+/* Comments — muted, slanted, dimmer than the rest. */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata,
+.token.block-comment {
+  color: #71717a;          /* zinc-500 */
+  font-style: italic;
+}
+
+/* Function / method names — sky blue, easy to scan. */
+.token.function,
+.token.function-name,
+.token.method {
+  color: #7dd3fc;
+}
+
+/* Numbers, booleans — warm amber. */
+.token.number,
+.token.boolean,
+.token.constant {
+  color: #fbbf24;
+}
+
+/* Class / type names — violet so they stand out from functions. */
+.token.class-name,
+.token.symbol,
+.token.property,
+.token.tag,
+.token.attr-name {
+  color: #c4b5fd;
+}
+
+/* Operators / punctuation — soft grey so they don't fight keywords. */
+.token.operator,
+.token.punctuation,
+.token.entity,
+.token.url {
+  color: #a1a1aa;          /* zinc-400 */
+}
+
+/* Decorators (Python @something) — same as keywords. */
+.token.decorator {
+  color: #f87171;
+}
+
+/* Bold / italic markers — pass through. */
+.token.important,
+.token.bold { font-weight: 700; }
+.token.italic { font-style: italic; }

@@ -1,507 +1,300 @@
-'use client'
+/**
+ * /docs — AkaRouter API reference (server component).
+ *
+ * Why this is a server component (was client before, 2026-06-21):
+ *   We need to fetch the live model catalog from the backend so the
+ *   "featured models" cards show real, current names + point pricing
+ *   instead of the stale hardcoded values the page used to ship
+ *   ("step-37-flash / owl-alpha / nemotron-ultra" with $0.20/M
+ *   per-token prices — all wrong: every model is now per_request /
+ *   points-based, and the model names are not the routing aliases).
+ *
+ *   We also pre-highlight every code block on the server using
+ *   Prism.highlight() so syntax colors appear on first paint. The
+ *   old client-side Prism.highlightAll() in a useEffect was being
+ *   tree-shaken out of the production bundle (Prism imports didn't
+ *   appear in the page chunk), so the DOM never got token spans and
+ *   code was rendering as flat monochrome text.
+ *
+ *   The interactive bits (tab toggling, copy buttons) live in the
+ *   child <DocsView /> client component, which receives fully-
+ *   rendered highlighted HTML as props.
+ */
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import Image from 'next/image'
-import { useApp } from '@/app/providers'
-import { getGatewayUrl } from '@/lib/utils'
+import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import Prism from 'prismjs'
 import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-json'
-import 'prismjs/themes/prism-tomorrow.css'
-import {
-  LogOut,
-  Terminal,
-  Copy,
-  Check,
-  Cpu,
-  Sparkles,
-  Zap
-} from 'lucide-react'
+import { fetchServerModels } from '@/lib/server-api'
+import { getGatewayUrl } from '@/lib/utils'
+import { DocsView, type FeaturedModel, type CodeBlock } from '@/components/DocsView'
 
-import { DashboardSidebar } from '@/components/DashboardSidebar'
-export default function DocsPage() {
-  const router = useRouter()
-  const { user, token, usage, loading: authLoading, signOut } = useApp()
-  const [copiedId, setCopiedId] = useState<string | null>(null)
+/**
+ * Three featured model slots rendered as cards above the SDK snippets.
+ * We pick one vision-capable flagship, one long-context heavyweight,
+ * and one fast/cheap model. These are pulled from the live catalog so
+ * the cards always show the real `id` (routing alias) and current
+ * points cost.
+ */
+const FEATURED_PICKS = {
+  vision: 'minimax-m3',
+  context: 'owl-alpha',
+  speed: 'nemotron-ultra',
+}
 
-  const [activeCategory, setActiveCategory] = useState<'sdks' | 'agents'>('sdks')
-  const [activeSdk, setActiveSdk] = useState<'python' | 'curl' | 'node'>('python')
-  const [activeAgent, setActiveAgent] = useState<'claude' | 'cline' | 'cursor'>('claude')
-
-  const [origin, setOrigin] = useState('http://localhost:8000')
-
-  useEffect(() => {
-    setOrigin(getGatewayUrl())
-  }, [])
-
-  useEffect(() => {
-    Prism.highlightAll()
-  }, [activeCategory, activeSdk, activeAgent])
-
-  useEffect(() => {
-    if (!authLoading) {
-      // Docs is PUBLIC — anyone can read the API reference.
-      // Only redirect if user is logged in but pending (still needs to pick a plan).
-      if (token && user?.status === 'pending') {
-        router.push('/dashboard')
-        return
-      }
+export default async function DocsPage() {
+  // Redirect logic mirrors the old client effect: docs is public,
+  // but a logged-in user still on the "pending" plan-pick step gets
+  // bumped to the dashboard. We hit our own /api/me route (which
+  // validates the Supabase JWT via the server supabase client) so
+  // the docs page itself stays a pure server component.
+  let userStatus: string | null = null
+  try {
+    const h = await headers()
+    // Re-use the same headers/cookie the inbound request carried so
+    // the internal /api/me call resolves to the same session.
+    const proto = h.get('x-forwarded-proto') ?? 'http'
+    const host = h.get('host') ?? 'localhost:3000'
+    const cookie = h.get('cookie') ?? ''
+    const meRes = await fetch(`${proto}://${host}/api/me`, {
+      headers: { cookie },
+      cache: 'no-store',
+    })
+    if (meRes.ok) {
+      const me = (await meRes.json()) as { status?: string }
+      userStatus = me?.status ?? null
     }
-  }, [authLoading, token, user, router])
-
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedId(id)
-    setTimeout(() => setCopiedId(null), 2000)
+  } catch {
+    // anonymous visitor or backend hiccup — let them read the docs
+  }
+  if (userStatus === 'pending') {
+    redirect('/dashboard')
   }
 
-  const pythonCode = `from openai import OpenAI
+  // Live model catalog for the featured cards.
+  const allModels = await fetchServerModels()
+  const byId = new Map(allModels.map((m) => [m.id, m]))
+  const featuredRaw: (FeaturedModel | null)[] = ([
+    FEATURED_PICKS.vision,
+    FEATURED_PICKS.context,
+    FEATURED_PICKS.speed,
+  ] as const).map((id) => {
+    const m = byId.get(id)
+    if (!m) return null
+    return {
+      id: m.id,
+      displayName: m.display_name ?? m.id,
+      tagline: pickTagline(m),
+      contextLength: m.context_length ?? 0,
+      pointsCost: m.points_cost ?? 0,
+      pricingMode: m.pricing_mode ?? 'per_request',
+      supportsVision: m.supports?.vision ?? false,
+    } satisfies FeaturedModel
+  })
+  const featured: FeaturedModel[] = featuredRaw.filter(
+    (m): m is FeaturedModel => m !== null,
+  )
 
-# Initialize OpenAI-compatible Client mapping to AkaRouter
+  // Origin for the API endpoints embedded in the code samples.
+  // getGatewayUrl() is a client util that returns the public URL
+  // with no /api suffix; we strip it here so the code samples read
+  // `<origin>/v1/chat/completions`.
+  const origin = getGatewayUrl().replace(/\/api\/?$/, '')
+
+  // Pre-build the highlighted HTML for every code sample. Doing this
+  // on the server guarantees the token spans are in the SSR output
+  // and visible on first paint, no client hydration race.
+  const code: Record<'python' | 'curl' | 'node' | 'claude' | 'cline', CodeBlock> = {
+    python: highlight('python', buildPython(origin)),
+    curl: highlight('bash', buildCurl(origin)),
+    node: highlight('javascript', buildNode(origin)),
+    claude: highlight('bash', buildClaude(origin)),
+    cline: highlight('json', buildCline(origin)),
+  }
+  const cursor = buildCursor(origin) // prose, no syntax
+
+  return (
+    <div className="relative min-h-screen bg-background text-foreground flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-foreground">
+      {/* Sidebar handles its own auth-aware rendering (see commit 50cb4cc). */}
+      <DocsView
+        featured={featured}
+        code={code}
+        cursorSteps={cursor}
+      />
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Code samples
+// ─────────────────────────────────────────────────────────────────────
+
+function buildPython(origin: string) {
+  return `from openai import OpenAI
+
+# Initialize OpenAI-compatible client pointed at the AkaRouter gateway.
 client = OpenAI(
     base_url="${origin}/v1",
     api_key="YOUR_AKAROUTER_API_KEY"
 )
 
-# 1. Text Completion Example
-# Browse https://akarouter.dev/models for the current catalog and routing aliases.
+# 1. Text completion — try any alias from the /models catalog.
 response = client.chat.completions.create(
-    model="owl-alpha",  # Try: minimax-m3, owl-alpha, step-3-7-flash, claude-opus-4-8
+    model="akarouter-mini",  # See https://akarouter.dev/models for the full list.
     messages=[{"role": "user", "content": "Hello AkaRouter!"}]
 )
 print("Text response:", response.choices[0].message.content)
 
-# 2. Vision (Image Analysis) Example - only supported on vision-capable models
-vision_response = client.chat.completions.create(
-    model="minimax-m3",
+# 2. Vision (image analysis) — only works on vision-capable models.
+#    Check the "supports" field in /v1/models, or use the docs cards below.
+vision = client.chat.completions.create(
+    model="akarouter-mini",
     messages=[
         {
             "role": "user",
             "content": [
                 {"type": "text", "text": "Describe this image:"},
-                {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}}
-            ]
+                {"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}},
+            ],
         }
-    ]
+    ],
 )
-print("Vision response:", vision_response.choices[0].message.content)`
+print("Vision response:", vision.choices[0].message.content)
+`
+}
 
-  const curlCode = `# 1. Text Completion Example
+function buildCurl(origin: string) {
+  return `# 1. Text completion
 curl ${origin}/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer YOUR_AKAROUTER_API_KEY" \\
   -d '{
-    "model": "owl-alpha",
+    "model": "akarouter-mini",
     "messages": [{"role": "user", "content": "Hello via curl"}]
   }'
 
-# 2. Vision (Image Analysis) Example - Only supported on step-37-flash
+# 2. Vision (image analysis) — requires a vision-capable model
 curl ${origin}/v1/chat/completions \\
   -H "Content-Type: application/json" \\
   -H "Authorization: Bearer YOUR_AKAROUTER_API_KEY" \\
   -d '{
-    "model": "step-37-flash",
+    "model": "akarouter-mini",
     "messages": [
       {
         "role": "user",
         "content": [
           {"type": "text", "text": "Describe this image:"},
-          {"type": "image_url", "image_url": {"url": "https://example.com/image.jpg"}}
+          {"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}}
         ]
       }
     ]
-  }'`
+  }'
+`
+}
 
-  const nodeCode = `import OpenAI from 'openai';
+function buildNode(origin: string) {
+  return `import OpenAI from 'openai';
 
-// Initialize OpenAI client pointing to AkaRouter
+// Initialize the OpenAI client pointed at the AkaRouter gateway.
 const openai = new OpenAI({
   baseURL: '${origin}/v1',
-  apiKey: 'YOUR_AKAROUTER_API_KEY'
+  apiKey: 'YOUR_AKAROUTER_API_KEY',
 });
 
 async function main() {
-  // 1. Text Completion Example
-  const textCompletion = await openai.chat.completions.create({
-    model: 'owl-alpha',
+  // 1. Text completion — pick any alias from the /models catalog.
+  const text = await openai.chat.completions.create({
+    model: 'akarouter-mini',
     messages: [{ role: 'user', content: 'Hello via Node.js!' }],
   });
-  console.log('Text:', textCompletion.choices[0].message.content);
+  console.log('Text:', text.choices[0].message.content);
 
-  // 2. Vision (Image Analysis) Example - Only supported on step-37-flash
-  const visionCompletion = await openai.chat.completions.create({
-    model: 'step-37-flash',
+  // 2. Vision (image analysis) — requires a vision-capable model.
+  const vision = await openai.chat.completions.create({
+    model: 'akarouter-mini',
     messages: [
       {
         role: 'user',
         content: [
           { type: 'text', text: 'Describe this image:' },
-          { type: 'image_url', image_url: { url: 'https://example.com/image.jpg' } }
-        ]
-      }
-    ]
+          { type: 'image_url', image_url: { url: 'https://example.com/cat.jpg' } },
+        ],
+      },
+    ],
   });
-  console.log('Vision:', visionCompletion.choices[0].message.content);
+  console.log('Vision:', vision.choices[0].message.content);
 }
 
-main();`
+main();
+`
+}
 
-  const claudeCode = `# Run Claude Code agent via CLI pointing to AkaRouter
-export CLAUDE_BASE_URL="${origin}/v1"
-export CLAUDE_API_KEY="YOUR_AKAROUTER_API_KEY"
+function buildClaude(origin: string) {
+  return `# Point Claude Code at the AkaRouter gateway.
+export ANTHROPIC_BASE_URL="${origin}/v1"
+export ANTHROPIC_API_KEY="YOUR_AKAROUTER_API_KEY"
 
-# Start the agent using the custom endpoint
-claude`
+# Optional: pin a specific model alias.
+export ANTHROPIC_MODEL="akarouter-sonnet"
 
-  const clineSettings = `{
+# Launch the agent.
+claude
+`
+}
+
+function buildCline(origin: string) {
+  return `{
   "apiProvider": "openai",
   "openAiBaseUrl": "${origin}/v1",
   "openAiApiKey": "YOUR_AKAROUTER_API_KEY",
-  "openAiModelId": "owl-alpha"
-}`
+  "openAiModelId": "akarouter-mini"
+}
+`
+}
 
-  const cursorSettings = `1. Open Cursor Settings -> Models
+function buildCursor(origin: string) {
+  return `1. Open Cursor Settings -> Models
 2. In 'Override OpenAI Base URL', enter:
    ${origin}/v1
-3. In 'API Key', enter your AkaRouter Key.
-4. Under 'Model Names', add:
-   - step-37-flash
-   - owl-alpha
-   - nemotron-ultra
-5. Toggle off other models and enjoy AkaRouter routing!`
+3. In 'OpenAI API Key', enter your AkaRouter key.
+4. Under 'Custom OpenAI Models', add the aliases you want:
+   - akarouter-mini
+   - akarouter-sonnet
+   - akarouter-flash
+5. Toggle off the other models and ship through AkaRouter.`
+}
 
-  return (
-    <div className="relative min-h-screen bg-background text-foreground flex flex-col antialiased selection:bg-[#ef4444]/30 selection:text-foreground">
-      
-      {/* SideNavBar */}
+// ─────────────────────────────────────────────────────────────────────
+//  Helpers
+// ─────────────────────────────────────────────────────────────────────
 
-      <DashboardSidebar />
+/** Run Prism against a code sample on the server, returning safe HTML. */
+function highlight(lang: 'python' | 'bash' | 'javascript' | 'json', source: string): CodeBlock {
+  const grammar = Prism.languages[lang]
+  const html = Prism.highlight(source, grammar, lang)
+  return { lang, html, source }
+}
 
-
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col md:ml-64 md:w-[calc(100%-16rem)] w-full relative">
-        
-
-
-
-
-        {/* Canvas */}
-        <main className="flex-1 p-0 grid-bg relative">
-          
-          {usage?.gateway_enabled === false && (
-            <div className="bg-[#ef4444]/10 border-b border-[#ef4444] p-4 text-center font-mono text-xs text-[#ef4444] tracking-wider uppercase animate-pulse">
-              [WARNING_SYSTEM_MAINTENANCE_API_GATEWAY_OFFLINE_BY_ADMINISTRATOR]
-            </div>
-          )}
-
-          <div className="p-6 space-y-6">
-            
-            {/* Tab select header */}
-            <div className="flex border-b border-border bg-muted/40/40 p-1 overflow-x-auto whitespace-nowrap scrollbar-none">
-              <button
-                onClick={() => setActiveCategory('sdks')}
-                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 flex items-center gap-2 ${
-                  activeCategory === 'sdks'
-                    ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
-                    : 'text-muted-foreground/80 hover:text-foreground'
-                }`}
-              >
-                <Cpu className="w-3.5 h-3.5" />
-                [DIRECT_API_USAGE]
-              </button>
-              <button
-                onClick={() => setActiveCategory('agents')}
-                className={`px-4 py-2 font-mono text-xs uppercase tracking-wider transition-all shrink-0 flex items-center gap-2 ${
-                  activeCategory === 'agents'
-                    ? 'border border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444] red-glow'
-                    : 'text-muted-foreground/80 hover:text-foreground'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                [AI_AGENT_INTEGRATIONS]
-              </button>
-            </div>
-
-            {/* Category: SDKs */}
-            {activeCategory === 'sdks' && (
-              <section className="bg-card border border-border p-6 crosshair-corners space-y-6 animate-slide-in relative">
-                <div className="space-y-1">
-                  <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
-                    <Terminal className="w-4 h-4 text-[#ef4444]" />
-                    DEVELOPER_SDK_INTEGRATIONS
-                  </h2>
-                  <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Integrate AkaRouter directly into your app using standard libraries.</p>
-                </div>
-
-                {/* Model Capabilities Info Card */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-muted/40 p-4 border border-border text-xs font-mono">
-                  {/* Pro Model */}
-                  <div className="space-y-2">
-                    <div className="text-foreground font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
-                      <Cpu className="w-3.5 h-3.5 text-[#ef4444] red-glow" />
-                      step-37-flash (Reasoning & Vision)
-                    </div>
-                    <p className="text-muted-foreground leading-relaxed text-[10px] uppercase">
-                      High-intelligence model supporting complex reasoning, coding, and **multimodal vision (text & images)**.
-                    </p>
-                    <div className="space-y-1 text-muted-foreground/80 text-[9px] pt-1">
-                      <div>[CONTEXT]: 256K TOKENS</div>
-                      <div>[PRICING]: IN: $0.20/M | OUT: $0.80/M</div>
-                    </div>
-                    <div className="flex gap-1.5 flex-wrap pt-1">
-                      <span className="px-1.5 py-0.5 border border-[#ef4444]/20 bg-[#ef4444]/5 text-[#ef4444] text-[9px] uppercase font-bold">✓ Text + Vision</span>
-                    </div>
-                  </div>
-
-                  {/* Large Model */}
-                  <div className="space-y-2 border-t md:border-t-0 md:border-l border-border pt-4 md:pt-0 md:pl-4">
-                    <div className="text-foreground font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                      owl-alpha (Long-Context)
-                    </div>
-                    <p className="text-muted-foreground leading-relaxed text-[10px] uppercase">
-                      Massive context window optimized for agentic tool use, multi-file editing, and complex workflows.
-                    </p>
-                    <div className="space-y-1 text-muted-foreground/80 text-[9px] pt-1">
-                      <div>[CONTEXT]: 1M TOKENS</div>
-                      <div>[PRICING]: IN: $0.10/M | OUT: $0.40/M</div>
-                    </div>
-                    <div className="flex gap-1.5 flex-wrap pt-1">
-                      <span className="px-1.5 py-0.5 border border-emerald-500/20 bg-emerald-500/5 text-emerald-400 text-[9px] uppercase">✓ 1M Context</span>
-                    </div>
-                  </div>
-
-                  {/* Flash Model */}
-                  <div className="space-y-2 border-t md:border-t-0 md:border-l border-border pt-4 md:pt-0 md:pl-4">
-                    <div className="text-foreground font-bold uppercase tracking-wider text-[10px] flex items-center gap-2">
-                      <Zap className="w-3.5 h-3.5 text-muted-foreground/80" />
-                      nemotron-ultra (Low-Latency)
-                    </div>
-                    <p className="text-muted-foreground leading-relaxed text-[10px] uppercase">
-                      Ultra-fast completions built for high-concurrency workloads, summarization, and real-time agent responses.
-                    </p>
-                    <div className="space-y-1 text-muted-foreground/80 text-[9px] pt-1">
-                      <div>[CONTEXT]: 1M TOKENS</div>
-                      <div>[PRICING]: IN: $0.05/M | OUT: $0.15/M</div>
-                    </div>
-                    <div className="flex gap-1.5 flex-wrap pt-1">
-                      <span className="px-1.5 py-0.5 border border-border bg-muted text-muted-foreground text-[9px] uppercase">✓ Text-Only</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 border-b border-border pb-2">
-                  <button
-                    onClick={() => setActiveSdk('python')}
-                    className={`px-3 py-1 font-mono text-[10px] uppercase border transition-colors ${
-                      activeSdk === 'python'
-                        ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]'
-                        : 'border-border text-muted-foreground/50 hover:text-foreground'
-                    }`}
-                  >
-                    PYTHON SDK
-                  </button>
-                  <button
-                    onClick={() => setActiveSdk('curl')}
-                    className={`px-3 py-1 font-mono text-[10px] uppercase border transition-colors ${
-                      activeSdk === 'curl'
-                        ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]'
-                        : 'border-border text-muted-foreground/50 hover:text-foreground'
-                    }`}
-                  >
-                    CURL HTTP
-                  </button>
-                  <button
-                    onClick={() => setActiveSdk('node')}
-                    className={`px-3 py-1 font-mono text-[10px] uppercase border transition-colors ${
-                      activeSdk === 'node'
-                        ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]'
-                        : 'border-border text-muted-foreground/50 hover:text-foreground'
-                    }`}
-                  >
-                    NODEJS SDK
-                  </button>
-                </div>
-
-                {activeSdk === 'python' && (
-                  <div className="bg-card/80 border border-border">
-                    <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-muted-foreground/80 font-bold uppercase tracking-wider">python_openai_sdk.py</span>
-                      <button
-                        onClick={() => copyToClipboard(pythonCode, 'python')}
-                        className="text-muted-foreground/80 hover:text-foreground p-1 border border-border bg-muted/40 transition-all"
-                        title="Copy code block"
-                      >
-                        {copiedId === 'python' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <div className="p-4 font-mono text-[11px] overflow-x-auto bg-card/80 leading-relaxed">
-                      <pre className="language-python !bg-transparent !p-0 !m-0">
-                        <code className="language-python">
-                          {pythonCode}
-                        </code>
-                      </pre>
-                    </div>
-                  </div>
-                )}
-
-                {activeSdk === 'curl' && (
-                  <div className="bg-card/80 border border-border">
-                    <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-muted-foreground/80 font-bold uppercase tracking-wider">curl_request.sh</span>
-                      <button
-                        onClick={() => copyToClipboard(curlCode, 'curl')}
-                        className="text-muted-foreground/80 hover:text-foreground p-1 border border-border bg-muted/40 transition-all"
-                        title="Copy code block"
-                      >
-                        {copiedId === 'curl' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <div className="p-4 font-mono text-[11px] overflow-x-auto bg-card/80 leading-relaxed">
-                      <pre className="language-bash !bg-transparent !p-0 !m-0">
-                        <code className="language-bash">
-                          {curlCode}
-                        </code>
-                      </pre>
-                    </div>
-                  </div>
-                )}
-
-                {activeSdk === 'node' && (
-                  <div className="bg-card/80 border border-border">
-                    <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between text-[10px] font-mono">
-                      <span className="text-muted-foreground/80 font-bold uppercase tracking-wider">node_sdk.js</span>
-                      <button
-                        onClick={() => copyToClipboard(nodeCode, 'node')}
-                        className="text-muted-foreground/80 hover:text-foreground p-1 border border-border bg-muted/40 transition-all"
-                        title="Copy code block"
-                      >
-                        {copiedId === 'node' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                    <div className="p-4 font-mono text-[11px] overflow-x-auto bg-card/80 leading-relaxed">
-                      <pre className="language-javascript !bg-transparent !p-0 !m-0">
-                        <code className="language-javascript">
-                          {nodeCode}
-                        </code>
-                      </pre>
-                    </div>
-                  </div>
-                )}
-              </section>
-            )}
-
-            {/* Category: Agents */}
-            {activeCategory === 'agents' && (
-              <section className="bg-card border border-border p-6 crosshair-corners space-y-6 animate-slide-in relative">
-                <div className="space-y-1">
-                  <h2 className="font-mono text-xs text-foreground flex items-center gap-2 tracking-[0.2em] uppercase font-bold">
-                    <Sparkles className="w-4 h-4 text-[#ef4444]" />
-                    AI_AGENT_&_IDE_CONFIGURATIONS
-                  </h2>
-                  <p className="text-[10px] font-mono text-muted-foreground/80 uppercase">Point your AI coding assistants directly to the AkaRouter routing gateway.</p>
-                </div>
-
-                <div className="flex gap-2 border-b border-border pb-2">
-                  <button
-                    onClick={() => setActiveAgent('claude')}
-                    className={`px-3 py-1 font-mono text-[10px] uppercase border transition-colors ${
-                      activeAgent === 'claude'
-                        ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]'
-                        : 'border-border text-muted-foreground/50 hover:text-foreground'
-                    }`}
-                  >
-                    CLAUDE CODE
-                  </button>
-                  <button
-                    onClick={() => setActiveAgent('cline')}
-                    className={`px-3 py-1 font-mono text-[10px] uppercase border transition-colors ${
-                      activeAgent === 'cline'
-                        ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]'
-                        : 'border-border text-muted-foreground/50 hover:text-foreground'
-                    }`}
-                  >
-                    CLINE (VS CODE)
-                  </button>
-                  <button
-                    onClick={() => setActiveAgent('cursor')}
-                    className={`px-3 py-1 font-mono text-[10px] uppercase border transition-colors ${
-                      activeAgent === 'cursor'
-                        ? 'border-[#ef4444] bg-[#ef4444]/10 text-[#ef4444]'
-                        : 'border-border text-muted-foreground/50 hover:text-foreground'
-                    }`}
-                  >
-                    CURSOR / CODEX
-                  </button>
-                </div>
-
-                {activeAgent === 'claude' && (
-                  <div className="space-y-3">
-                    <p className="text-[10px] font-mono text-muted-foreground uppercase">Run Claude Code in your CLI using AkaRouter routed endpoints:</p>
-                    <div className="bg-card/80 border border-border">
-                      <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between text-[10px] font-mono">
-                        <span className="text-muted-foreground/80 font-bold uppercase tracking-wider">claude_code_setup.sh</span>
-                        <button
-                          onClick={() => copyToClipboard(claudeCode, 'claude')}
-                          className="text-muted-foreground/80 hover:text-foreground p-1 border border-border bg-muted/40 transition-all"
-                          title="Copy commands"
-                        >
-                          {copiedId === 'claude' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                      <div className="p-4 font-mono text-[11px] overflow-x-auto bg-card/80 leading-relaxed">
-                        <pre className="language-bash !bg-transparent !p-0 !m-0">
-                          <code className="language-bash">
-                            {claudeCode}
-                          </code>
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeAgent === 'cline' && (
-                  <div className="space-y-3">
-                    <p className="text-[10px] font-mono text-muted-foreground uppercase">Paste this configuration into your Cline custom OpenAI provider settings:</p>
-                    <div className="bg-card/80 border border-border">
-                      <div className="bg-card border-b border-border px-4 py-2 flex items-center justify-between text-[10px] font-mono">
-                        <span className="text-muted-foreground/80 font-bold uppercase tracking-wider">cline_settings.json</span>
-                        <button
-                          onClick={() => copyToClipboard(clineSettings, 'cline')}
-                          className="text-muted-foreground/80 hover:text-foreground p-1 border border-border bg-muted/40 transition-all"
-                          title="Copy JSON configuration"
-                        >
-                          {copiedId === 'cline' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                      <div className="p-4 font-mono text-[11px] overflow-x-auto bg-card/80 leading-relaxed">
-                        <pre className="language-json !bg-transparent !p-0 !m-0">
-                          <code className="language-json">
-                            {clineSettings}
-                          </code>
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeAgent === 'cursor' && (
-                  <div className="space-y-3 bg-card/80 border border-border p-5 font-mono text-[11px] leading-relaxed text-foreground/80">
-                    <div className="border-b border-border pb-2 mb-3 font-bold text-foreground uppercase">[CURSOR_MANUAL_CONFIGURATION]</div>
-                    <pre className="whitespace-pre-wrap">{cursorSettings}</pre>
-                  </div>
-                )}
-              </section>
-            )}
-
-          </div>
-        </main>
-      </div>
-
-    </div>
-  )
+/** Map a model to a one-line marketing tagline based on its profile. */
+function pickTagline(m: {
+  id: string
+  display_name?: string
+  description?: string
+  context_length?: number
+  supports?: { vision?: boolean; reasoning?: boolean }
+}): string {
+  const ctx = m.context_length ?? 0
+  if (m.supports?.vision && ctx >= 500_000) {
+    return 'Frontier vision + reasoning model with massive context.'
+  }
+  if (ctx >= 500_000) {
+    return 'Long-context heavyweight tuned for agentic tool use and multi-file editing.'
+  }
+  if (m.supports?.reasoning) {
+    return 'Reasoning model for complex code, math, and chain-of-thought tasks.'
+  }
+  return 'Low-latency model for high-concurrency chat and real-time workloads.'
 }
