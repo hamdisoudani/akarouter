@@ -81,7 +81,7 @@ const FALLBACK_PLANS: Array<{
     price: '$19.99',
     billing: 'monthly',
     desc: 'Perfect for production apps and high-volume use.',
-    badge: 'Popular • 7-Day Free Trial',
+    badge: 'Most Popular',
     limits: [
       'Monthly Budget: $15.00',
       'RPM Limit: 60 RPM',
@@ -117,9 +117,16 @@ function formatPlans(dbPlans: PlanPreset[]): DisplayPlan[] {
     .filter((p) => p.tier !== 'free' && p.tier !== 'enterprise')
     .map((plan) => {
       const matching = FALLBACK_PLANS.find((fp) => fp.key === plan.tier)
+      // Don't ever auto-append a free-trial badge. Per user directive
+      // 2026-06-21, AkaRouter does not run a 7-day free trial program —
+      // subscribers pay from day 1 and new accounts land directly on
+      // the free tier if they don't pick a paid plan.
       let badge = plan.badge ?? matching?.badge ?? null
-      if (plan.has_trial && plan.trial_days) {
-        badge = `${plan.trial_days}-Day Free Trial`
+      if (badge && /free trial/i.test(badge)) {
+        // Strip trial wording from DB-supplied badges so an old
+        // "Most popular • 7-day free trial" row doesn't leak the
+        // removed trial copy.
+        badge = badge.replace(/\s*[•·]\s*\d+\s*-?\s*day\s+free\s+trial/i, '').trim() || null
       }
       return {
         key: plan.tier,

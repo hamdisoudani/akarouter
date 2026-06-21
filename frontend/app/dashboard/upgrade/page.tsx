@@ -382,18 +382,15 @@ function PlanCard({ plan, matrix, isCurrent, isLoading, onCheckout }: PlanCardPr
         {/* Limits list — per user directive 2026-06-20:
             Point budget is shown above (X points/mo). The only limit worth
             showing on the card is RPM (rate ceiling). No monthly_request cap,
-            no 5h cap, no 7d cap — those are gone. */}
+            no 5h cap, no 7d cap — those are gone. The free-trial row is
+            also gone (per user directive 2026-06-21: AkaRouter does not
+            run a 7-day free trial program — subscribers pay from day 1
+            and new accounts land on free if they don't pick a plan). */}
         <ul className="space-y-1 font-mono text-[9px] text-muted-foreground">
           <li className="flex items-center gap-1.5">
             <span className="w-1 h-1 bg-[#ef4444] shrink-0" />
             <span>{fmtLimit(plan.rpm_limit, 'req/min')}</span>
           </li>
-          {plan.has_trial && plan.trial_days && (
-            <li className="flex items-center gap-1.5 text-emerald-400">
-              <Sparkles className="w-2.5 h-2.5 shrink-0" />
-              <span>{plan.trial_days}-day free trial</span>
-            </li>
-          )}
         </ul>
 
         {/* Included models hint — 2026-06-20: included_model_aliases now uses

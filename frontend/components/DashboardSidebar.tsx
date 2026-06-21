@@ -263,13 +263,62 @@ export function DashboardSidebar({ headerLabel }: { headerLabel?: string } = {})
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <button
-            onClick={() => setMobileOpen(!mobileOpen)}
-            className="p-2 border border-border bg-card text-muted-foreground hover:text-foreground transition-colors"
-            aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
-          >
-            {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-          </button>
+          {/* Auth-aware right rail (added 2026-06-21):
+              - Authenticated: hamburger always. The overlay that opens
+                contains the full dashboard nav + Sign Out, so the
+                hamburger is the canonical entry point on mobile and a
+                useful focused-nav on desktop.
+              - Anonymous + mobile (<md): hamburger makes no sense —
+                there's no session to navigate, no account to sign out
+                of, and the visitor would have to tap hamburger → close
+                it → scroll to footer → tap Get Started to actually log
+                in. Instead, render the same Sign in + Get Started
+                actions the global TopNav shows for anon visitors, so
+                the only chrome they see on /dashboard/upgrade or /docs
+                is directly actionable.
+              - Anonymous + desktop (md+): hamburger stays. The vertical
+                sidebar (hidden md:flex) already carries the public nav
+                links + a Get Started CTA in the footer, so the
+                hamburger is just an additional focus mode. */}
+          {user ? (
+            <button
+              onClick={() => setMobileOpen(!mobileOpen)}
+              className="p-2 border border-border bg-card text-muted-foreground hover:text-foreground transition-colors"
+              aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            >
+              {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
+          ) : (
+            <>
+              {/* Mobile-only auth actions for anonymous visitors.
+                  Hidden md+ because the desktop vertical sidebar already
+                  carries the Get Started CTA in its footer. */}
+              <div className="flex md:hidden items-center gap-2">
+                <Link
+                  href="/auth/login"
+                  className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/auth/login"
+                  className="inline-flex items-center gap-1 bg-muted border border-border text-foreground font-mono text-[10px] py-1.5 px-3 hover:border-[#ef4444] hover:bg-[#ef4444]/5 transition-all crosshair-corners"
+                >
+                  Get Started
+                  <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+              {/* Desktop: keep hamburger — vertical sidebar already
+                  shows public nav, hamburger opens the focused overlay. */}
+              <button
+                onClick={() => setMobileOpen(!mobileOpen)}
+                className="hidden md:inline-flex p-2 border border-border bg-card text-muted-foreground hover:text-foreground transition-colors"
+                aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              >
+                {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </button>
+            </>
+          )}
         </div>
       </header>
 

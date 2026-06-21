@@ -208,9 +208,11 @@ async function getAuthToken(): Promise<string | null> {
 }
 
 export async function getModels(): Promise<ModelsResponse> {
-  const res = await fetch(`${API_BASE}/v1/models`)
-  if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`)
-  return res.json()
+  return cachedFetch('models', async () => {
+    const res = await fetch(`${API_BASE}/v1/models`)
+    if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`)
+    return res.json()
+  })
 }
 
 export async function chatCompletion(req: ChatCompletionRequest): Promise<ChatCompletionResponse> {
@@ -284,10 +286,61 @@ export async function getAnalytics(token: string): Promise<AnalyticsResponse> {
   return res.json()
 }
 
+// ---------------------------------------------------------------------------
+// Client-side TTL cache (2026-06-21)
+// ---------------------------------------------------------------------------
+// getPlans() and getBillingMatrix() are called from multiple components
+// (/dashboard/upgrade, /dashboard/usage, /, /models). Without a cache,
+// every mount fires a network round-trip to the backend even when the
+// data hasn't changed. This is a per-tab in-memory cache with a short
+// TTL (60s) that:
+//   - dedupes concurrent calls (only one in-flight at a time per key)
+//   - serves cached data for subsequent calls within the TTL
+//   - evicts on error so the next call always retries
+//   - exposes `evictClientCache(key)` for admin actions that need to
+//     push an immediate update
+//
+// Why in-memory and not localStorage: the payloads include future plan
+// data we don't want to leak across user accounts on a shared device,
+// and the cache is only useful for the active session anyway.
+type CacheEntry<T> = { value: T; expiresAt: number }
+const clientCache = new Map<string, CacheEntry<unknown>>()
+const inflight = new Map<string, Promise<unknown>>()
+const CLIENT_CACHE_TTL_MS = 60_000
+
+async function cachedFetch<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  const now = Date.now()
+  const hit = clientCache.get(key) as CacheEntry<T> | undefined
+  if (hit && hit.expiresAt > now) return hit.value
+  const pending = inflight.get(key) as Promise<T> | undefined
+  if (pending) return pending
+  const p = (async () => {
+    try {
+      const v = await fetcher()
+      clientCache.set(key, { value: v, expiresAt: Date.now() + CLIENT_CACHE_TTL_MS })
+      return v
+    } catch (err) {
+      // On error, evict any stale entry so the next call retries fresh.
+      clientCache.delete(key)
+      throw err
+    } finally {
+      inflight.delete(key)
+    }
+  })()
+  inflight.set(key, p)
+  return p
+}
+
+export function evictClientCache(key: 'plans' | 'billing-matrix' | 'models'): void {
+  clientCache.delete(key)
+}
+
 export async function getPlans(): Promise<{ plans: PlanPreset[] }> {
-  const res = await fetch(`${API_BASE}/v1/plans`)
-  if (!res.ok) throw new Error('Failed to fetch plans')
-  return res.json()
+  return cachedFetch('plans', async () => {
+    const res = await fetch(`${API_BASE}/v1/plans`)
+    if (!res.ok) throw new Error('Failed to fetch plans')
+    return res.json()
+  })
 }
 
 export interface PlanPreset {
@@ -356,9 +409,11 @@ export interface BillingMatrix {
 }
 
 export async function getBillingMatrix(): Promise<BillingMatrix> {
-  const res = await fetch(`${API_BASE}/v1/billing-matrix`)
-  if (!res.ok) throw new Error('Failed to fetch billing matrix')
-  return res.json()
+  return cachedFetch('billing-matrix', async () => {
+    const res = await fetch(`${API_BASE}/v1/billing-matrix`)
+    if (!res.ok) throw new Error('Failed to fetch billing matrix')
+    return res.json()
+  })
 }
 
 /**

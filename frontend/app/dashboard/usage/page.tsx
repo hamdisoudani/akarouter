@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useApp } from '@/app/providers'
-import { createCheckoutSession, getPlans, type PlanPreset, getPointTransactions, type PointTransaction } from '@/lib/api'
+import { createCheckoutSession, getPlans, getModels, type PlanPreset, getPointTransactions, type PointTransaction } from '@/lib/api'
 import {
   LogOut
 } from 'lucide-react'
@@ -52,19 +52,24 @@ export default function UsagePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, pointTxKind])
 
-  // Alias → display name lookup — loaded dynamically from /api/v1/models so we don't
-  // ship a hardcoded map. Falls back to alias itself if the model isn't in the catalog.
+  // Alias → display name lookup — loaded via getModels() which now uses
+  // a 60s client-side TTL cache (2026-06-21) so multiple pages on the
+  // same tab share one fetch. Falls back to alias itself if the model
+  // isn't in the catalog.
   const [aliasToDisplay, setAliasToDisplay] = useState<Record<string, string>>({})
   useEffect(() => {
     let cancelled = false
-    fetch('/api/v1/models')
-      .then(r => r.ok ? r.json() : null)
+    getModels()
       .then(data => {
         if (cancelled || !data?.data) return
         const map: Record<string, string> = {}
         for (const m of data.data) {
-          if (m.alias) map[m.alias] = m.display_name || m.alias
-          if (m.id && m.id !== m.alias) map[m.id] = m.display_name || m.id
+          // ModelsResponse items have `id` (the alias used in chat
+          // calls) and `slug` (URL-safe display slug). Map both so
+          // point-transaction rows can be enriched regardless of
+          // which identifier the backend persisted.
+          if (m.id) map[m.id] = m.display_name || m.id
+          if (m.slug && m.slug !== m.id) map[m.slug] = m.display_name || m.slug
         }
         setAliasToDisplay(map)
       })
@@ -172,7 +177,7 @@ export default function UsagePage() {
         price: '$19.99',
         billing: 'monthly',
         desc: 'Perfect for production apps and agent deployments.',
-        badge: 'Popular • 7-Day Free Trial',
+        badge: 'Most Popular',
       },
       {
         name: 'Ultra Plan',

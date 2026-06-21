@@ -24,6 +24,7 @@ import {
   adminCreateInvitation,
   adminUpdateInvitation,
   adminDeleteInvitation,
+  evictClientCache,
   type PlanPreset,
   type AdminModelMapping
 } from '@/lib/api'
@@ -406,6 +407,8 @@ export default function AdminDashboard() {
         provider_name: '',
         upstream_model: '',
       }))
+      evictClientCache('models')
+      evictClientCache('billing-matrix')
       await loadAdminModels()
     } catch (err: any) {
       setError(err.message)
@@ -418,6 +421,8 @@ export default function AdminDashboard() {
     if (!confirm(`Delete model "${alias}"? Users with this alias in their history will still see it, but new requests will fail.`)) return
     try {
       await adminDeleteModel(token, alias)
+      evictClientCache('models')
+      evictClientCache('billing-matrix')
       await loadAdminModels()
     } catch (err: any) {
       setError(err.message)
@@ -556,6 +561,11 @@ export default function AdminDashboard() {
         trial_days: editingPlanTrialDays,
         included_model_aliases: editingPlanIncludedAliases,
       })
+      // Bust the client-side TTL cache so the public pricing page
+      // (and any other open tab) picks up the new plan within seconds,
+      // not after the 60s TTL expires.
+      evictClientCache('plans')
+      evictClientCache('billing-matrix')
       setEditingPlanId(null)
       await loadPlans()
     } catch (err: any) {

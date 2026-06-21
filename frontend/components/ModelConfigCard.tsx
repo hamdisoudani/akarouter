@@ -22,7 +22,7 @@
 
 import { useState } from 'react'
 import { Save, Power, DollarSign, Coins, Loader2, Trash2, Clock, Sparkles } from 'lucide-react'
-import { adminUpdateModel, type AdminModelMapping } from '@/lib/api'
+import { adminUpdateModel, evictClientCache, type AdminModelMapping } from '@/lib/api'
 
 interface Props {
   model: AdminModelMapping
@@ -81,6 +81,10 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
       }
       patch.points_cost = Math.max(0, Math.min(1000, Math.round(pointsCost)))
       await adminUpdateModel(token, model.alias, patch)
+      // Bust the client-side TTL cache so the public model list
+      // picks up the new pricing within seconds, not after the 60s TTL.
+      evictClientCache('models')
+      evictClientCache('billing-matrix')
       onUpdated({
         ...model,
         is_active: isActive,
@@ -106,6 +110,7 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
     setIsActive(next)
     try {
       await adminUpdateModel(token, model.alias, { is_active: next })
+      evictClientCache('models')
       onUpdated({ ...model, is_active: next })
     } catch (err: any) {
       // revert on failure
@@ -153,6 +158,7 @@ export function ModelConfigCard({ model, token, onUpdated, onError, onDelete }: 
               setIsUpcoming(next)
               try {
                 await adminUpdateModel(token, model.alias, { is_upcoming: next, is_active: next ? false : isActive })
+      evictClientCache('models')
                 onUpdated({ ...model, is_upcoming: next, is_active: next ? false : isActive })
               } catch (err: any) {
                 setIsUpcoming(!next)
