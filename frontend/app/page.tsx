@@ -17,9 +17,10 @@ import {
   Layers,
 } from 'lucide-react'
 import { env } from '@/lib/env'
-import { fetchServerPlans, fetchServerModels } from '@/lib/server-api'
+import { fetchServerPlans, fetchServerModels, fetchServerBillingMatrix } from '@/lib/server-api'
 import { CopyButton } from '@/components/CopyButton'
 import { ModelCatalog } from '@/components/ModelCatalog'
+import { PointsTable } from '@/components/PointsTable'
 import type { PlanPreset } from '@/lib/api'
 
 /**
@@ -155,6 +156,13 @@ export default async function Home() {
   // Fetch models for the OpenRouter-style catalog. Falls back to [] on
   // backend errors so the page still renders.
   const models = await fetchServerModels()
+
+  // Fetch the billing matrix for the points-pricing table so the
+  // displayed points/call always matches what the endpoint actually
+  // charges. Was hardcoded with stale numbers (table said MiniMax
+  // M3 = 1 pt and Claude Haiku = 2 pt, but both endpoints charge 1
+  // pt under the current matrix). User-reported 2026-06-21.
+  const billingMatrix = await fetchServerBillingMatrix()
 
   // Server-only URL — never sent to the browser.
   const gatewayUrl = env.NEXT_PUBLIC_API_URL.replace(/\/+$/, '')
@@ -554,111 +562,7 @@ response = client.chat.completions.create(
             </p>
           </div>
 
-          <div className="border border-border bg-background overflow-x-auto">
-            <table className="w-full font-mono text-[11px] sm:text-xs">
-              <thead>
-                <tr className="border-b border-border bg-card">
-                  <th className="text-left p-3 sm:p-4 text-muted-foreground/80 uppercase tracking-wider font-bold">Model</th>
-                  <th className="p-3 sm:p-4 text-center text-muted-foreground/80 uppercase tracking-wider font-bold">Tier</th>
-                  <th className="p-3 sm:p-4 text-center text-muted-foreground/80 uppercase tracking-wider font-bold">Points/call</th>
-                  <th className="p-3 sm:p-4 text-center text-muted-foreground/80 uppercase tracking-wider font-bold">Pro $20/mo</th>
-                  <th className="p-3 sm:p-4 text-center text-muted-foreground/80 uppercase tracking-wider font-bold">Best for</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-900">
-                <tr className="hover:bg-muted/40/50">
-                  <td className="p-3 sm:p-4">
-                    <div className="text-foreground font-bold">MiniMax M3</div>
-                    <div className="text-[9px] text-muted-foreground/80">frontier, free to us</div>
-                  </td>
-                  <td className="p-3 sm:p-4 text-center"><span className="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] uppercase">free</span></td>
-                  <td className="p-3 sm:p-4 text-center text-amber-400 font-black text-base">1</td>
-                  <td className="p-3 sm:p-4 text-center text-foreground font-bold">2,500 calls</td>
-                  <td className="p-3 sm:p-4 text-muted-foreground text-[10px]">frontier reasoning, daily driver</td>
-                </tr>
-                <tr className="hover:bg-muted/40/50">
-                  <td className="p-3 sm:p-4">
-                    <div className="text-foreground font-bold">Claude Haiku 4.5</div>
-                    <div className="text-[9px] text-muted-foreground/80">fast + cheap</div>
-                  </td>
-                  <td className="p-3 sm:p-4 text-center"><span className="px-2 py-0.5 bg-muted border border-border text-foreground/80 text-[10px] uppercase">T1</span></td>
-                  <td className="p-3 sm:p-4 text-center text-amber-400 font-bold">2</td>
-                  <td className="p-3 sm:p-4 text-center text-foreground font-bold">1,250 calls</td>
-                  <td className="p-3 sm:p-4 text-muted-foreground text-[10px]">lightweight tasks, quick Q&A</td>
-                </tr>
-                <tr className="hover:bg-muted/40/50">
-                  <td className="p-3 sm:p-4">
-                    <div className="text-foreground font-bold">Nemotron Ultra</div>
-                    <div className="text-[9px] text-muted-foreground/80">free-tier alternative</div>
-                  </td>
-                  <td className="p-3 sm:p-4 text-center"><span className="px-2 py-0.5 bg-muted border border-border text-foreground/80 text-[10px] uppercase">T1</span></td>
-                  <td className="p-3 sm:p-4 text-center text-amber-400 font-bold">2</td>
-                  <td className="p-3 sm:p-4 text-center text-foreground font-bold">1,250 calls</td>
-                  <td className="p-3 sm:p-4 text-muted-foreground text-[10px]">high-volume free tier</td>
-                </tr>
-                <tr className="hover:bg-muted/40/50">
-                  <td className="p-3 sm:p-4">
-                    <div className="text-foreground font-bold">Claude Sonnet 4.6</div>
-                    <div className="text-[9px] text-muted-foreground/80">workhorse</div>
-                  </td>
-                  <td className="p-3 sm:p-4 text-center"><span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] uppercase">T2</span></td>
-                  <td className="p-3 sm:p-4 text-center text-amber-400 font-bold">5</td>
-                  <td className="p-3 sm:p-4 text-center text-foreground font-bold">500 calls</td>
-                  <td className="p-3 sm:p-4 text-muted-foreground text-[10px]">coding, mid-complex reasoning</td>
-                </tr>
-                <tr className="hover:bg-muted/40/50">
-                  <td className="p-3 sm:p-4">
-                    <div className="text-foreground font-bold">GPT-5.4</div>
-                    <div className="text-[9px] text-muted-foreground/80">multimodal</div>
-                  </td>
-                  <td className="p-3 sm:p-4 text-center"><span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] uppercase">T2</span></td>
-                  <td className="p-3 sm:p-4 text-center text-amber-400 font-bold">5</td>
-                  <td className="p-3 sm:p-4 text-center text-foreground font-bold">500 calls</td>
-                  <td className="p-3 sm:p-4 text-muted-foreground text-[10px]">vision + reasoning + tools</td>
-                </tr>
-                <tr className="hover:bg-muted/40/50">
-                  <td className="p-3 sm:p-4">
-                    <div className="text-foreground font-bold">Gemini 3.1 Pro</div>
-                    <div className="text-[9px] text-muted-foreground/80">1M context, multimodal</div>
-                  </td>
-                  <td className="p-3 sm:p-4 text-center"><span className="px-2 py-0.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] uppercase">T2</span></td>
-                  <td className="p-3 sm:p-4 text-center text-amber-400 font-bold">5</td>
-                  <td className="p-3 sm:p-4 text-center text-foreground font-bold">500 calls</td>
-                  <td className="p-3 sm:p-4 text-muted-foreground text-[10px]">huge context, video, audio</td>
-                </tr>
-                <tr className="hover:bg-muted/40/50">
-                  <td className="p-3 sm:p-4">
-                    <div className="text-foreground font-bold">Claude Opus 4.8</div>
-                    <div className="text-[9px] text-muted-foreground/80">the best reasoning</div>
-                  </td>
-                  <td className="p-3 sm:p-4 text-center"><span className="px-2 py-0.5 bg-[#ef4444]/10 border border-[#ef4444]/30 text-[#ef4444] text-[10px] uppercase font-bold">T3</span></td>
-                  <td className="p-3 sm:p-4 text-center text-[#ef4444] font-black text-base">10</td>
-                  <td className="p-3 sm:p-4 text-center text-foreground font-bold">250 calls</td>
-                  <td className="p-3 sm:p-4 text-muted-foreground text-[10px]">deepest reasoning, hard problems</td>
-                </tr>
-                <tr className="hover:bg-muted/40/50">
-                  <td className="p-3 sm:p-4">
-                    <div className="text-foreground font-bold">GPT-5.5</div>
-                    <div className="text-[9px] text-muted-foreground/80">flagship OpenAI</div>
-                  </td>
-                  <td className="p-3 sm:p-4 text-center"><span className="px-2 py-0.5 bg-[#ef4444]/10 border border-[#ef4444]/30 text-[#ef4444] text-[10px] uppercase font-bold">T3</span></td>
-                  <td className="p-3 sm:p-4 text-center text-[#ef4444] font-black text-base">10</td>
-                  <td className="p-3 sm:p-4 text-center text-foreground font-bold">250 calls</td>
-                  <td className="p-3 sm:p-4 text-muted-foreground text-[10px]">agentic workflows, code gen</td>
-                </tr>
-                <tr className="hover:bg-muted/40/50">
-                  <td className="p-3 sm:p-4">
-                    <div className="text-foreground font-bold">GPT-5.3 Codex Spark</div>
-                    <div className="text-[9px] text-muted-foreground/80">coding specialist</div>
-                  </td>
-                  <td className="p-3 sm:p-4 text-center"><span className="px-2 py-0.5 bg-[#ef4444]/10 border border-[#ef4444]/30 text-[#ef4444] text-[10px] uppercase font-bold">T3</span></td>
-                  <td className="p-3 sm:p-4 text-center text-[#ef4444] font-black text-base">10</td>
-                  <td className="p-3 sm:p-4 text-center text-foreground font-bold">250 calls</td>
-                  <td className="p-3 sm:p-4 text-muted-foreground text-[10px]">large code refactors</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <PointsTable matrix={billingMatrix} />
 
           <div className="text-center">
             <p className="text-[10px] font-mono text-muted-foreground/80 uppercase tracking-wider">
@@ -787,7 +691,7 @@ response = client.chat.completions.create(
 
           <div className="pt-6 text-center border-t border-border">
             <p className="text-[9px] font-mono text-muted-foreground/80 uppercase tracking-widest leading-relaxed">
-              * Need custom limits or an enterprise setup? Please contact support at <a href="mailto:support@akarouter.com" className="text-[#ef4444] hover:underline font-bold">support@akarouter.com</a> to custom configure your plan.
+              * Need custom limits or an enterprise setup? Join our Telegram support group at <a href="https://t.me/akarouter_support" target="_blank" rel="noopener noreferrer" className="text-[#ef4444] hover:underline font-bold">t.me/akarouter_support</a> — we don't do email, just the group.
             </p>
           </div>
         </div>

@@ -150,9 +150,37 @@ export async function fetchServerModels(): Promise<ModelsResponse['data']> {
  * model_pricing — both admin-edited and infrequently changed. 5-min
  * revalidate + `billing` tag for on-demand busting.
  */
-export async function fetchServerBillingMatrix(): Promise<unknown | null> {
+export type BillingMatrixModel = {
+  id: string
+  alias?: string
+  slug: string
+  display_name: string
+  provider_name?: string
+  is_upcoming?: boolean
+  is_promotional?: boolean
+  promotional_discount_pct?: number
+  pricing_mode?: string
+  costs: {
+    free: { base: number; effective: number }
+    starter?: { base: number; effective: number }
+    pro?: { base: number; effective: number }
+    ultra?: { base: number; effective: number }
+  }
+}
+
+export type BillingMatrixResponse = {
+  tiers: string[]
+  plan_multipliers?: Record<string, number>
+  monthly_allowances?: Record<string, number>
+  rpm_limits?: Record<string, number>
+  prices?: Record<string, string>
+  billing_periods?: Record<string, string>
+  models: BillingMatrixModel[]
+}
+
+export async function fetchServerBillingMatrix(): Promise<BillingMatrixResponse | null> {
   try {
-    return await serverFetch('/v1/billing-matrix', {
+    return await serverFetch<BillingMatrixResponse>('/v1/billing-matrix', {
       next: { revalidate: 300, tags: ['billing', 'plans'] },
     })
   } catch (err) {
