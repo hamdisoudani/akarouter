@@ -24,7 +24,6 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, User, LogOut } from 'lucide-react'
-import { ProductHuntBadge } from '@/components/ProductHuntBadge'
 import { useApp } from '@/app/providers'
 import { ThemeToggle } from '@/components/theme-toggle'
 
@@ -47,16 +46,7 @@ export function MarketingNav() {
     'hidden sm:block text-[10px] sm:text-xs font-mono uppercase tracking-wider text-muted-foreground dark:text-muted-foreground hover:text-foreground transition-colors'
 
   return (
-    <div className="sticky top-0 w-full z-50">
-      {/* Featured-on-Product-Hunt ribbon. Pinned above the nav so the
-          social proof is the first thing visitors see. Hidden on
-          very small screens because the nav itself is already tight. */}
-      <div className="w-full border-b border-border bg-background/80 backdrop-blur-xl">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-9 flex items-center justify-end">
-          <ProductHuntBadge placement="banner" />
-        </div>
-      </div>
-      <nav className="w-full border-b border-border bg-background/80 backdrop-blur-xl micro-grid">
+    <nav className="sticky top-0 w-full z-50 border-b border-border bg-background/80 backdrop-blur-xl micro-grid">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="relative w-24 h-10 sm:w-[208px] sm:h-16 border border-[#ef4444] bg-[#ef4444]/10 flex items-center justify-center red-glow overflow-hidden">
@@ -115,6 +105,5 @@ export function MarketingNav() {
         </div>
       </div>
     </nav>
-    </div>
   )
 }

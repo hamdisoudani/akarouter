@@ -28,7 +28,6 @@
 
 import { usePathname } from 'next/navigation'
 import { TopNav } from '@/components/TopNav'
-import { ProductHuntBadge } from '@/components/ProductHuntBadge'
 
 // Routes where the page already ships its own sidebar/topbar and the
 // global TopNav would create a duplicate chrome. Centralized so the
@@ -49,15 +48,9 @@ export function GlobalNav() {
   // Dashboard + Docs pages own their own sidebar (DashboardSidebar).
   if (isSidebarRoute(pathname)) return null
 
-  // Show the "featured on Product Hunt" ribbon above the nav so every
-  // visitor to /models, /auth, /privacy, /terms, etc. sees the social
-  // proof at the top of the page. The badge is small (250x36) and
-  // pinned to the right of a thin banner so it doesn't compete with
-  // the main CTAs.
-  return (
-    <>
-      <ProductHuntBadge placement="banner" />
-      <TopNav />
-    </>
-  )
+  // NOTE: Product Hunt featured badge was previously rendered here as a
+  // top ribbon. Removed 2026-06-22 — the ribbon crowded the mobile nav
+  // (badge + hamburger + brand all stacked into ~40px). The badge is
+  // still shown on the landing page hero only (see app/page.tsx).
+  return <TopNav />
 }
