@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { MarketingNav } from '@/components/MarketingNav'
+import { ProductHuntBadge } from '@/components/ProductHuntBadge'
 import {
   Cpu,
   RefreshCw,
@@ -231,6 +232,16 @@ response = client.chat.completions.create(
             >
               VIEW_PRICING
             </a>
+          </div>
+
+          {/* Featured on Product Hunt badge — sits in the hero under the
+              primary CTAs so first-time visitors see the social proof
+              immediately without scrolling. */}
+          <div className="pt-6 flex flex-col items-center gap-2">
+            <span className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground/80">
+              FEATURED_ON
+            </span>
+            <ProductHuntBadge placement="inline" />
           </div>
 
           <p className="text-[9px] text-[#ef4444] font-mono uppercase tracking-widest pt-2 animate-pulse font-bold">
