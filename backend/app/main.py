@@ -295,6 +295,14 @@ async def startup():
     from app.core.cache import start_flusher
     start_flusher()
 
+    # Start the background token refresh loop for Hermes/Nous OAuth providers.
+    # refresh_expiring_providers() picks up providers whose access_token is
+    # within token_refresh_skew (120s) of expiry and rotates them via the
+    # Nous OAuth endpoint. Without this loop, expired JWTs silently caused
+    # 401s in chat requests until an admin hit POST /admin/providers/refresh-all.
+    from app.core.refresh_loop import start_refresh_loop
+    start_refresh_loop()
+
     # Auto-migrate model_mapping to add slug column if missing (idempotent).
     # Uses psycopg2 directly because Supabase PostgREST RPC isn't available here.
     try:
@@ -624,3 +632,7 @@ async def shutdown():
     # Stop flusher task and execute final database flush
     from app.core.cache import stop_flusher
     await stop_flusher()
+
+    # Stop the token refresh loop
+    from app.core.refresh_loop import stop_refresh_loop
+    await stop_refresh_loop()

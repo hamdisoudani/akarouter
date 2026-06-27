@@ -321,11 +321,49 @@ async def select_provider(model: str) -> Optional[dict]:
 
     for p in providers:
         expires_at = p.get("token_expires_at", "")
-        if expires_at and not p.get("refresh_token"):
+        refresh_token = p.get("refresh_token", "")
+        if expires_at:
             try:
                 exp = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
                 if exp.timestamp() - now < settings.token_refresh_skew:
-                    continue
+                    # Token is expired or about to expire. If we have a refresh
+                    # token, try to refresh lazily right now so this chat can
+                    # succeed instead of falling through to "no provider". The
+                    # refresh_provider_token() function will mark the provider
+                    # 'dead' if the refresh token has been revoked.
+                    if refresh_token:
+                        try:
+                            from app.core.oauth import refresh_provider_token
+                            logger.info(
+                                "select_provider: lazy-refreshing %s (expires in %.0fs)",
+                                p.get("account_label"),
+                                exp.timestamp() - now,
+                            )
+                            await refresh_provider_token(p["id"])
+                            # Re-read the updated provider from cache/DB
+                            # so the access_token below is the new one.
+                            refreshed_list = get_active_providers_cache()
+                            if refreshed_list:
+                                for rp in refreshed_list:
+                                    if rp["id"] == p["id"]:
+                                        p = rp
+                                        break
+                        except Exception as refresh_err:
+                            logger.warning(
+                                "select_provider: lazy refresh failed for %s: %s",
+                                p.get("account_label"),
+                                refresh_err,
+                            )
+                            continue  # Skip this provider, try the next
+                    else:
+                        # No refresh token and no time left — mark dead and skip.
+                        # The background refresh loop won't pick this up because
+                        # it only handles health_status='active'.
+                        logger.warning(
+                            "select_provider: %s expired with no refresh_token, skipping",
+                            p.get("account_label"),
+                        )
+                        continue
             except (ValueError, TypeError):
                 pass
 
