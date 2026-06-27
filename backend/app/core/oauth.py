@@ -276,23 +276,40 @@ async def refresh_provider_token(provider_id: str) -> dict:
 
 
 async def refresh_expiring_providers() -> list[dict]:
-    """Check all active providers and refresh ones about to expire.
-    
+    """Check all providers and refresh ones about to expire.
     Called periodically (e.g. via cron or background task).
+
+    Three passes:
+    1. health_status='active' with token_expires_at < now + skew → refresh
+    2. health_status='active' with no expiry set → refresh (safety net)
+    3. health_status='dead' with last_error_at > 1h ago → retry with backoff
+       (allows recovery from a temporary token revocation, without hammering
+       the OAuth endpoint on a permanently-broken provider)
     """
     supabase = get_supabase()
     now = datetime.now(timezone.utc)
     skew_seconds = settings.token_refresh_skew
+    # Backoff: don't retry a dead provider more than once per this interval
+    dead_retry_backoff_seconds = 3600  # 1 hour
 
-    # Get all active providers
+    refreshed = []
+
+    # Pass 1 + 2: active providers
     result = supabase.table("providers").select(
         "id, account_label, token_expires_at, health_status"
     ).eq("health_status", "active").execute()
 
-    refreshed = []
     for provider in result.data:
         expires_at_str = provider.get("token_expires_at", "")
         if not expires_at_str:
+            # No expiry tracked — refresh as a safety net
+            logger.info(f"Provider {provider['account_label']} has no token_expires_at — safety refresh")
+            try:
+                r = await refresh_provider_token(provider["id"])
+                refreshed.append(r)
+            except Exception as e:
+                logger.error(f"Safety refresh failed for {provider['account_label']}: {e}")
+                refreshed.append({"ok": False, "provider_id": provider["id"], "account_label": provider["account_label"], "error": str(e)})
             continue
 
         try:
@@ -302,17 +319,41 @@ async def refresh_expiring_providers() -> list[dict]:
             if seconds_until_expiry < skew_seconds:
                 logger.info(f"Provider {provider['account_label']} expires in {seconds_until_expiry:.0f}s — refreshing")
                 try:
-                    result = await refresh_provider_token(provider["id"])
-                    refreshed.append(result)
+                    r = await refresh_provider_token(provider["id"])
+                    refreshed.append(r)
                 except Exception as e:
                     logger.error(f"Failed to refresh {provider['account_label']}: {e}")
-                    refreshed.append({
-                        "ok": False,
-                        "provider_id": provider["id"],
-                        "account_label": provider["account_label"],
-                        "error": str(e),
-                    })
+                    refreshed.append({"ok": False, "provider_id": provider["id"], "account_label": provider["account_label"], "error": str(e)})
         except (ValueError, TypeError) as e:
             logger.warning(f"Invalid expires_at for {provider['account_label']}: {e}")
+
+    # Pass 3: dead providers with backoff
+    result = supabase.table("providers").select(
+        "id, account_label, health_status, last_error_at"
+    ).eq("health_status", "dead").execute()
+
+    for provider in result.data:
+        last_error_at_str = provider.get("last_error_at", "")
+        if not last_error_at_str:
+            # No error timestamp — try once
+            should_retry = True
+        else:
+            try:
+                last_error_at = datetime.fromisoformat(str(last_error_at_str).replace("Z", "+00:00"))
+                age_seconds = (now - last_error_at).total_seconds()
+                should_retry = age_seconds > dead_retry_backoff_seconds
+            except (ValueError, TypeError):
+                should_retry = True
+
+        if not should_retry:
+            continue
+
+        logger.info(f"Dead provider {provider['account_label']} — backoff retry (last_error_at={last_error_at_str})")
+        try:
+            r = await refresh_provider_token(provider["id"])
+            refreshed.append(r)
+        except Exception as e:
+            logger.error(f"Backoff retry failed for {provider['account_label']}: {e}")
+            refreshed.append({"ok": False, "provider_id": provider["id"], "account_label": provider["account_label"], "error": str(e)})
 
     return refreshed
