@@ -260,14 +260,38 @@ KNOWN_PREFIXES = (
 )
 
 
-def ensure_prefix(model: str, default_prefix: str = "openai/") -> str:
+def ensure_prefix(model: str, default_prefix: Optional[str] = None) -> str:
     """Ensure model string has a LiteLLM provider prefix.
 
-    If the model already starts with a known prefix, return as-is.
-    Otherwise prepend `default_prefix`.
+    Args:
+        model: The upstream model string from AkaRouter's DB
+                (e.g. "stepfun/step-3.7-flash", "openrouter/owl-alpha",
+                "nvidia/nemotron-3-ultra:free", or just "gpt-4o-mini").
+        default_prefix: If provided, used when model has no prefix.
+                        If None (default), use `custom/` prefix so LiteLLM
+                        treats the model as a generic OpenAI-compatible
+                        endpoint that follows OpenAI's wire format. This is
+                        the right choice when AkaRouter passes its own
+                        api_base — LiteLLM won't try to rewrite the URL.
+
+    Returns:
+        Model string with a valid LiteLLM prefix.
+
+    Note: AkaRouter's flow is DB-driven, not provider-driven. The DB holds
+    the canonical base_url + api_key per account, and AkaRouter passes them
+    through to LiteLLM via api_key + api_base. We do NOT let LiteLLM pick
+    the provider or rewrite the URL — that's the whole point of keeping
+    AkaRouter's providers table as the source of truth.
     """
     if any(model.startswith(p) for p in KNOWN_PREFIXES):
         return model
     if "/" in model:
-        return model  # custom prefix we don't track; trust the caller
-    return default_prefix + model
+        # Unknown prefix (e.g. "myproxy/foo"). Trust the caller.
+        return model
+    if default_prefix:
+        return default_prefix + model
+    # No prefix, no default — use `custom/` so LiteLLM treats this as a
+    # generic OpenAI-compatible endpoint that AkaRouter's api_base points at.
+    # This is the DB-driven path: AkaRouter resolves base_url + api_key, we
+    # just forward the request.
+    return "custom/" + model
