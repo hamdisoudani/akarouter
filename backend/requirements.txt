@@ -24,3 +24,7 @@ supabase==2.31.0
 daytona==0.183.0
 cryptography==46.0.5
 psycopg2-binary==2.9.10
+# Phase 1 spike: LiteLLM as LLM call layer. Replaces hand-rolled httpx
+# provider code in app/api/chat.py + app/core/router.py. Spike is opt-in
+# (chat.py still uses old path until explicitly migrated).
+litellm==1.90.0
