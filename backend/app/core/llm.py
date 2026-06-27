@@ -285,9 +285,20 @@ def ensure_prefix(model: str, default_prefix: Optional[str] = None) -> str:
     """
     if any(model.startswith(p) for p in KNOWN_PREFIXES):
         return model
+    # If model has a slash, the part before it might be a vendor prefix we
+    # don't know (e.g. "minimax/MiniMax-M3", "stepfun/step-3.7-flash",
+    # "meta/llama-3.1-70b-instruct"). If it's a KNOWN LiteLLM prefix, trust it;
+    # otherwise the slash is just namespace syntax (org/model on HuggingFace,
+    # vendor/model on custom endpoints), so add default_prefix.
     if "/" in model:
-        # Unknown prefix (e.g. "myproxy/foo"). Trust the caller.
-        return model
+        existing_prefix = model.split("/", 1)[0] + "/"
+        if existing_prefix in KNOWN_PREFIXES:
+            return model
+        # Unknown slash-prefix → wrap with default_prefix
+        if default_prefix:
+            return default_prefix + model
+        # No default provided → still wrap so LiteLLM gets a real provider
+        return "custom/" + model
     if default_prefix:
         return default_prefix + model
     # No prefix, no default — use `custom/` so LiteLLM treats this as a
